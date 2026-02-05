@@ -6,42 +6,42 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL('https://standardstore.vercel.app'),
   title: {
-    default: "Sarah Lawson Imports | Premium Quality, Unbeatable Prices",
-    template: "%s | Sarah Lawson Imports"
+    default: "Hy_stepper | Steps Ahead in Style",
+    template: "%s | Hy_stepper"
   },
-  description: "Your trusted source for verified quality mannequins, home essentials, electronics, and fashion. Sourced directly from China by Sarah Lawson.",
-  keywords: ["Sarah Lawson Imports", "Mannequins", "China Sourcing", "Electronics", "Home Essentials", "Premium Quality", "Wholesale"],
-  authors: [{ name: "Sarah Lawson" }],
-  creator: "Sarah Lawson",
-  publisher: "Sarah Lawson Imports",
+  description: "Premium footwear delivered to your doorstep. Online-only delivery service.",
+  keywords: ["Hy_stepper", "Footwear", "Shoes", "Heels", "Online Store", "Accra", "Delivery"],
+  authors: [{ name: "Hy_stepper Team" }],
+  creator: "Hy_stepper",
+  publisher: "Hy_stepper",
   robots: {
     index: true,
     follow: true,
   },
   icons: {
-    icon: '/sarahlawson.png',
+    icon: '/sarahlawson.png', // Keeping the logo file for now if not provided new one, or should I leave it? User said "Change All Sarah Lawson Imports". I'll keep the filename if I don't have a new one but change the alt/branding text.
     apple: '/sarahlawson.png',
   },
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "https://standardstore.vercel.app",
-    title: "Sarah Lawson Imports | Premium Quality, Unbeatable Prices",
-    description: "Shop verified quality mannequins, home essentials, electronics, and fashion. Direct from source.",
-    siteName: "Sarah Lawson Imports",
+    title: "Hy_stepper | Steps Ahead in Style",
+    description: "Premium footwear delivered to your doorstep. Online-only delivery service.",
+    siteName: "Hy_stepper",
     images: [
       {
         url: "/sarah-lawson.jpeg",
         width: 1200,
         height: 630,
-        alt: "Sarah Lawson Imports",
+        alt: "Hy_stepper",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Sarah Lawson Imports",
-    description: "Premium quality products, sourced with care.",
+    title: "Hy_stepper",
+    description: "Premium footwear delivered to your doorstep.",
     images: ["/sarah-lawson.jpeg"],
   },
 };

@@ -34,7 +34,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             *,
             categories(name),
             product_variants(*),
-            product_images(url, position, alt_text)
+            product_images(url, position, alt_text),
+            material,
+            heel_height,
+            style_name,
+            sizing_notes
           `);
 
         // Check if slug looks like a UUID
@@ -54,6 +58,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           return;
         }
 
+        const features = [];
+        if (productData.style_name) features.push(`Style: ${productData.style_name}`);
+        if (productData.material) features.push(`Material: ${productData.material}`);
+        if (productData.heel_height) features.push(`Heel Height: ${productData.heel_height}`);
+        if (productData.sizing_notes) features.push(`Sizing: ${productData.sizing_notes}`);
+        if (features.length === 0) features.push('Premium Quality', 'Authentic Design');
+
         // Transform product data
         const transformedProduct = {
           ...productData,
@@ -64,9 +75,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           stockCount: productData.quantity,
           colors: [], // Placeholder until specific attributes implementation
           sizes: productData.product_variants?.map((v: any) => v.name) || [],
-          features: ['Premium Quality', 'Authentic Design'], // Placeholder or extract from description/metadata
-          featured: ['Premium Quality', 'Authentic Design'], // Placeholder or extract from description/metadata
-          care: 'Handle with care.',
+          features: features,
+          care: 'Handle with care. Keep in dry place.',
           isPreorder: productData.metadata?.is_preorder || false
         };
 

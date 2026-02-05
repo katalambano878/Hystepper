@@ -89,7 +89,7 @@ const CMSContext = createContext<CMSContextType>({
 
 export function CMSProvider({ children }: { children: ReactNode }) {
     const [settings, setSettings] = useState<SiteSettings>({
-        site_name: 'Sarah Lawson Imports',
+        site_name: 'Hy_stepper',
         site_tagline: 'Premium Quality Products For Less.',
         site_logo: '/logo.png',
         contact_email: 'info@sarahlawsonimports.com',

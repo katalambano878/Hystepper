@@ -46,10 +46,10 @@ export default function Footer() {
     }
   };
 
-  const siteName = getSetting('site_name') || 'Sarah Lawson Imports';
-  const siteTagline = getSetting('site_tagline') || 'Premium Quality Products For Less.';
+  const siteName = getSetting('site_name') || 'Hy_stepper';
+  const siteTagline = getSetting('site_tagline') || 'Steps Ahead in Style.';
   const contactEmail = getSetting('contact_email') || '';
-  const contactPhone = getSetting('contact_phone') || '';
+  const contactPhone = getSetting('contact_phone') || '0276558163';
   const socialFacebook = getSetting('social_facebook') || '';
   const socialInstagram = getSetting('social_instagram') || '';
   const socialTwitter = getSetting('social_twitter') || '';
@@ -65,7 +65,7 @@ export default function Footer() {
           </div>
           <h3 className="text-2xl md:text-3xl font-bold mb-3 font-serif">Join Our Community</h3>
           <p className="text-emerald-200 mb-8 max-w-md mx-auto leading-relaxed">
-            Get exclusive access to new arrivals, secret sales, and sourcing stories from Sarah.
+            Get exclusive access to new arrivals, secret sales, and sourcing stories from Hy_stepper.
           </p>
 
           <form onSubmit={handleSubmit} className="max-w-md mx-auto relative">
@@ -131,7 +131,7 @@ export default function Footer() {
                   <a href={`tel:${contactPhone}`} className="flex items-center gap-3 text-emerald-200 hover:text-white transition-colors text-sm">
                     <i className="ri-phone-line"></i> {contactPhone}
                   </a>
-                  <a href="https://www.sarahlawsonimports.com/admin" className="flex items-center gap-3 text-emerald-400/80 hover:text-emerald-300 transition-colors text-xs font-medium ml-7">
+                  <a href="/admin" className="flex items-center gap-3 text-emerald-400/80 hover:text-emerald-300 transition-colors text-xs font-medium ml-7">
                     Admin Panel
                   </a>
                 </div>

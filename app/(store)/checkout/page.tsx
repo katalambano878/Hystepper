@@ -5,9 +5,27 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CheckoutSteps from '@/components/CheckoutSteps';
 import OrderSummary from '@/components/OrderSummary';
-// import OrderBumpUpsell from '@/components/OrderBumpUpsell';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
+
+const GHANA_REGIONS = [
+  "Greater Accra",
+  "Ashanti",
+  "Central",
+  "Western",
+  "Eastern",
+  "Volta",
+  "Northern",
+  "Upper East",
+  "Upper West",
+  "Bono",
+  "Bono East",
+  "Ahafo",
+  "Oti",
+  "Savannah",
+  "North East",
+  "Western North"
+];
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -17,7 +35,6 @@ export default function CheckoutPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [checkoutType, setCheckoutType] = useState<'guest' | 'account'>('guest');
   const [saveAddress, setSaveAddress] = useState(false);
-  const [savePayment, setSavePayment] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   const [shippingData, setShippingData] = useState({
@@ -27,43 +44,85 @@ export default function CheckoutPage() {
     phone: '',
     address: '',
     city: '',
-    region: '',
+    region: 'Greater Accra',
     postalCode: ''
   });
 
   const [deliveryMethod, setDeliveryMethod] = useState('standard');
-  const [paymentMethod, setPaymentMethod] = useState('moolre');
+  const [paymentMethod, setPaymentMethod] = useState('moolre'); // Gateway: moolre | paystack
+  const [paymentOption, setPaymentOption] = useState<'full_payment' | 'item_only'>('full_payment');
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [acceptedPolicy, setAcceptedPolicy] = useState(false);
   const [errors, setErrors] = useState<any>({});
 
+  // Loyalty
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [redeemPoints, setRedeemPoints] = useState(false);
 
+  // Settings
+  const [settings, setSettings] = useState({
+    nextDayDelivery: false
+  });
 
-  // Check auth and cart
+  const isAccra = shippingData.region === 'Greater Accra';
+
+  // Check auth and cart and settings
   useEffect(() => {
-    async function checkUser() {
+    async function init() {
+      // 1. Auth
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
-        setCheckoutType('account'); // Auto-select account checkout if logged in
-        // Pre-fill email if available
+        setCheckoutType('account');
         setShippingData(prev => ({ ...prev, email: session.user.email || '' }));
+
+        // Fetch Points
+        const { data: pointsData } = await supabase
+          .from('loyalty_points')
+          .select('points')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (pointsData) {
+          setLoyaltyPoints(pointsData.points || 0);
+        }
+      }
+
+      // 2. Settings
+      const { data: settingsData } = await supabase
+        .from('store_settings')
+        .select('key, value')
+        .in('key', ['next_day_delivery_enabled']);
+
+      if (settingsData) {
+        const nextDay = settingsData.find(s => s.key === 'next_day_delivery_enabled')?.value === true;
+        setSettings({ nextDayDelivery: nextDay });
       }
     }
-    checkUser();
+    init();
+  }, []);
 
-    // Small delay to ensure cart load
-    const timer = setTimeout(() => {
-      if (cart.length === 0 && !isLoading) {
-        // router.push('/cart'); // Optional: redirect if empty
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [cart, router, isLoading]);
+  // Effect to reset payment option if region changes
+  useEffect(() => {
+    if (!isAccra && paymentOption === 'item_only') {
+      setPaymentOption('full_payment');
+    }
+  }, [isAccra, paymentOption]);
 
   // Calculate Totals
   const subtotal = cartSubtotal;
   const shippingCost = deliveryMethod === 'express' ? 25 : deliveryMethod === 'standard' ? 15 : 0;
-  const tax = 0; // No Tax
-  const total = subtotal + shippingCost + tax;
+
+  // Loyalty Discount Logic: 15 points = 15 GHS
+  const pointsDiscount = (redeemPoints && loyaltyPoints >= 15) ? 15 : 0;
+
+  const tax = 0;
+  const totalBeforeSplit = subtotal + shippingCost + tax - pointsDiscount;
+
+  const deliveryFeeToPayLater = paymentOption === 'item_only' ? shippingCost : 0;
+  const payableNow = totalBeforeSplit - deliveryFeeToPayLater;
+
+  const total = totalBeforeSplit; // Display total is final amount user owes (conceptually)
 
   const validateShipping = () => {
     const newErrors: any = {};
@@ -90,11 +149,13 @@ export default function CheckoutPage() {
     setCurrentStep(3);
   };
 
-
-
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty');
+      return;
+    }
+    if (!acceptedPolicy) {
+      alert('Please accept the Exchange & Refund Policy to proceed.');
       return;
     }
 
@@ -108,7 +169,7 @@ export default function CheckoutPage() {
         .from('orders')
         .insert([{
           order_number: orderNumber,
-          user_id: user?.id || null, // Capture user_id if logged in
+          user_id: user?.id || null,
           email: shippingData.email,
           phone: shippingData.phone,
           status: 'pending',
@@ -117,16 +178,23 @@ export default function CheckoutPage() {
           subtotal: subtotal,
           tax_total: tax,
           shipping_total: shippingCost,
-          discount_total: 0,
+          discount_total: pointsDiscount,
           total: total,
           shipping_method: deliveryMethod,
           payment_method: paymentMethod,
+          payment_option: paymentOption,
+          delivery_notes: deliveryNotes,
+          points_redeemed: pointsDiscount > 0 ? 15 : 0,
+          points_discount: pointsDiscount,
           shipping_address: shippingData,
-          billing_address: shippingData, // Using same for now
+          billing_address: shippingData,
           metadata: {
             guest_checkout: !user,
             first_name: shippingData.firstName,
-            last_name: shippingData.lastName
+            last_name: shippingData.lastName,
+            region: shippingData.region,
+            payable_now: payableNow,
+            delivery_fee_due: deliveryFeeToPayLater
           }
         }])
         .select()
@@ -138,7 +206,7 @@ export default function CheckoutPage() {
       const orderItems = [
         ...cart.map(item => ({
           order_id: order.id,
-          product_id: item.id, // Assuming cart item id is product id
+          product_id: item.id,
           product_name: item.name,
           variant_name: item.variant,
           quantity: item.quantity,
@@ -157,15 +225,38 @@ export default function CheckoutPage() {
 
       if (itemsError) throw itemsError;
 
-      // 4. Handle Payment Redirects or Completion
+      // Deduct Points if used
+      if (pointsDiscount > 0 && user) {
+        await supabase
+          .from('loyalty_points')
+          .update({ points: loyaltyPoints - 15 })
+          .eq('user_id', user.id);
+
+        await supabase.from('loyalty_transactions').insert({
+          user_id: user.id,
+          order_id: order.id,
+          amount: -15,
+          type: 'redemption',
+          description: `Redeemed on order ${orderNumber}`
+        });
+      }
+
+      // 3. Handle Payment Redirects
       if (paymentMethod === 'moolre') {
         try {
+          // Logic for 0 payable flow (e.g. fully covered by discount, unlikely but possible)
+          if (payableNow <= 0) {
+            clearCart();
+            router.push(`/order-success?order=${orderNumber}`);
+            return;
+          }
+
           const paymentRes = await fetch('/api/payment/moolre', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               orderId: orderNumber,
-              amount: total,
+              amount: payableNow, // Pay only what is due now
               customerEmail: shippingData.email
             })
           });
@@ -176,10 +267,7 @@ export default function CheckoutPage() {
             throw new Error(paymentResult.message || 'Payment initialization failed');
           }
 
-          // Clear cart before redirecting
           clearCart();
-
-          // Redirect to Moolre
           window.location.href = paymentResult.url;
           return;
 
@@ -187,21 +275,10 @@ export default function CheckoutPage() {
           console.error('Payment Error:', paymentErr);
           alert('Failed to initialize payment: ' + paymentErr.message);
           setIsLoading(false);
-          return; // Stop execution
+          return;
         }
       }
 
-      // 5. Send Notifications (For COD or others)
-      fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'order_created',
-          payload: order
-        })
-      }).catch(err => console.error('Notification trigger error:', err));
-
-      // 6. Clear Cart & Redirect (For COD)
       clearCart();
       router.push(`/order-success?order=${orderNumber}`);
 
@@ -212,6 +289,7 @@ export default function CheckoutPage() {
       setIsLoading(false);
     }
   };
+
 
   if (cart.length === 0 && !isLoading) {
     return (
@@ -301,29 +379,23 @@ export default function CheckoutPage() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          First Name *
-                        </label>
+                        <label className="block text-sm font-semibold text-gray-900 mb-2">First Name *</label>
                         <input
                           type="text"
                           value={shippingData.firstName}
                           onChange={(e) => setShippingData({ ...shippingData, firstName: e.target.value })}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.firstName ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.firstName ? 'border-red-500' : 'border-gray-300'}`}
                           placeholder="John"
                         />
                         {errors.firstName && <p className="text-sm text-red-600 mt-1">{errors.firstName}</p>}
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          Last Name *
-                        </label>
+                        <label className="block text-sm font-semibold text-gray-900 mb-2">Last Name *</label>
                         <input
                           type="text"
                           value={shippingData.lastName}
                           onChange={(e) => setShippingData({ ...shippingData, lastName: e.target.value })}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.lastName ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.lastName ? 'border-red-500' : 'border-gray-300'}`}
                           placeholder="Doe"
                         />
                         {errors.lastName && <p className="text-sm text-red-600 mt-1">{errors.lastName}</p>}
@@ -331,46 +403,37 @@ export default function CheckoutPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        Email Address *
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">Email Address *</label>
                       <input
                         type="email"
                         value={shippingData.email}
-                        readOnly={!!user} // Make read-only if logged in (optional, but safer)
+                        readOnly={!!user}
                         onChange={(e) => setShippingData({ ...shippingData, email: e.target.value })}
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
-                          } ${user ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.email ? 'border-red-500' : 'border-gray-300'} ${user ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                         placeholder="you@example.com"
                       />
                       {errors.email && <p className="text-sm text-red-600 mt-1">{errors.email}</p>}
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        Phone Number *
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">Phone Number *</label>
                       <input
                         type="tel"
                         value={shippingData.phone}
                         onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value })}
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'
-                          }`}
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
                         placeholder="+233 XX XXX XXXX"
                       />
                       {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone}</p>}
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        Street Address *
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">Street Address *</label>
                       <input
                         type="text"
                         value={shippingData.address}
                         onChange={(e) => setShippingData({ ...shippingData, address: e.target.value })}
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.address ? 'border-red-500' : 'border-gray-300'
-                          }`}
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.address ? 'border-red-500' : 'border-gray-300'}`}
                         placeholder="House number and street name"
                       />
                       {errors.address && <p className="text-sm text-red-600 mt-1">{errors.address}</p>}
@@ -378,39 +441,34 @@ export default function CheckoutPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          City *
-                        </label>
+                        <label className="block text-sm font-semibold text-gray-900 mb-2">City *</label>
                         <input
                           type="text"
                           value={shippingData.city}
                           onChange={(e) => setShippingData({ ...shippingData, city: e.target.value })}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.city ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.city ? 'border-red-500' : 'border-gray-300'}`}
                           placeholder="Accra"
                         />
                         {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          Region *
-                        </label>
-                        <input
-                          type="text"
+                        <label className="block text-sm font-semibold text-gray-900 mb-2">Region *</label>
+                        <select
                           value={shippingData.region}
                           onChange={(e) => setShippingData({ ...shippingData, region: e.target.value })}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.region ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          placeholder="Greater Accra"
-                        />
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.region ? 'border-red-500' : 'border-gray-300'} bg-white`}
+                        >
+                          <option value="">Select Region</option>
+                          {GHANA_REGIONS.map(r => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
                         {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        Postal Code
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">Postal Code</label>
                       <input
                         type="text"
                         value={shippingData.postalCode}
@@ -440,8 +498,6 @@ export default function CheckoutPage() {
                     Continue to Delivery
                   </button>
                 </div>
-
-
               </>
             )}
 
@@ -450,8 +506,7 @@ export default function CheckoutPage() {
                 <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-6">Delivery Method</h2>
                   <div className="space-y-4">
-                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'standard' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
-                      }`}>
+                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'standard' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'}`}>
                       <div className="flex items-center space-x-4">
                         <input
                           type="radio"
@@ -463,49 +518,31 @@ export default function CheckoutPage() {
                         />
                         <div>
                           <p className="font-semibold text-gray-900">Standard Delivery</p>
-                          <p className="text-sm text-gray-600">5-7 business days</p>
+                          <p className="text-sm text-gray-600">Within {isAccra ? '1-2' : '3-5'} business days</p>
                         </div>
                       </div>
-                      <p className="font-bold text-gray-900">GH₵ 15.00</p>
+                      <p className="font-bold text-gray-900">GH₵ {isAccra ? '15.00' : '25.00'}</p>
                     </label>
 
-                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'express' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
-                      }`}>
-                      <div className="flex items-center space-x-4">
-                        <input
-                          type="radio"
-                          name="delivery"
-                          value="express"
-                          checked={deliveryMethod === 'express'}
-                          onChange={(e) => setDeliveryMethod(e.target.value)}
-                          className="w-5 h-5 text-emerald-700"
-                        />
-                        <div>
-                          <p className="font-semibold text-gray-900">Express Delivery</p>
-                          <p className="text-sm text-gray-600">2-3 business days</p>
+                    {settings.nextDayDelivery && (
+                      <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'express' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'}`}>
+                        <div className="flex items-center space-x-4">
+                          <input
+                            type="radio"
+                            name="delivery"
+                            value="express"
+                            checked={deliveryMethod === 'express'}
+                            onChange={(e) => setDeliveryMethod(e.target.value)}
+                            className="w-5 h-5 text-emerald-700"
+                          />
+                          <div>
+                            <p className="font-semibold text-gray-900">Express Delivery</p>
+                            <p className="text-sm text-gray-600">Get it sooner</p>
+                          </div>
                         </div>
-                      </div>
-                      <p className="font-bold text-gray-900">GH₵ 25.00</p>
-                    </label>
-
-                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'pickup' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
-                      }`}>
-                      <div className="flex items-center space-x-4">
-                        <input
-                          type="radio"
-                          name="delivery"
-                          value="pickup"
-                          checked={deliveryMethod === 'pickup'}
-                          onChange={(e) => setDeliveryMethod(e.target.value)}
-                          className="w-5 h-5 text-emerald-700"
-                        />
-                        <div>
-                          <p className="font-semibold text-gray-900">Store Pickup</p>
-                          <p className="text-sm text-gray-600">Ready in 24 hours</p>
-                        </div>
-                      </div>
-                      <p className="font-bold text-emerald-700">FREE</p>
-                    </label>
+                        <p className="font-bold text-gray-900">GH₵ 35.00</p>
+                      </label>
+                    )}
                   </div>
 
                   <div className="flex flex-col-reverse md:flex-row gap-4 mt-6">
@@ -523,17 +560,90 @@ export default function CheckoutPage() {
                     </button>
                   </div>
                 </div>
-
-
               </>
             )}
 
             {currentStep === 3 && (
               <div className="bg-white rounded-xl shadow-sm p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Payment Method</h2>
-                <div className="space-y-4">
-                  <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${paymentMethod === 'moolre' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
-                    }`}>
+                <h2 className="text-xl font-bold text-gray-900 mb-6">Payment Options</h2>
+
+                {/* 1. Payment Breakdown / Option Select */}
+                <div className="mb-8 space-y-4">
+                  <h3 className="font-semibold text-gray-900">How would you like to pay?</h3>
+
+                  {isAccra ? (
+                    <>
+                      <label className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-colors ${paymentOption === 'full_payment' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-200'}`}>
+                        <input
+                          type="radio"
+                          name="payment_option"
+                          value="full_payment"
+                          checked={paymentOption === 'full_payment'}
+                          onChange={() => setPaymentOption('full_payment')}
+                          className="w-5 h-5 text-emerald-700 mt-0.5 mr-3"
+                        />
+                        <div>
+                          <p className="font-semibold text-gray-900">Pay Full Amount Now</p>
+                          <p className="text-sm text-gray-600">Item cost + Delivery Fee</p>
+                        </div>
+                      </label>
+                      <label className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-colors ${paymentOption === 'item_only' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-200'}`}>
+                        <input
+                          type="radio"
+                          name="payment_option"
+                          value="item_only"
+                          checked={paymentOption === 'item_only'}
+                          onChange={() => setPaymentOption('item_only')}
+                          className="w-5 h-5 text-emerald-700 mt-0.5 mr-3"
+                        />
+                        <div>
+                          <p className="font-semibold text-gray-900">Pay Item Cost Only</p>
+                          <p className="text-sm text-gray-600">Pay delivery fee upon delivery</p>
+                        </div>
+                      </label>
+                    </>
+                  ) : (
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-sm text-gray-600">
+                        <span className="font-semibold block mb-1">Note for deliveries outside Accra:</span>
+                        Full payment (Item + Delivery) is required before shipping.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Loyalty Points Section */}
+                {user && loyaltyPoints >= 15 && (
+                  <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <div className="flex items-start">
+                      <div className="flex-1">
+                        <h3 className="font-bold text-emerald-900 flex items-center gap-2">
+                          <i className="ri-award-line"></i> Loyalty Reward Available
+                        </h3>
+                        <p className="text-sm text-emerald-700 mt-1">
+                          You have <b>{loyaltyPoints} points</b>. Use 15 points to get <b>GH₵ 15.00 off</b> your order?
+                        </p>
+                      </div>
+                      <label className="flex items-center space-x-2 cursor-pointer mt-1">
+                        <div className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out ${redeemPoints ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                          <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ease-in-out ${redeemPoints ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={redeemPoints}
+                          onChange={(e) => setRedeemPoints(e.target.checked)}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                <div className="border-t border-gray-100 my-6 pt-4"></div>
+
+                <h2 className="text-xl font-bold text-gray-900 mb-6">Select Payment Gateway</h2>
+                <div className="space-y-4 mb-8">
+                  <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${paymentMethod === 'moolre' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'}`}>
                     <div className="flex items-center space-x-4">
                       <input
                         type="radio"
@@ -550,39 +660,36 @@ export default function CheckoutPage() {
                     </div>
                     <i className="ri-smartphone-line text-2xl text-emerald-700"></i>
                   </label>
-
-                  <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${paymentMethod === 'paystack' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
-                    }`}>
-                    <div className="flex items-center space-x-4">
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="paystack"
-                        checked={paymentMethod === 'paystack'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-5 h-5 text-emerald-700"
-                      />
-                      <div>
-                        <p className="font-semibold text-gray-900">Paystack</p>
-                        <p className="text-sm text-gray-600">Secure card payment</p>
-                      </div>
-                    </div>
-                    <i className="ri-bank-card-line text-2xl text-emerald-700"></i>
-                  </label>
-
-
                 </div>
 
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start space-x-3">
-                    <i className="ri-information-line text-xl text-blue-700 mt-0.5"></i>
-                    <div>
-                      <p className="text-sm font-semibold text-blue-900">Secure Payment</p>
-                      <p className="text-sm text-blue-700 mt-1">
-                        Your payment information is encrypted and secure. We never store your card details.
-                      </p>
+                {/* Delivery Notes */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">Delivery Notes (Optional)</label>
+                  <textarea
+                    value={deliveryNotes}
+                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    placeholder="Any special instructions for delivery..."
+                    rows={3}
+                  ></textarea>
+                  <p className="text-xs text-gray-500 mt-1">Note: We cannot guarantee specific time slots, but will do our best to accommodate.</p>
+                </div>
+
+                {/* Policy Acceptance */}
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <label className="flex items-start space-x-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acceptedPolicy}
+                      onChange={(e) => setAcceptedPolicy(e.target.checked)}
+                      className="w-5 h-5 text-emerald-700 rounded border-gray-300 focus:ring-emerald-500 mt-0.5"
+                    />
+                    <div className="text-sm text-gray-700">
+                      I accept the <Link href="/policy" className="text-emerald-700 underline hover:text-emerald-800">Exchange & Refund Policy</Link>.
+                      <br />
+                      <span className="text-xs text-gray-500">I understand that returns are only accepted within 7 days for exchange only.</span>
                     </div>
-                  </div>
+                  </label>
                 </div>
 
                 <div className="flex flex-col-reverse md:flex-row gap-4 mt-6">
@@ -594,7 +701,7 @@ export default function CheckoutPage() {
                   </button>
                   <button
                     onClick={handlePlaceOrder}
-                    disabled={isLoading}
+                    disabled={isLoading || !acceptedPolicy}
                     className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer flex items-center justify-center"
                   >
                     {isLoading ? (
@@ -602,7 +709,9 @@ export default function CheckoutPage() {
                         <i className="ri-loader-4-line animate-spin mr-2"></i>
                         Processing...
                       </>
-                    ) : 'Place Order'}
+                    ) : (
+                      'Place Order'
+                    )}
                   </button>
                 </div>
               </div>
@@ -615,7 +724,10 @@ export default function CheckoutPage() {
               subtotal={subtotal}
               shipping={shippingCost}
               tax={tax}
+              discount={pointsDiscount}
               total={total}
+              payableNow={payableNow}
+              payLater={deliveryFeeToPayLater}
             />
           </div>
         </div>

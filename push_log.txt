@@ -1,0 +1,19 @@
+﻿branch 'main' set up to track 'origin/main'.
+git : To https://github.com/
+Drrbarns/Hystepper.git
+At line:1 char:1
++ git push -u origin main 
+*>&1 | Out-File -Encoding 
+utf8 push_log.txt
++ 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (To ht  
+  tps://gith...s/Hysteppe   
+ r.git:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+ * [new branch]      main 
+-> main

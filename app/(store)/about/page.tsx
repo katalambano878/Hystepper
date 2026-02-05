@@ -9,13 +9,13 @@ export default function AboutPage() {
   const { getSetting } = useCMS();
   const [activeTab, setActiveTab] = useState('story');
 
-  const siteName = getSetting('site_name') || 'Sarah Lawson Imports';
+  const siteName = getSetting('site_name') || 'Hy_stepper';
 
   const values = [
     {
       icon: 'ri-verified-badge-line',
       title: 'Authenticity',
-      description: 'Handpicked by Sarah herself. We document the sourcing journey so you know exactly what you are buying.'
+      description: 'Handpicked by our team. We document the sourcing journey so you know exactly what you are buying.'
     },
     {
       icon: 'ri-money-dollar-circle-line',
@@ -25,7 +25,7 @@ export default function AboutPage() {
     {
       icon: 'ri-star-smile-line',
       title: 'Quality Assured',
-      description: 'Sarah inspects products personally. If it doesn’t meet her standards, it doesn’t make it to the store.'
+      description: 'We inspect products personally. If it doesn’t meet our standards, it doesn’t make it to the store.'
     },
     {
       icon: 'ri-group-line',
@@ -37,8 +37,8 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white">
       <PageHero
-        title="More Than Just An Influencer"
-        subtitle="Welcome to Sarah Lawson Imports. Where social media meets smart business, and premium quality meets unbeatable prices."
+        title="More Than Just A Store"
+        subtitle="Welcome to Hy_stepper. Where social media meets smart business, and premium quality meets unbeatable prices."
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
@@ -50,7 +50,7 @@ export default function AboutPage() {
               : 'text-gray-500 hover:text-gray-700'
               }`}
           >
-            Sarah's Story
+            Our Story
           </button>
           <button
             onClick={() => setActiveTab('mission')}
@@ -66,16 +66,16 @@ export default function AboutPage() {
         {activeTab === 'story' && (
           <div className="grid md:grid-cols-2 gap-16 items-center animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">From TikTok to Global Trade</h2>
+              <h2 className="text-4xl font-bold text-gray-900 mb-6">From Humble Beginnings to Global Trade</h2>
               <div className="space-y-6 text-lg text-gray-600 leading-relaxed">
                 <p>
-                  You might know <strong>Sarah Lawson</strong> as one of the biggest personalities on Snapchat and TikTok, lighting up your feed with energy and style. But behind the camera, she is a sharp, driven businesswoman with a vision.
+                  You might know <strong>Hy_stepper</strong> as one of the biggest emerging brands, lighting up your feed with energy and style. But behind the brand is a sharp, driven team with a vision.
                 </p>
                 <p>
-                  Sarah realized that her followers wanted access to the same high-quality products she used, but often couldn't find them at affordable prices. Frustrated by overpriced local options, she decided to take matters into her own hands.
+                  We realized that our followers wanted access to high-quality products, but often couldn't find them at affordable prices. Frustrated by overpriced local options, we decided to take matters into our own hands.
                 </p>
                 <p>
-                  <strong>Sarah Lawson Imports</strong> was born from this commitment. Sarah travels directly to China, navigating factories and markets to hand-select products. By managing the supply chain herself, she ensures that every item is not only stylish and durable but also available at a price point that makes sense for everyone.
+                  <strong>Hy_stepper</strong> was born from this commitment. We travel directly to factories and markets to hand-select products. By managing the supply chain ourselves, we ensure that every item is not only stylish and durable but also available at a price point that makes sense for everyone.
                 </p>
               </div>
             </div>
@@ -110,7 +110,7 @@ export default function AboutPage() {
               </div>
               <h3 className="text-3xl font-bold text-gray-900 mb-4">Direct Sourcing</h3>
               <p className="text-gray-600 text-lg leading-relaxed">
-                We believe in going to the source. By visiting China personally, Sarah eliminates the middlemen who inflate prices. This hands-on approach guarantees that you aren't paying for invisible markups—just great products.
+                We believe in going to the source. By visiting partners personally, we eliminate the middlemen who inflate prices. This hands-on approach guarantees that you aren't paying for invisible markups—just great products.
               </p>
             </div>
             <div className="bg-amber-50 p-10 rounded-3xl border border-amber-100">
@@ -130,7 +130,7 @@ export default function AboutPage() {
       <div className="bg-gray-50 py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Why Shop With Sarah?</h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Why Shop With Hy_stepper?</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">It's not just a store; it's a personal guarantee of quality and value.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -152,7 +152,7 @@ export default function AboutPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
           <h2 className="text-4xl md:text-5xl font-bold mb-8">Ready to experience the difference?</h2>
           <p className="text-xl text-emerald-100 mb-10 leading-relaxed max-w-2xl mx-auto">
-            Join thousands of happy customers who trust Sarah Lawson Imports for their lifestyle needs.
+            Join thousands of happy customers who trust Hy_stepper for their lifestyle needs.
           </p>
           <Link
             href="/shop"

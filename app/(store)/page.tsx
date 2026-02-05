@@ -16,7 +16,7 @@ export default function HomePage() {
   const config = {
     hero: {
       headline: 'Mannequins, Kitchen Essentials, Electronics & Dresses — All In One Store',
-      subheadline: 'Sarah Lawson Imports brings you China-sourced products with verified quality and unbeatable pricing perfect for homes, small businesses, and resellers.',
+      subheadline: 'Hy_stepper brings you sourced products with verified quality and unbeatable pricing perfect for homes, small businesses, and resellers.',
       primaryButtonText: 'Shop Collections',
       primaryButtonLink: '/shop',
       secondaryButtonText: 'Our Story',

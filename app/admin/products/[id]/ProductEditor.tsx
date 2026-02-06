@@ -127,16 +127,19 @@ export default function ProductEditor({ productId }: { productId: string }) {
       // Validation
       if (!productName.trim()) {
         toast.error('Product Name is required');
+        setActiveTab('general');
         setSaving(false);
         return;
       }
       if (!category) {
         toast.error('Category is required');
+        setActiveTab('general');
         setSaving(false);
         return;
       }
       if (!price || parseFloat(price) <= 0) {
         toast.error('Valid Price is required');
+        setActiveTab('pricing');
         setSaving(false);
         return;
       }

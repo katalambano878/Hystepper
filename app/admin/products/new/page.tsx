@@ -1,7 +1,7 @@
 'use client';
 
-import ProductForm from '@/components/admin/ProductForm';
+import ProductEditor from '../[id]/ProductEditor';
 
 export default function NewProductPage() {
-    return <ProductForm />;
+    return <ProductEditor productId="new" />;
 }

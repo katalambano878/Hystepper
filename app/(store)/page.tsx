@@ -21,7 +21,7 @@ export default function HomePage() {
       primaryButtonLink: '/shop',
       secondaryButtonText: 'New Arrivals',
       secondaryButtonLink: '/shop?sort=new',
-      backgroundImage: '/hero-footwear.png'
+      backgroundImage: '/hero-new.jpeg'
     },
     sections: {
       newArrivals: {

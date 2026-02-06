@@ -76,7 +76,7 @@ export default function Header() {
                   className="flex items-center"
                   aria-label="Go to homepage"
                 >
-                  <img src="/sarahlogo.png" alt={siteName} className="h-8 md:h-10 w-auto object-contain" />
+                  <img src="/logo-new.png" alt={siteName} className="h-8 md:h-10 w-auto object-contain" />
                 </Link>
               </div>
 
@@ -238,7 +238,7 @@ export default function Header() {
           <div className="absolute top-0 left-0 bottom-0 w-4/5 max-w-xs bg-white shadow-xl flex flex-col animate-in slide-in-from-left duration-300">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <Link href="/" onClick={() => setIsMobileMenuOpen(false)}>
-                <img src="/sarahlogo.png" alt={siteName} className="h-8 w-auto object-contain" />
+                <img src="/logo-new.png" alt={siteName} className="h-8 w-auto object-contain" />
               </Link>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}

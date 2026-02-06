@@ -101,7 +101,7 @@ export default function Footer() {
           <div className="lg:col-span-1 space-y-6">
             <Link href="/" className="inline-block">
               {/* Using the logo directly can be nice, or text if needed. Assuming white version exists or adjusting brightness. */}
-              <img src="/sarahlawson.png" alt={siteName} className="h-14 w-auto object-contain brightness-0 invert opacity-90" />
+              <img src="/logo-new.png" alt={siteName} className="h-14 w-auto object-contain brightness-0 invert opacity-90" />
             </Link>
             <p className="text-emerald-200/80 leading-relaxed text-sm">
               {siteTagline}

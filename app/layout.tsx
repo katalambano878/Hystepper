@@ -19,8 +19,8 @@ export const metadata: Metadata = {
     follow: true,
   },
   icons: {
-    icon: '/hystepper-logo.png',
-    apple: '/hystepper-logo.png',
+    icon: '/logo-new.png',
+    apple: '/logo-new.png',
   },
   openGraph: {
     type: "website",

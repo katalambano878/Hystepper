@@ -164,13 +164,15 @@ export default function ProductEditor({ productId }: { productId: string }) {
         updated_at: new Date().toISOString()
       };
 
+      let targetId = productId;
       let error;
+
       if (productId === 'new') {
         const { data, error: insertError } = await supabase.from('products').insert(productData).select().single();
         error = insertError;
         if (data) {
+          targetId = data.id;
           toast.success('Product created!');
-          router.replace(`/admin/products/${data.id}`);
         }
       } else {
         const { error: updateError } = await supabase.from('products').update(productData).eq('id', productId);
@@ -179,6 +181,65 @@ export default function ProductEditor({ productId }: { productId: string }) {
       }
 
       if (error) throw error;
+
+      // --- SAVE VARIANTS ---
+      if (targetId) {
+        // 1. Prepare data (remove temp IDs)
+        const variantsToUpsert = variants.map(v => {
+          const payload: any = {
+            product_id: targetId,
+            name: v.name,
+            price: v.price || 0,
+            quantity: parseInt(v.quantity?.toString() || '0') || 0
+          };
+          // Keep existing UUIDs, drop temp IDs
+          if (v.id && !v.id.toString().startsWith('temp-')) {
+            payload.id = v.id;
+          }
+          return payload;
+        });
+
+        // 2. Delete variants that were removed from UI
+        // (Only if not a new product, or if we want to be safe)
+        if (productId !== 'new') {
+          const keptIds = variantsToUpsert
+            .filter(v => v.id) // Only those with real IDs
+            .map(v => v.id);
+
+          if (keptIds.length > 0) {
+            await supabase
+              .from('product_variants')
+              .delete()
+              .eq('product_id', targetId)
+              .not('id', 'in', keptIds);
+          } else {
+            // Check if we should delete all (i.e., user deleted all variants)
+            // But verify we actually have variants in the UI before deciding to delete all??
+            // If variants.length === 0, then we delete all.
+            if (variants.length === 0) {
+              await supabase.from('product_variants').delete().eq('product_id', targetId);
+            } else {
+              // If variants exist but all are new (temp IDs), we basically just insert them later.
+              // But we still need to delete old ones from DB? Yes.
+              // So if keptIds is empty, we delete all previously existing variants.
+              await supabase.from('product_variants').delete().eq('product_id', targetId);
+            }
+          }
+        }
+
+        // 3. Upsert (Insert new + Update existing)
+        if (variantsToUpsert.length > 0) {
+          const { error: variantError } = await supabase.from('product_variants').upsert(variantsToUpsert);
+          if (variantError) {
+            console.error('Variant save error:', variantError);
+            toast.error('Product saved, but variants failed to update');
+          }
+        }
+      }
+
+      if (productId === 'new' && targetId) {
+        router.replace(`/admin/products/${targetId}`);
+      }
 
     } catch (err: any) {
       console.error('Error saving product:', err);
@@ -503,24 +564,89 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Product Variants</h3>
+                  <p className="text-gray-600 mt-1">Manage sizes, colors, or other versions</p>
+                </div>
+                <button
+                  onClick={() => setVariants([...variants, { id: `temp-${Date.now()}`, name: '', price: price, quantity: 0 }])}
+                  className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 font-semibold transition-colors flex items-center"
+                >
+                  <i className="ri-add-line mr-2"></i>
+                  Add Variant
+                </button>
+              </div>
+
+              <div className="overflow-x-auto border border-gray-200 rounded-xl">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Variant Name</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Price</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Variant Name (e.g. Size 42)</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Price Override</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Stock</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-gray-100">
                     {variants.length === 0 && (
-                      <tr><td colSpan={3} className="p-4 text-center text-gray-500">No variants found.</td></tr>
+                      <tr><td colSpan={4} className="p-8 text-center text-gray-500">No variants added yet. Click "Add Variant" to start.</td></tr>
                     )}
-                    {variants.map((variant) => (
-                      <tr key={variant.id} className="border-b border-gray-100">
-                        <td className="py-4 px-4">{variant.name}</td>
-                        <td className="py-4 px-4">{variant.price}</td>
-                        <td className="py-4 px-4">{variant.quantity}</td>
+                    {variants.map((variant, index) => (
+                      <tr key={variant.id || index} className="group hover:bg-gray-50 transition-colors">
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            value={variant.name}
+                            onChange={(e) => {
+                              const newVariants = [...variants];
+                              newVariants[index].name = e.target.value;
+                              setVariants(newVariants);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="Size 42"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="number"
+                            value={variant.price}
+                            onChange={(e) => {
+                              const newVariants = [...variants];
+                              newVariants[index].price = parseFloat(e.target.value);
+                              setVariants(newVariants);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder={price}
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="number"
+                            value={variant.quantity}
+                            onChange={(e) => {
+                              const newVariants = [...variants];
+                              newVariants[index].quantity = parseInt(e.target.value);
+                              setVariants(newVariants);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          />
+                        </td>
+                        <td className="p-3 text-right">
+                          <button
+                            onClick={() => {
+                              if (!confirm('Remove this variant?')) return;
+                              // If it has real ID (not temp), we should probably mark for deletion, but for now just removing from UI state
+                              // Real deletion happens if we implement 'delete absent' logic or direct delete here
+                              // For simplicity: Direct active delete if it exists in DB could be better, or just rely on save.
+                              // Let's just remove from state for now.
+                              setVariants(variants.filter((_, i) => i !== index));
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <i className="ri-delete-bin-line text-lg"></i>
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -62,6 +62,7 @@ function ShopContent() {
             categories!inner(name, slug),
             product_images!product_id(url, position)
           `, { count: 'exact' })
+          .eq('status', 'active')
           .order('position', { foreignTable: 'product_images', ascending: true });
 
         const search = searchParams.get('search');

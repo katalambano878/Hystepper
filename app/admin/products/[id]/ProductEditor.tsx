@@ -227,8 +227,8 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 px-6 py-4 font-semibold whitespace-nowrap transition-colors border-b-2 cursor-pointer ${activeTab === tab.id
-                    ? 'border-emerald-700 text-emerald-700 bg-emerald-50'
-                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'border-emerald-700 text-emerald-700 bg-emerald-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
               >
                 <i className={`${tab.icon} text-xl`}></i>
@@ -516,18 +516,209 @@ export default function ProductEditor({ productId }: { productId: string }) {
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-1">Product Images</h3>
-                <p className="text-gray-600">Product images are managed via common storage. (View Only).</p>
+                <p className="text-gray-600">Upload images via URL or file upload. Drag to reorder.</p>
               </div>
 
+              {/* Image Upload Methods */}
+              <div className="space-y-4">
+                {/* URL Input */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">Add Image URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="https://example.com/image.jpg"
+                      className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      onKeyPress={async (e) => {
+                        if (e.key === 'Enter' && e.currentTarget.value) {
+                          const url = e.currentTarget.value;
+                          try {
+                            const { error } = await supabase.from('product_images').insert({
+                              product_id: productId,
+                              url: url,
+                              position: images.length,
+                              alt_text: productName
+                            });
+                            if (error) throw error;
+                            setImages([...images, { url, position: images.length }]);
+                            e.currentTarget.value = '';
+                            toast.success('Image added');
+                          } catch (err) {
+                            toast.error('Failed to add image');
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={async (e) => {
+                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                        const url = input.value;
+                        if (!url) return;
+                        try {
+                          const { error } = await supabase.from('product_images').insert({
+                            product_id: productId,
+                            url: url,
+                            position: images.length,
+                            alt_text: productName
+                          });
+                          if (error) throw error;
+                          setImages([...images, { url, position: images.length }]);
+                          input.value = '';
+                          toast.success('Image added');
+                        } catch (err) {
+                          toast.error('Failed to add image');
+                        }
+                      }}
+                      className="px-6 py-3 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 font-semibold whitespace-nowrap"
+                    >
+                      Add URL
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Press Enter or click "Add URL" to add the image</p>
+                </div>
+
+                {/* File Upload */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">Upload from Computer</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-emerald-500 transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      id="image-upload"
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length === 0) return;
+
+                        toast.info('Uploading images...');
+
+                        for (const file of files) {
+                          try {
+                            // Create a data URL for immediate preview
+                            const reader = new FileReader();
+                            reader.onload = async (event) => {
+                              const dataUrl = event.target?.result as string;
+
+                              // Insert to database
+                              const { error } = await supabase.from('product_images').insert({
+                                product_id: productId,
+                                url: dataUrl,
+                                position: images.length,
+                                alt_text: productName
+                              });
+
+                              if (error) throw error;
+                              setImages([...images, { url: dataUrl, position: images.length }]);
+                            };
+                            reader.readAsDataURL(file);
+                          } catch (err) {
+                            toast.error(`Failed to upload ${file.name}`);
+                          }
+                        }
+
+                        toast.success('Images uploaded');
+                        e.target.value = '';
+                      }}
+                    />
+                    <label htmlFor="image-upload" className="cursor-pointer">
+                      <i className="ri-upload-cloud-line text-4xl text-gray-400 mb-2 block"></i>
+                      <p className="text-gray-700 font-medium">Click to upload or drag and drop</p>
+                      <p className="text-sm text-gray-500 mt-1">PNG, JPG, GIF up to 10MB</p>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Image Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {images.map((image, index) => (
                   <div key={index} className="relative group">
                     <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-200">
                       <img src={image.url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
                     </div>
+
+                    {/* Overlay Controls */}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Delete this image?')) return;
+                          try {
+                            const { error } = await supabase
+                              .from('product_images')
+                              .delete()
+                              .eq('product_id', productId)
+                              .eq('url', image.url);
+
+                            if (error) throw error;
+                            setImages(images.filter((_, i) => i !== index));
+                            toast.success('Image deleted');
+                          } catch (err) {
+                            toast.error('Failed to delete image');
+                          }
+                        }}
+                        className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center justify-center"
+                      >
+                        <i className="ri-delete-bin-line"></i>
+                      </button>
+
+                      {index > 0 && (
+                        <button
+                          onClick={async () => {
+                            const newImages = [...images];
+                            [newImages[index], newImages[index - 1]] = [newImages[index - 1], newImages[index]];
+                            setImages(newImages);
+                            // Update positions in DB
+                            for (let i = 0; i < newImages.length; i++) {
+                              await supabase
+                                .from('product_images')
+                                .update({ position: i })
+                                .eq('product_id', productId)
+                                .eq('url', newImages[i].url);
+                            }
+                            toast.success('Order updated');
+                          }}
+                          className="w-10 h-10 bg-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center"
+                        >
+                          <i className="ri-arrow-left-line"></i>
+                        </button>
+                      )}
+
+                      {index < images.length - 1 && (
+                        <button
+                          onClick={async () => {
+                            const newImages = [...images];
+                            [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
+                            setImages(newImages);
+                            // Update positions in DB
+                            for (let i = 0; i < newImages.length; i++) {
+                              await supabase
+                                .from('product_images')
+                                .update({ position: i })
+                                .eq('product_id', productId)
+                                .eq('url', newImages[i].url);
+                            }
+                            toast.success('Order updated');
+                          }}
+                          className="w-10 h-10 bg-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center"
+                        >
+                          <i className="ri-arrow-right-line"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Position Badge */}
+                    <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                      #{index + 1}
+                    </div>
                   </div>
                 ))}
-                {images.length === 0 && <p className="text-gray-500 col-span-4 text-center py-4">No images uploaded.</p>}
+                {images.length === 0 && (
+                  <div className="col-span-4 text-center py-12 text-gray-500">
+                    <i className="ri-image-line text-4xl mb-2 block text-gray-300"></i>
+                    <p>No images uploaded yet. Add your first image above.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

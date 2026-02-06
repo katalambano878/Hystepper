@@ -15,19 +15,19 @@ export default function HomePage() {
   // Config State - Managed in Code
   const config = {
     hero: {
-      headline: 'Mannequins, Kitchen Essentials, Electronics & Dresses — All In One Store',
-      subheadline: 'Hy_stepper brings you sourced products with verified quality and unbeatable pricing perfect for homes, small businesses, and resellers.',
-      primaryButtonText: 'Shop Collections',
+      headline: 'Step Into Elegance',
+      subheadline: 'Discover premium footwear crafted for the modern trendsetter. From stunning heels to everyday essentials — walk with confidence.',
+      primaryButtonText: 'Shop Now',
       primaryButtonLink: '/shop',
-      secondaryButtonText: 'Our Story',
-      secondaryButtonLink: '/about',
-      backgroundImage: '/sarah-lawson.jpeg'
+      secondaryButtonText: 'New Arrivals',
+      secondaryButtonLink: '/shop?sort=new',
+      backgroundImage: '/hero-footwear.png'
     },
     sections: {
       newArrivals: {
         enabled: true,
-        title: 'Featured Products',
-        subtitle: 'Handpicked for you',
+        title: 'Trending Now',
+        subtitle: 'Our most loved styles this season',
         count: 8
       }
     }
@@ -85,16 +85,16 @@ export default function HomePage() {
             id: c.id,
             name: c.name,
             image: c.image_url || 'https://via.placeholder.com/600',
-            count: 'Explore Collection', // We could do a count query but expensive
+            count: 'Explore Collection',
             slug: c.slug
           })));
         } else {
           // Fallback for demo if no categories in DB yet
           setCategories([
-            { name: 'Home & Living', image: 'https://readdy.ai/api/search-image?query=elegant%20home%20living%20room%20setup%20with%20modern%20furniture%20cozy%20atmosphere%20natural%20materials%20cream%20and%20green%20tones%20premium%20interior%20design%20sophisticated%20lifestyle%20photography&width=600&height=600&seq=cat1&orientation=squarish', count: '120+ Items', slug: 'home-living' },
-            { name: 'Fashion & Accessories', image: 'https://readdy.ai/api/search-image?query=luxury%20fashion%20accessories%20leather%20bags%20scarves%20elegant%20arrangement%20on%20clean%20background%20premium%20quality%20sophisticated%20styling%20modern%20aesthetic%20product%20photography&width=600&height=600&seq=cat2&orientation=squarish', count: '85+ Items', slug: 'fashion' },
-            { name: 'Kitchen & Dining', image: 'https://readdy.ai/api/search-image?query=premium%20kitchen%20dining%20tableware%20ceramic%20plates%20wooden%20boards%20elegant%20table%20setting%20natural%20materials%20sophisticated%20home%20goods%20lifestyle%20photography&width=600&height=600&seq=cat3&orientation=squarish', count: '95+ Items', slug: 'kitchen' },
-            { name: 'Gifts & Decor', image: 'https://readdy.ai/api/search-image?query=curated%20gift%20collection%20decorative%20items%20vases%20candles%20elegant%20presentation%20premium%20quality%20sophisticated%20styling%20modern%20aesthetic%20lifestyle%20photography&width=600&height=600&seq=cat4&orientation=squarish', count: '110+ Items', slug: 'gifts' }
+            { name: 'Heels', image: '/hero-footwear.png', count: 'Shop Heels', slug: 'heels' },
+            { name: 'Flats', image: '/hero-footwear.png', count: 'Shop Flats', slug: 'flats' },
+            { name: 'Sandals', image: '/hero-footwear.png', count: 'Shop Sandals', slug: 'sandals' },
+            { name: 'Boots', image: '/hero-footwear.png', count: 'Shop Boots', slug: 'boots' }
           ]);
         }
 
@@ -107,121 +107,117 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-
-
-  const getHeroImage = () => {
-    if (config.hero.backgroundImage) return config.hero.backgroundImage;
-    return "https://readdy.ai/api/search-image?query=elegant%20minimalist%20lifestyle%20flat%20lay%20composition%20featuring%20premium%20home%20decor%20items%20leather%20bag%20ceramic%20vases%20natural%20textiles%20on%20cream%20background%20with%20beautiful%20shadows%20sophisticated%20styling%20luxury%20product%20photography&width=1200&height=1400&seq=hero1&orientation=portrait";
-  };
-
-  // Render Banners
-  const renderBanners = () => {
-    if (!config.banners || config.banners.length === 0) return null;
-    return config.banners
-      .filter((b: any) => b.active)
-      .map((banner: any, i: number) => (
-        <div key={i} className="bg-emerald-900 text-white text-center py-2 px-4 text-sm font-medium">
-          {banner.text}
-        </div>
-      ));
-  };
-
-
   return (
     <main className="min-h-screen bg-white">
 
-      {/* Dynamic Banners (Top) - Optional placement */}
-      {renderBanners()}
+      {/* Hero Section - Premium Footwear */}
+      <section className="relative min-h-[90vh] lg:min-h-screen overflow-hidden">
 
-      {/* Hero Section */}
-      {/* Hero Section */}
-      <section className="relative w-full overflow-hidden lg:bg-gradient-to-b lg:from-stone-50 lg:via-white lg:to-cream-50">
+        {/* Background Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-900"></div>
 
-        {/* Mobile: Full Background Image with Gradient Overlay */}
-        <div className="absolute inset-0 lg:hidden z-0">
-          <img
-            src={getHeroImage()}
-            className="w-full h-full object-cover transition-opacity duration-1000"
-            alt="Hero Background"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10"></div>
+        {/* Decorative Elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 -right-32 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 -left-32 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-emerald-800/20 rounded-full blur-3xl"></div>
         </div>
 
-        {/* Desktop Blobs */}
-        <div className="hidden lg:block absolute inset-0 opacity-30 pointer-events-none">
-          <div className="absolute -top-20 -right-20 w-96 h-96 bg-emerald-100/50 rounded-full blur-3xl"></div>
-          <div className="absolute top-40 -left-20 w-72 h-72 bg-amber-50 rounded-full blur-3xl"></div>
-        </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 lg:pt-32 lg:pb-24">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center min-h-[70vh]">
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 h-[85vh] lg:h-auto lg:py-24 flex flex-col justify-end lg:block pb-16 lg:pb-0">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-
-            {/* Desktop: Image Layout (Hidden on Mobile) */}
-            <div className="hidden lg:block order-last relative">
-              <div className="relative aspect-[3/4] lg:aspect-auto lg:h-[650px] overflow-hidden rounded-[2rem] shadow-xl">
-                <img
-                  src={getHeroImage()}
-                  alt="Hero Image"
-                  className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-1000"
-                />
-
-                {/* Floating Badge (Desktop Only) */}
-                <div className="absolute bottom-10 left-10 bg-white/90 backdrop-blur-md rounded-2xl p-6 shadow-2xl max-w-xs z-20 border border-white/50">
-                  <p className="font-serif text-emerald-800 text-lg italic mb-1">Exclusive Offer</p>
-                  <p className="text-3xl font-bold text-gray-900 mb-1">25% Off</p>
-                  <p className="text-sm text-gray-600 font-medium">On your first dedicated order</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Content Column - Adapts color for Mobile (White) vs Desktop (Dark) */}
-            <div className="relative z-10 text-center lg:text-left transition-colors duration-300">
-
-              <div className="inline-flex items-center space-x-2 mb-4 lg:mb-6 justify-center lg:justify-start">
-                <span className="h-px w-8 bg-white/70 lg:bg-emerald-800"></span>
-                <span className="text-white lg:text-emerald-800 text-sm font-semibold tracking-widest uppercase drop-shadow-sm lg:drop-shadow-none">
-                  New Collection
-                </span>
-                <span className="h-px w-8 bg-white/70 lg:hidden"></span>
+            {/* Content */}
+            <div className="text-center lg:text-left order-2 lg:order-1">
+              <div className="inline-flex items-center gap-3 mb-6">
+                <span className="h-px w-12 bg-emerald-400"></span>
+                <span className="text-emerald-400 text-sm font-semibold tracking-[0.2em] uppercase">New Collection 2026</span>
               </div>
 
-              <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl text-white lg:text-gray-900 leading-[1.05] mb-6 drop-shadow-lg lg:drop-shadow-none">
+              <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl xl:text-8xl text-white leading-[1.1] mb-6">
                 {config.hero.headline}
               </h1>
 
-              <p className="text-lg text-white/90 lg:text-gray-600 leading-relaxed max-w-lg mx-auto lg:mx-0 font-light mb-8 lg:mb-10 drop-shadow-md lg:drop-shadow-none">
+              <p className="text-lg lg:text-xl text-emerald-100/80 leading-relaxed max-w-xl mx-auto lg:mx-0 mb-10">
                 {config.hero.subheadline}
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start px-4 lg:px-0">
-                <Link href={config.hero.primaryButtonLink || '/shop'} className="inline-flex items-center justify-center bg-white lg:bg-gray-900 text-gray-900 lg:text-white hover:bg-emerald-50 lg:hover:bg-emerald-800 px-10 py-4 rounded-full font-medium transition-all text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <Link
+                  href={config.hero.primaryButtonLink}
+                  className="group inline-flex items-center justify-center gap-3 bg-white text-emerald-900 hover:bg-emerald-50 px-8 py-4 rounded-full font-semibold text-lg transition-all shadow-2xl hover:shadow-emerald-500/25 hover:-translate-y-1"
+                >
                   {config.hero.primaryButtonText}
+                  <i className="ri-arrow-right-line group-hover:translate-x-1 transition-transform"></i>
                 </Link>
-                {config.hero.secondaryButtonText && (
-                  <Link href={config.hero.secondaryButtonLink || '/shop'} className="inline-flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/50 lg:bg-white lg:border-gray-200 text-white lg:text-gray-900 hover:bg-white/30 lg:hover:text-emerald-800 lg:hover:border-emerald-800 px-10 py-4 rounded-full font-medium transition-colors text-lg">
-                    {config.hero.secondaryButtonText}
-                  </Link>
-                )}
+                <Link
+                  href={config.hero.secondaryButtonLink}
+                  className="inline-flex items-center justify-center gap-2 border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 px-8 py-4 rounded-full font-semibold text-lg transition-all"
+                >
+                  <i className="ri-sparkling-line"></i>
+                  {config.hero.secondaryButtonText}
+                </Link>
               </div>
 
-              {/* Stats - Visible on Desktop, Hidden on Mobile Hero */}
-              <div className="mt-12 pt-8 border-t border-gray-200 hidden lg:grid grid-cols-3 gap-6">
-                <div className="flex flex-col items-start text-left">
-                  <p className="font-serif font-bold text-gray-900 text-lg">Direct Import</p>
-                  <p className="text-sm text-gray-500">Sourced from China</p>
+              {/* Trust Badges */}
+              <div className="mt-12 pt-8 border-t border-white/10 grid grid-cols-3 gap-6">
+                <div className="text-center lg:text-left">
+                  <p className="text-2xl lg:text-3xl font-bold text-white mb-1">500+</p>
+                  <p className="text-sm text-emerald-200/60">Happy Customers</p>
                 </div>
-                <div className="flex flex-col items-start text-left">
-                  <p className="font-serif font-bold text-gray-900 text-lg">Verified Quality</p>
-                  <p className="text-sm text-gray-500">Inspected by hand</p>
+                <div className="text-center lg:text-left">
+                  <p className="text-2xl lg:text-3xl font-bold text-white mb-1">100%</p>
+                  <p className="text-sm text-emerald-200/60">Quality Assured</p>
                 </div>
-                <div className="flex flex-col items-start text-left">
-                  <p className="font-serif font-bold text-gray-900 text-lg">Best Prices</p>
-                  <p className="text-sm text-gray-500">Unbeatable value</p>
+                <div className="text-center lg:text-left">
+                  <p className="text-2xl lg:text-3xl font-bold text-white mb-1">24/7</p>
+                  <p className="text-sm text-emerald-200/60">Customer Support</p>
                 </div>
               </div>
-
             </div>
 
+            {/* Hero Image */}
+            <div className="relative order-1 lg:order-2 flex justify-center items-center">
+              <div className="relative">
+                {/* Glow Effect */}
+                <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/30 to-transparent rounded-3xl blur-2xl scale-110"></div>
+
+                {/* Main Image */}
+                <div className="relative w-full max-w-md lg:max-w-lg xl:max-w-xl mx-auto">
+                  <img
+                    src={config.hero.backgroundImage}
+                    alt="Premium Footwear Collection"
+                    className="w-full h-auto object-contain rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-700"
+                  />
+                </div>
+
+                {/* Floating Badge */}
+                <div className="absolute -bottom-4 -left-4 lg:-left-8 bg-white rounded-2xl p-4 lg:p-5 shadow-2xl animate-bounce-slow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                      <i className="ri-truck-line text-2xl text-emerald-700"></i>
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm lg:text-base">Free Delivery</p>
+                      <p className="text-xs text-gray-500">On orders over GH₵200</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Another Floating Badge */}
+                <div className="absolute -top-4 -right-4 lg:-right-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-4 shadow-2xl text-white">
+                  <p className="text-xs font-semibold uppercase tracking-wide">Limited</p>
+                  <p className="text-xl lg:text-2xl font-bold">25% OFF</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/50">
+          <span className="text-xs uppercase tracking-widest">Scroll</span>
+          <div className="w-6 h-10 border-2 border-white/30 rounded-full flex justify-center pt-2">
+            <div className="w-1.5 h-3 bg-white/50 rounded-full animate-bounce"></div>
           </div>
         </div>
       </section>

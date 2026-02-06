@@ -8,24 +8,7 @@ import OrderSummary from '@/components/OrderSummary';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
 
-const GHANA_REGIONS = [
-  "Greater Accra",
-  "Ashanti",
-  "Central",
-  "Western",
-  "Eastern",
-  "Volta",
-  "Northern",
-  "Upper East",
-  "Upper West",
-  "Bono",
-  "Bono East",
-  "Ahafo",
-  "Oti",
-  "Savannah",
-  "North East",
-  "Western North"
-];
+// Regions are now loaded dynamically from delivery_zones table
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -44,9 +27,11 @@ export default function CheckoutPage() {
     phone: '',
     address: '',
     city: '',
-    region: 'Greater Accra',
+    region: '',
     postalCode: ''
   });
+
+  const [regions, setRegions] = useState<any[]>([]);
 
   const [deliveryMethod, setDeliveryMethod] = useState('standard');
   const [paymentMethod, setPaymentMethod] = useState('moolre'); // Gateway: moolre | paystack
@@ -64,7 +49,9 @@ export default function CheckoutPage() {
     nextDayDelivery: false
   });
 
-  const isAccra = shippingData.region === 'Greater Accra';
+  // Dynamic zone lookup
+  const activeZone = regions.find(r => r.name === shippingData.region);
+  const isAccra = activeZone?.is_accra || false;
 
   // Check auth and cart and settings
   useEffect(() => {
@@ -98,6 +85,17 @@ export default function CheckoutPage() {
         const nextDay = settingsData.find(s => s.key === 'next_day_delivery_enabled')?.value === true;
         setSettings({ nextDayDelivery: nextDay });
       }
+
+      // 3. Delivery Zones
+      const { data: zonesData } = await supabase
+        .from('delivery_zones')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (zonesData) {
+        setRegions(zonesData);
+      }
     }
     init();
   }, []);
@@ -111,7 +109,8 @@ export default function CheckoutPage() {
 
   // Calculate Totals
   const subtotal = cartSubtotal;
-  const shippingCost = deliveryMethod === 'express' ? 25 : deliveryMethod === 'standard' ? 15 : 0;
+  const baseFee = activeZone?.base_fee || 0;
+  const shippingCost = deliveryMethod === 'express' ? (baseFee + 15) : deliveryMethod === 'standard' ? baseFee : 0;
 
   // Loyalty Discount Logic: 15 points = 15 GHS
   const pointsDiscount = (redeemPoints && loyaltyPoints >= 15) ? 15 : 0;
@@ -459,8 +458,8 @@ export default function CheckoutPage() {
                           className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.region ? 'border-red-500' : 'border-gray-300'} bg-white`}
                         >
                           <option value="">Select Region</option>
-                          {GHANA_REGIONS.map(r => (
-                            <option key={r} value={r}>{r}</option>
+                          {regions.map(r => (
+                            <option key={r.id} value={r.name}>{r.name}</option>
                           ))}
                         </select>
                         {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
@@ -521,7 +520,7 @@ export default function CheckoutPage() {
                           <p className="text-sm text-gray-600">Within {isAccra ? '1-2' : '3-5'} business days</p>
                         </div>
                       </div>
-                      <p className="font-bold text-gray-900">GH₵ {isAccra ? '15.00' : '25.00'}</p>
+                      <p className="font-bold text-gray-900">GH₵ {baseFee.toFixed(2)}</p>
                     </label>
 
                     {settings.nextDayDelivery && (
@@ -540,7 +539,7 @@ export default function CheckoutPage() {
                             <p className="text-sm text-gray-600">Get it sooner</p>
                           </div>
                         </div>
-                        <p className="font-bold text-gray-900">GH₵ 35.00</p>
+                        <p className="font-bold text-gray-900">GH₵ {(baseFee + 15).toFixed(2)}</p>
                       </label>
                     )}
                   </div>

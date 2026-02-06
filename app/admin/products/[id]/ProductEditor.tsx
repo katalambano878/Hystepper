@@ -578,217 +578,234 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 </div>
 
                 {/* File Upload */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Upload from Computer</label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-emerald-500 transition-colors">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      id="image-upload"
-                      onChange={async (e) => {
-                        const files = Array.from(e.target.files || []);
-                        if (files.length === 0) return;
+                <label className="block text-sm font-semibold text-gray-900 mb-2">Upload from Computer</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-emerald-500 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*,video/mp4,video/webm"
+                    multiple
+                    className="hidden"
+                    id="image-upload"
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
 
-                        toast.info('Uploading images...');
+                      toast.info('Uploading media...');
 
-                        for (const file of files) {
-                          try {
-                            // Create a data URL for immediate preview
-                            const reader = new FileReader();
-                            reader.onload = async (event) => {
-                              const dataUrl = event.target?.result as string;
+                      for (const file of files) {
+                        try {
+                          // Create a data URL for immediate preview
+                          const reader = new FileReader();
+                          reader.onload = async (event) => {
+                            const dataUrl = event.target?.result as string;
 
-                              // Insert to database
-                              const { error } = await supabase.from('product_images').insert({
-                                product_id: productId,
-                                url: dataUrl,
-                                position: images.length,
-                                alt_text: productName
-                              });
-
-                              if (error) throw error;
-                              setImages([...images, { url: dataUrl, position: images.length }]);
-                            };
-                            reader.readAsDataURL(file);
-                          } catch (err) {
-                            toast.error(`Failed to upload ${file.name}`);
-                          }
-                        }
-
-                        toast.success('Images uploaded');
-                        e.target.value = '';
-                      }}
-                    />
-                    <label htmlFor="image-upload" className="cursor-pointer">
-                      <i className="ri-upload-cloud-line text-4xl text-gray-400 mb-2 block"></i>
-                      <p className="text-gray-700 font-medium">Click to upload or drag and drop</p>
-                      <p className="text-sm text-gray-500 mt-1">PNG, JPG, GIF up to 10MB</p>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Image Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {images.map((image, index) => (
-                  <div key={index} className="relative group">
-                    <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-200">
-                      <img src={image.url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
-                    </div>
-
-                    {/* Overlay Controls */}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
-                      <button
-                        onClick={async () => {
-                          if (!confirm('Delete this image?')) return;
-                          try {
-                            const { error } = await supabase
-                              .from('product_images')
-                              .delete()
-                              .eq('product_id', productId)
-                              .eq('url', image.url);
+                            // Insert to database
+                            const { error } = await supabase.from('product_images').insert({
+                              product_id: productId,
+                              url: dataUrl,
+                              position: images.length,
+                              alt_text: productName
+                            });
 
                             if (error) throw error;
-                            setImages(images.filter((_, i) => i !== index));
-                            toast.success('Image deleted');
-                          } catch (err) {
-                            toast.error('Failed to delete image');
-                          }
-                        }}
-                        className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center justify-center"
-                      >
-                        <i className="ri-delete-bin-line"></i>
-                      </button>
+                            setImages(prev => [...prev, { url: dataUrl, position: prev.length }]);
+                          };
+                          reader.readAsDataURL(file);
+                        } catch (err) {
+                          toast.error(`Failed to upload ${file.name}`);
+                        }
+                      }
 
-                      {index > 0 && (
-                        <button
-                          onClick={async () => {
-                            const newImages = [...images];
-                            [newImages[index], newImages[index - 1]] = [newImages[index - 1], newImages[index]];
-                            setImages(newImages);
-                            // Update positions in DB
-                            for (let i = 0; i < newImages.length; i++) {
-                              await supabase
-                                .from('product_images')
-                                .update({ position: i })
-                                .eq('product_id', productId)
-                                .eq('url', newImages[i].url);
-                            }
-                            toast.success('Order updated');
-                          }}
-                          className="w-10 h-10 bg-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center"
-                        >
-                          <i className="ri-arrow-left-line"></i>
-                        </button>
-                      )}
-
-                      {index < images.length - 1 && (
-                        <button
-                          onClick={async () => {
-                            const newImages = [...images];
-                            [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
-                            setImages(newImages);
-                            // Update positions in DB
-                            for (let i = 0; i < newImages.length; i++) {
-                              await supabase
-                                .from('product_images')
-                                .update({ position: i })
-                                .eq('product_id', productId)
-                                .eq('url', newImages[i].url);
-                            }
-                            toast.success('Order updated');
-                          }}
-                          className="w-10 h-10 bg-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center"
-                        >
-                          <i className="ri-arrow-right-line"></i>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Position Badge */}
-                    <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                      #{index + 1}
-                    </div>
-                  </div>
-                ))}
-                {images.length === 0 && (
-                  <div className="col-span-4 text-center py-12 text-gray-500">
-                    <i className="ri-image-line text-4xl mb-2 block text-gray-300"></i>
-                    <p>No images uploaded yet. Add your first image above.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'seo' && (
-            <div className="space-y-6 max-w-3xl">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-1">Search Engine Optimization</h3>
-                <p className="text-gray-600">Optimize how this product appears in search results</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Page Title
-                </label>
-                <input
-                  type="text"
-                  value={seoTitle}
-                  onChange={(e) => setSeoTitle(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Meta Description
-                </label>
-                <textarea
-                  rows={3}
-                  maxLength={500}
-                  value={seoDescription}
-                  onChange={(e) => setSeoDescription(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  URL Slug
-                </label>
-                <div className="flex items-center">
-                  <span className="text-gray-600 bg-gray-100 px-4 py-3 border-2 border-r-0 border-gray-300 rounded-l-lg">
-                    /product/
-                  </span>
-                  <input
-                    type="text"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      toast.success('Media uploaded');
+                      e.target.value = '';
+                    }}
                   />
+                  <label htmlFor="image-upload" className="cursor-pointer">
+                    <i className="ri-upload-cloud-line text-4xl text-gray-400 mb-2 block"></i>
+                    <p className="text-gray-700 font-medium">Click to upload or drag and drop</p>
+                    <p className="text-sm text-gray-500 mt-1">Images (PNG, JPG) or Videos (MP4, WebM)</p>
+                  </label>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Keywords
-                </label>
+              {/* Image Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {images.map((image, index) => {
+              const isVideo = image.url.startsWith('data:video') || image.url.match(/\.(mp4|webm|ogg)$/i);
+              return (
+                <div key={index} className="relative group">
+                  <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-200">
+                    {isVideo ? (
+                      <video
+                        src={image.url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        loop
+                        onMouseOver={e => e.currentTarget.play()}
+                        onMouseOut={e => e.currentTarget.pause()}
+                      />
+                    ) : (
+                      <img src={image.url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
+                    )}
+                    {isVideo && (
+                      <div className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full">
+                        <i className="ri-movie-fill"></i>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Overlay Controls */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Delete this item?')) return;
+                        try {
+                          const { error } = await supabase
+                            .from('product_images')
+                            .delete()
+                            .eq('product_id', productId)
+                            .eq('url', image.url);
+
+                          if (error) throw error;
+                          setImages(images.filter((_, i) => i !== index));
+                          toast.success('Deleted');
+                        } catch (err) {
+                          toast.error('Failed to delete');
+                        }
+                      }}
+                      className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center justify-center"
+                    >
+                      <i className="ri-delete-bin-line"></i>
+                    </button>
+
+                    {index > 0 && (
+                      <button
+                        onClick={async () => {
+                          const newImages = [...images];
+                          [newImages[index], newImages[index - 1]] = [newImages[index - 1], newImages[index]];
+                          setImages(newImages);
+                          // Update positions in DB
+                          for (let i = 0; i < newImages.length; i++) {
+                            await supabase
+                              .from('product_images')
+                              .update({ position: i })
+                              .eq('product_id', productId)
+                              .eq('url', newImages[i].url);
+                          }
+                        }}
+                        className="w-10 h-10 bg-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center"
+                      >
+                        <i className="ri-arrow-left-line"></i>
+                      </button>
+                    )}
+
+                    {index < images.length - 1 && (
+                      <button
+                        onClick={async () => {
+                          const newImages = [...images];
+                          [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
+                          setImages(newImages);
+                          // Update positions in DB
+                          for (let i = 0; i < newImages.length; i++) {
+                            await supabase
+                              .from('product_images')
+                              .update({ position: i })
+                              .eq('product_id', productId)
+                              .eq('url', newImages[i].url);
+                          }
+                        }}
+                        className="w-10 h-10 bg-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center"
+                      >
+                        <i className="ri-arrow-right-line"></i>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Position Badge */}
+                  <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                    #{index + 1}
+                  </div>
+                </div>
+              );
+            })}
+            {images.length === 0 && (
+              <div className="col-span-4 text-center py-12 text-gray-500">
+                <i className="ri-image-line text-4xl mb-2 block text-gray-300"></i>
+                <p>No images uploaded yet. Add your first image above.</p>
+              </div>
+            )}
+          </div>
+        </div>
+          )}
+
+        {activeTab === 'seo' && (
+          <div className="space-y-6 max-w-3xl">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">Search Engine Optimization</h3>
+              <p className="text-gray-600">Optimize how this product appears in search results</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Page Title
+              </label>
+              <input
+                type="text"
+                value={seoTitle}
+                onChange={(e) => setSeoTitle(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Meta Description
+              </label>
+              <textarea
+                rows={3}
+                maxLength={500}
+                value={seoDescription}
+                onChange={(e) => setSeoDescription(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                URL Slug
+              </label>
+              <div className="flex items-center">
+                <span className="text-gray-600 bg-gray-100 px-4 py-3 border-2 border-r-0 border-gray-300 rounded-l-lg">
+                  /product/
+                </span>
                 <input
                   type="text"
-                  value={keywords}
-                  onChange={(e) => setKeywords(e.target.value)}
-                  placeholder="leather, bag, accessories"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
-                <p className="text-sm text-gray-500 mt-2">Separate keywords with commas</p>
               </div>
             </div>
-          )}
-        </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Keywords
+              </label>
+              <input
+                type="text"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                placeholder="leather, bag, accessories"
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+              <p className="text-sm text-gray-500 mt-2">Separate keywords with commas</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
+    </div >
   );
 }

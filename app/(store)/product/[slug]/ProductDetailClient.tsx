@@ -214,13 +214,32 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             <div className="grid lg:grid-cols-2 gap-12">
               <div>
                 <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 mb-4 shadow-lg border border-gray-100">
-                  <img
-                    src={product.images[selectedImage]}
-                    alt={product.name}
-                    className="w-full h-full object-cover object-center"
-                  />
+                  {/* Main Media Display */}
+                  {(() => {
+                    const currentMedia = product.images[selectedImage];
+                    const isVideo = currentMedia?.startsWith('data:video') || currentMedia?.match(/\.(mp4|webm|ogg)$/i);
+
+                    return isVideo ? (
+                      <video
+                        src={currentMedia}
+                        className="w-full h-full object-cover"
+                        controls
+                        playsInline
+                        autoPlay
+                        muted
+                        loop
+                      />
+                    ) : (
+                      <img
+                        src={currentMedia}
+                        alt={product.name}
+                        className="w-full h-full object-cover object-center"
+                      />
+                    );
+                  })()}
+
                   {discount > 0 && (
-                    <span className="absolute top-6 right-6 bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-full">
+                    <span className="absolute top-6 right-6 bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-full z-10">
                       Save {discount}%
                     </span>
                   )}
@@ -228,20 +247,30 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 {product.images.length > 1 && (
                   <div className="grid grid-cols-4 gap-4">
-                    {product.images.map((image: string, index: number) => (
-                      <button
-                        key={index}
-                        onClick={() => setSelectedImage(index)}
-                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImage === index ? 'border-emerald-700 shadow-md' : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                      >
-                        <img
-                          src={image}
-                          alt={`${product.name} view ${index + 1}`}
-                          className="w-full h-full object-cover object-center"
-                        />
-                      </button>
-                    ))}
+                    {product.images.map((image: string, index: number) => {
+                      const isVideo = image.startsWith('data:video') || image.match(/\.(mp4|webm|ogg)$/i);
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedImage(index)}
+                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImage === index ? 'border-emerald-700 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                        >
+                          {isVideo ? (
+                            <div className="w-full h-full bg-gray-900 flex items-center justify-center relative">
+                              <video src={image} className="w-full h-full object-cover opacity-70" muted />
+                              <i className="ri-play-circle-fill text-white text-3xl absolute z-10 drop-shadow-md"></i>
+                            </div>
+                          ) : (
+                            <img
+                              src={image}
+                              alt={`${product.name} view ${index + 1}`}
+                              className="w-full h-full object-cover object-center"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

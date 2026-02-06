@@ -253,9 +253,8 @@ export default function ProductEditor({ productId }: { productId: string }) {
         }
       }
 
-      if (productId === 'new' && targetId) {
-        router.replace(`/admin/products/${targetId}`);
-      }
+      // Redirect to products list
+      router.push('/admin/products');
 
     } catch (err: any) {
       console.error('Error saving product:', err);

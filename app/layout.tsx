@@ -19,8 +19,8 @@ export const metadata: Metadata = {
     follow: true,
   },
   icons: {
-    icon: '/sarahlawson.png', // Keeping the logo file for now if not provided new one, or should I leave it? User said "Change All Sarah Lawson Imports". I'll keep the filename if I don't have a new one but change the alt/branding text.
-    apple: '/sarahlawson.png',
+    icon: '/hystepper-logo.png',
+    apple: '/hystepper-logo.png',
   },
   openGraph: {
     type: "website",
@@ -31,10 +31,10 @@ export const metadata: Metadata = {
     siteName: "Hy_stepper",
     images: [
       {
-        url: "/sarah-lawson.jpeg",
+        url: "/hero-footwear.png",
         width: 1200,
         height: 630,
-        alt: "Hy_stepper",
+        alt: "Hy_stepper - Premium Footwear",
       },
     ],
   },
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Hy_stepper",
     description: "Premium footwear delivered to your doorstep.",
-    images: ["/sarah-lawson.jpeg"],
+    images: ["/hero-footwear.png"],
   },
 };
 

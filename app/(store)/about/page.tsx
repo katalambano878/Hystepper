@@ -81,18 +81,13 @@ export default function AboutPage() {
             </div>
             <div className="relative">
               <div className="aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl bg-gray-100 relative">
-                {/* 
-                   USER ACTION REQUIRED: 
-                   Replace the src beneath with the actual image of Sarah Lawson.
-                   Example: src="/images/sarah-profile.jpg"
-                */}
                 <img
-                  src="/sarah-lawson.jpeg"
-                  alt="Sarah Lawson - Founder"
+                  src="/founder-profile.png"
+                  alt="Hy_stepper Founder"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-8">
-                  <p className="text-white font-bold text-xl">Sarah Lawson</p>
+                  <p className="text-white font-bold text-xl">Hy_stepper Team</p>
                   <p className="text-emerald-200">Founder & CEO</p>
                 </div>
               </div>

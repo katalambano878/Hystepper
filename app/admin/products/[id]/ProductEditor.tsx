@@ -235,6 +235,22 @@ export default function ProductEditor({ productId }: { productId: string }) {
             toast.error('Product saved, but variants failed to update');
           }
         }
+
+        // 4. Save Images (If New Product)
+        if (productId === 'new' && images.length > 0) {
+          const imagesToInsert = images.map((img, idx) => ({
+            product_id: targetId,
+            url: img.url,
+            position: idx,
+            alt_text: productName
+          }));
+
+          const { error: imgError } = await supabase.from('product_images').insert(imagesToInsert);
+          if (imgError) {
+            console.error('Image save error:', imgError);
+            toast.error('Product saved but images failed to upload');
+          }
+        }
       }
 
       if (productId === 'new' && targetId) {
@@ -675,6 +691,14 @@ export default function ProductEditor({ productId }: { productId: string }) {
                       onKeyPress={async (e) => {
                         if (e.key === 'Enter' && e.currentTarget.value) {
                           const url = e.currentTarget.value;
+
+                          if (productId === 'new') {
+                            setImages([...images, { url, position: images.length }]);
+                            e.currentTarget.value = '';
+                            toast.success('Image added');
+                            return;
+                          }
+
                           try {
                             const { error } = await supabase.from('product_images').insert({
                               product_id: productId,
@@ -697,6 +721,14 @@ export default function ProductEditor({ productId }: { productId: string }) {
                         const input = e.currentTarget.previousElementSibling as HTMLInputElement;
                         const url = input.value;
                         if (!url) return;
+
+                        if (productId === 'new') {
+                          setImages([...images, { url, position: images.length }]);
+                          input.value = '';
+                          toast.success('Image added');
+                          return;
+                        }
+
                         try {
                           const { error } = await supabase.from('product_images').insert({
                             product_id: productId,
@@ -743,6 +775,11 @@ export default function ProductEditor({ productId }: { productId: string }) {
                             reader.onload = async (event) => {
                               const dataUrl = event.target?.result as string;
 
+                              if (productId === 'new') {
+                                setImages(prev => [...prev, { url: dataUrl, position: prev.length }]);
+                                return;
+                              }
+
                               // Insert to database
                               const { error } = await supabase.from('product_images').insert({
                                 product_id: productId,
@@ -760,7 +797,12 @@ export default function ProductEditor({ productId }: { productId: string }) {
                           }
                         }
 
-                        toast.success('Media uploaded');
+                        if (productId === 'new') {
+                          toast.success('Media prepared (Save to upload)');
+                        } else {
+                          toast.success('Media uploaded');
+                        }
+
                         e.target.value = '';
                       }}
                     />
@@ -805,6 +847,12 @@ export default function ProductEditor({ productId }: { productId: string }) {
                         <button
                           onClick={async () => {
                             if (!confirm('Delete this item?')) return;
+
+                            if (productId === 'new') {
+                              setImages(images.filter((_, i) => i !== index));
+                              return;
+                            }
+
                             try {
                               const { error } = await supabase
                                 .from('product_images')
@@ -824,6 +872,8 @@ export default function ProductEditor({ productId }: { productId: string }) {
                           <i className="ri-delete-bin-line"></i>
                         </button>
 
+                        {/* Reorder buttons logic can remain or be updated similarly if we want reorder on new products */}
+                        {/* For brevity, omitting detailed reorder update here, assuming delete is main priority for user */}
                         {index > 0 && (
                           <button
                             onClick={async () => {
@@ -831,12 +881,14 @@ export default function ProductEditor({ productId }: { productId: string }) {
                               [newImages[index], newImages[index - 1]] = [newImages[index - 1], newImages[index]];
                               setImages(newImages);
                               // Update positions in DB
-                              for (let i = 0; i < newImages.length; i++) {
-                                await supabase
-                                  .from('product_images')
-                                  .update({ position: i })
-                                  .eq('product_id', productId)
-                                  .eq('url', newImages[i].url);
+                              if (productId !== 'new') {
+                                for (let i = 0; i < newImages.length; i++) {
+                                  await supabase
+                                    .from('product_images')
+                                    .update({ position: i })
+                                    .eq('product_id', productId)
+                                    .eq('url', newImages[i].url);
+                                }
                               }
                             }}
                             className="w-10 h-10 bg-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center"
@@ -852,12 +904,14 @@ export default function ProductEditor({ productId }: { productId: string }) {
                               [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
                               setImages(newImages);
                               // Update positions in DB
-                              for (let i = 0; i < newImages.length; i++) {
-                                await supabase
-                                  .from('product_images')
-                                  .update({ position: i })
-                                  .eq('product_id', productId)
-                                  .eq('url', newImages[i].url);
+                              if (productId !== 'new') {
+                                for (let i = 0; i < newImages.length; i++) {
+                                  await supabase
+                                    .from('product_images')
+                                    .update({ position: i })
+                                    .eq('product_id', productId)
+                                    .eq('url', newImages[i].url);
+                                }
                               }
                             }}
                             className="w-10 h-10 bg-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center"

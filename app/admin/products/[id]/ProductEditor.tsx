@@ -124,9 +124,26 @@ export default function ProductEditor({ productId }: { productId: string }) {
     try {
       setSaving(true);
 
+      // Validation
+      if (!productName.trim()) {
+        toast.error('Product Name is required');
+        setSaving(false);
+        return;
+      }
+      if (!category) {
+        toast.error('Category is required');
+        setSaving(false);
+        return;
+      }
+      if (!price || parseFloat(price) <= 0) {
+        toast.error('Valid Price is required');
+        setSaving(false);
+        return;
+      }
+
       const productData = {
         name: productName,
-        category_id: category || null, // handle empty
+        category_id: category,
         status,
         featured,
         description,

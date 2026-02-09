@@ -107,11 +107,30 @@ export function CMSProvider({ children }: { children: ReactNode }) {
     const [banners, setBanners] = useState<Banner[]>([]);
     const [loading, setLoading] = useState(false);
 
-    // CMS Fetching Logic Removed - Content is now managed in code.
-    const fetchCMSData = async () => { };
+    const fetchCMSData = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('store_settings')
+                .select('*');
 
-    // Initial load handled by state defaults
+            if (data) {
+                const newSettings: any = { ...defaultSettings };
+                data.forEach((item: any) => {
+                    newSettings[item.key] = item.value;
+                });
+                setSettings(newSettings);
+            }
+        } catch (err) {
+            console.error('Error loading CMS data:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Initial load
     useEffect(() => {
+        fetchCMSData();
     }, []);
 
     const getContent = (section: string, blockKey: string): CMSContent | undefined => {

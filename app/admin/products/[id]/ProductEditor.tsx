@@ -265,7 +265,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
 
     } catch (err: any) {
       console.error('Error saving product:', err);
-      toast.error(`Failed to save: ${err.message}`);
+      toast.error(`Failed to save: ${err.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }

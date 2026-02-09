@@ -50,6 +50,7 @@ export default function HomePage() {
             product_images!product_id(url, position, alt_text)
           `)
           .eq('status', 'active')
+          .order('featured', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(limit)
           .order('position', { foreignTable: 'product_images', ascending: true });

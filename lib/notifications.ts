@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'missing_api_key');
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@standardecom.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@hystepper.com';
 
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
     if (!process.env.RESEND_API_KEY) {
@@ -10,7 +10,7 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
     }
     try {
         const data = await resend.emails.send({
-            from: 'Sarah Lawson Imports <orders@yourdomain.com>', // User needs to configure this
+            from: 'Hy_stepper <orders@hystepper.com>', // Updated Sender
             to,
             subject,
             html,
@@ -23,7 +23,8 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
     }
 }
 
-// Helper to format phone number for SMS (Ghana specific for now)
+// ... (keep phone formatter helper same or assume it's same)
+
 // Helper to format phone number for SMS (Ghana specific for now)
 function formatPhoneNumber(phone: string): string {
     // Remove all non-digit characters (including + for now)
@@ -49,6 +50,11 @@ function formatPhoneNumber(phone: string): string {
 }
 
 export async function sendSMS({ to, message }: { to: string; message: string }) {
+    // SMS TEMPORARILY DISABLED
+    console.log('SMS Service is temporarily disabled. Would have sent:', { to, message });
+    return { success: true, message: 'SMS disabled', data: null };
+
+    /*
     // Allow distinct SMS credentials, falling back to payment credentials
     // Note: Moolre SMS might not use PubKey, or might differ from Payment PubKey.
     // Logic: If using custom SMS User, only use custom SMS PubKey (don't fallback to Payment PubKey).
@@ -81,7 +87,7 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
             },
             body: JSON.stringify({
                 type: 1,
-                senderid: 'SarahLawson', // Verified Approved Sender ID
+                senderid: 'Hy_stepper', 
                 messages: [
                     {
                         recipient: recipient,
@@ -98,6 +104,7 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
         console.error('SMS Error:', error);
         return null;
     }
+    */
 }
 
 export async function sendOrderConfirmation(order: any) {
@@ -147,7 +154,7 @@ export async function sendOrderConfirmation(order: any) {
     if (phone) {
         await sendSMS({
             to: phone,
-            message: `Hi ${name}, thanks for your order #${order_number || id} at Sarah Lawson Imports! We will update you when it ships.`
+            message: `Hi ${name}, thanks for your order #${order_number || id} at Hy_stepper! We will update you when it ships.`
         });
     }
 }
@@ -192,10 +199,10 @@ export async function sendWelcomeMessage(user: { email: string, firstName: strin
     // Email
     await sendEmail({
         to: email,
-        subject: `Welcome to Sarah Lawson Imports!`,
+        subject: `Welcome to Hy_stepper!`,
         html: `
       <h1>Welcome, ${firstName}!</h1>
-      <p>Thank you for joining the Sarah Lawson Imports family.</p>
+      <p>Thank you for joining the Hy_stepper family.</p>
       <p>We're thrilled to have you with us. Explore our collection of premium beauty products and enjoy your shopping journey.</p>
       <br/>
       <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/shop">Start Shopping</a>
@@ -206,7 +213,7 @@ export async function sendWelcomeMessage(user: { email: string, firstName: strin
     if (phone) {
         await sendSMS({
             to: phone,
-            message: `Welcome ${firstName}! Thanks for joining Sarah Lawson Imports.`
+            message: `Welcome ${firstName}! Thanks for joining Hy_stepper.`
         });
     }
 }

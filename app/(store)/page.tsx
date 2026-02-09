@@ -58,7 +58,7 @@ export default function HomePage() {
 
         if (productsData) {
           const formatted = productsData.map(p => ({
-            id: p.id,
+            id: p.slug,
             name: p.name,
             price: p.price,
             originalPrice: p.compare_at_price,
@@ -119,7 +119,7 @@ export default function HomePage() {
           const discounted = discountData
             .filter(p => p.compare_at_price > p.price)
             .map(p => ({
-              id: p.id,
+              id: p.slug,
               name: p.name,
               price: p.price,
               originalPrice: p.compare_at_price,

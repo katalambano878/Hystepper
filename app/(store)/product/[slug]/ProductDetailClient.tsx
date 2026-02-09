@@ -109,7 +109,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
           if (related) {
             setRelatedProducts(related.map(p => ({
-              id: p.id,
+              id: p.slug,
               name: p.name,
               price: p.price,
               image: p.product_images?.[0]?.url || 'https://via.placeholder.com/800?text=No+Image',

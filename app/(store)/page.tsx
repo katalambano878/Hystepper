@@ -67,7 +67,8 @@ export default function HomePage() {
               || 'https://via.placeholder.com/800x800?text=No+Image',
             rating: p.rating_avg || 0,
             reviewCount: p.review_count || 0,
-            slug: p.slug
+            slug: p.slug,
+            inStock: p.quantity > 0
           }));
           setFeaturedProducts(formatted);
         }
@@ -129,7 +130,8 @@ export default function HomePage() {
               rating: p.rating_avg || 0,
               reviewCount: p.review_count || 0,
               slug: p.slug,
-              badge: 'Sale'
+              badge: 'Sale',
+              inStock: p.quantity > 0
             }));
           setDiscountedProducts(discounted);
         }

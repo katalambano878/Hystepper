@@ -131,9 +131,6 @@ export default function Footer() {
                   <a href={`tel:${contactPhone}`} className="flex items-center gap-3 text-emerald-200 hover:text-white transition-colors text-sm">
                     <i className="ri-phone-line"></i> {contactPhone}
                   </a>
-                  <a href="/admin" className="flex items-center gap-3 text-emerald-400/80 hover:text-emerald-300 transition-colors text-xs font-medium ml-7">
-                    Admin Panel
-                  </a>
                 </div>
               )}
               {contactEmail && (

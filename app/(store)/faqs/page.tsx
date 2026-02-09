@@ -25,7 +25,7 @@ export default function FAQsPage() {
     {
       category: 'orders',
       question: 'Can I modify or cancel my order?',
-      answer: 'You can modify or cancel your order within 1 hour of placing it. Contact our customer service immediately at +233 24 123 4567 or hello@premiumstore.com. Once an order is processed, modifications may not be possible.'
+      answer: 'Orders cannot be cancelled by customers on the website. Only our admin team can cancel orders. If you need to cancel, please contact us via WhatsApp or Instagram as soon as possible. If your order is cancelled, a refund will be processed to your original payment method.'
     },
     {
       category: 'orders',
@@ -45,7 +45,7 @@ export default function FAQsPage() {
     {
       category: 'shipping',
       question: 'How much does shipping cost?',
-      answer: 'Standard shipping costs GHS 20. Express delivery costs GHS 40. Orders over GHS 300 qualify for FREE standard shipping. Store pickup is also available at no charge from our Accra location.'
+      answer: 'Delivery fees vary by location. Within Accra, fees are zone-based. For outside Accra, delivery fees are calculated based on the number of items. Only selected delivery locations are available at checkout.'
     },
     {
       category: 'shipping',

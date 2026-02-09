@@ -347,7 +347,7 @@ export default function AdminOrdersPage() {
                   <option>All Methods</option>
                   <option>Standard</option>
                   <option>Express</option>
-                  <option>Store Pickup</option>
+                  <option>Manual</option>
                 </select>
               </div>
             </div>

@@ -106,19 +106,30 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
     setIsSubmitting(true);
 
     try {
+      // Check if user has actually ordered this product
+      const { data: purchaseCheck } = await supabase
+        .from('order_items')
+        .select('id, orders!inner(user_id, status)')
+        .eq('product_id', productId)
+        .eq('orders.user_id', user.id)
+        .eq('orders.status', 'delivered')
+        .limit(1);
+
+      const isVerifiedPurchase = (purchaseCheck && purchaseCheck.length > 0);
+
       const { error } = await supabase.from('reviews').insert([{
         product_id: productId,
         user_id: user.id,
         rating: reviewForm.rating,
         title: reviewForm.title,
         content: reviewForm.content,
-        status: 'approved', // Auto-approve for demo
-        verified_purchase: false // We could check orders here but keeping it simple
+        status: 'pending', // Require admin approval
+        verified_purchase: isVerifiedPurchase
       }]);
 
       if (error) throw error;
 
-      alert('Review submitted successfully!');
+      alert('Review submitted! It will appear after admin approval.');
       setShowReviewForm(false);
       setReviewForm({ rating: 5, title: '', content: '' });
       fetchReviews(); // Refresh list

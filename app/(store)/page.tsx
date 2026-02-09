@@ -9,6 +9,7 @@ import ProductCard from '@/components/ProductCard';
 export default function HomePage() {
 
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+  const [discountedProducts, setDiscountedProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]); // Dynamic Categories
   const [loading, setLoading] = useState(true);
 
@@ -96,6 +97,41 @@ export default function HomePage() {
             { name: 'Sandals', image: '/hero-footwear.png', count: 'Shop Sandals', slug: 'sandals' },
             { name: 'Boots', image: '/hero-footwear.png', count: 'Shop Boots', slug: 'boots' }
           ]);
+        }
+
+        // 3. Fetch discounted products (where compare_at_price > price)
+        const { data: discountData, error: discountError } = await supabase
+          .from('products')
+          .select(`
+            *,
+            product_images!product_id(url, position, alt_text)
+          `)
+          .eq('status', 'active')
+          .not('compare_at_price', 'is', null)
+          .gt('compare_at_price', 0)
+          .order('created_at', { ascending: false })
+          .limit(8)
+          .order('position', { foreignTable: 'product_images', ascending: true });
+
+        if (discountError) console.error('Error fetching discounted products:', discountError);
+
+        if (discountData) {
+          const discounted = discountData
+            .filter(p => p.compare_at_price > p.price)
+            .map(p => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              originalPrice: p.compare_at_price,
+              image: p.product_images?.find((img: any) => img.position === 0)?.url
+                || p.product_images?.[0]?.url
+                || 'https://via.placeholder.com/800x800?text=No+Image',
+              rating: p.rating_avg || 0,
+              reviewCount: p.review_count || 0,
+              slug: p.slug,
+              badge: 'Sale'
+            }));
+          setDiscountedProducts(discounted);
         }
 
       } catch (err) {
@@ -315,13 +351,102 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* Shop by Heel Height */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">Shop by Heel Height</h2>
+            <p className="text-lg text-gray-600">Find the perfect height for every occasion</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { label: 'Flat (0-1")', value: 'flat', icon: 'ri-footprint-line', desc: 'Everyday comfort' },
+              { label: 'Low (1-2")', value: 'low', icon: 'ri-footprint-line', desc: 'Subtle lift' },
+              { label: 'Mid (2-3")', value: 'mid', icon: 'ri-footprint-line', desc: 'Versatile style' },
+              { label: 'High (3"+)', value: 'high', icon: 'ri-footprint-line', desc: 'Statement heels' },
+            ].map((height) => (
+              <Link
+                key={height.value}
+                href={`/shop?heel_height=${height.value}`}
+                className="group p-6 bg-gray-50 rounded-xl text-center hover:bg-emerald-50 hover:shadow-lg transition-all border border-transparent hover:border-emerald-200 cursor-pointer"
+              >
+                <div className="w-16 h-16 bg-emerald-100 group-hover:bg-emerald-200 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors">
+                  <i className={`${height.icon} text-2xl text-emerald-700`}></i>
+                </div>
+                <h3 className="font-bold text-gray-900 mb-1">{height.label}</h3>
+                <p className="text-sm text-gray-500">{height.desc}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Shop by Size */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">Shop by Size</h2>
+            <p className="text-lg text-gray-600">Browse our available sizes</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4">
+            {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size) => (
+              <Link
+                key={size}
+                href={`/shop?size=${size}`}
+                className="w-16 h-16 md:w-20 md:h-20 flex items-center justify-center bg-white border-2 border-gray-200 rounded-xl text-lg md:text-xl font-bold text-gray-900 hover:border-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all shadow-sm hover:shadow-md cursor-pointer"
+              >
+                {size}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Discounted Items */}
+      {discountedProducts.length > 0 && (
+        <section className="py-20 bg-gradient-to-br from-red-50 to-orange-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex items-end justify-between mb-12">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 text-sm font-bold rounded-full mb-3">
+                  <i className="ri-fire-fill"></i>
+                  Hot Deals
+                </div>
+                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">Discounted Items</h2>
+                <p className="text-lg text-gray-600">Grab these deals before they&apos;re gone</p>
+              </div>
+              <Link href="/shop?sort=discount" className="hidden sm:inline-flex items-center text-red-600 hover:text-red-800 font-semibold whitespace-nowrap cursor-pointer">
+                View All Deals
+                <i className="ri-arrow-right-line ml-2"></i>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+              {discountedProducts.map((product) => (
+                <ProductCard key={product.id} {...product} />
+              ))}
+            </div>
+
+            <div className="text-center mt-10 sm:hidden">
+              <Link
+                href="/shop?sort=discount"
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-full font-medium transition-colors"
+              >
+                View All Deals
+                <i className="ri-arrow-right-line"></i>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Features Section */}
       <section className="py-12 lg:py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8">
             {[
-              { icon: 'ri-store-2-line', title: 'Free Store Pickup', description: 'Pick up at our store' },
-              { icon: 'ri-arrow-left-right-line', title: 'Easy Returns', description: '30-day return policy' },
+              { icon: 'ri-truck-line', title: 'Fast Delivery', description: 'Straight to your door' },
+              { icon: 'ri-arrow-left-right-line', title: 'Easy Exchanges', description: '24-hour exchange window' },
               { icon: 'ri-customer-service-2-line', title: '24/7 Support', description: 'Dedicated service' },
               { icon: 'ri-shield-check-line', title: 'Secure Payment', description: 'Safe checkout' }
             ].map((item, index) => (

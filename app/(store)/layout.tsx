@@ -14,6 +14,7 @@ import LiveSalesNotification from '@/components/LiveSalesNotification';
 import FlashSaleBanner from '@/components/FlashSaleBanner';
 
 import CookieConsent from '@/components/CookieConsent';
+import WhatsAppButton from '@/components/WhatsAppButton';
 import { CMSProvider } from '@/context/CMSContext';
 
 export default function StoreLayout({
@@ -38,6 +39,7 @@ export default function StoreLayout({
         <LiveSalesNotification />
 
         <CookieConsent />
+        <WhatsAppButton />
       </div>
     </CMSProvider>
   );

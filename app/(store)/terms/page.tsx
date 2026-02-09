@@ -157,7 +157,7 @@ export default function TermsPage() {
 
             <h3 className="text-xl font-bold text-gray-900 mb-4 mt-8">4.3 Order Modifications</h3>
             <p className="text-gray-600 leading-relaxed">
-              You may modify or cancel your order within 1 hour of placement. After this time, orders enter processing and cannot be changed. Contact customer service immediately if you need to make changes.
+              Orders cannot be cancelled by customers on the website. Only our admin team can process cancellations. If you need to request a cancellation, please contact us immediately via WhatsApp or Instagram. If a cancellation is approved, a refund will be processed to your original payment method.
             </p>
           </section>
 

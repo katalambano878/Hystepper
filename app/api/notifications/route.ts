@@ -10,7 +10,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Payload required' }, { status: 400 });
         }
 
-        if (type === 'order_created') {
+        if (type === 'order_created' || type === 'order_confirmation') {
             await sendOrderConfirmation(payload);
             return NextResponse.json({ success: true, message: 'Order confirmation sent' });
         }

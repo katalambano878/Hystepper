@@ -1,24 +1,24 @@
--- Migration: Add trigger to award loyalty points when order is completed
+-- Migration: Loyalty points trigger
+-- Awards 5 points PER ITEM when an order is delivered
+-- Points expire after 6 months
 
--- Function to calculate and award points
 CREATE OR REPLACE FUNCTION award_loyalty_points()
 RETURNS TRIGGER AS $$
 DECLARE
+  total_items INTEGER;
   points_to_award INTEGER;
   user_points_exists BOOLEAN;
 BEGIN
-  -- Only process if status changed to 'completed' (or 'delivered' depending on flow, usually 'completed' is final)
-  -- The migration schema defined status enum: pending, awaiting_payment, processing, shipped, delivered, cancelled, refunded
-  -- 'delivered' is likely the completion state for e-commerce, or maybe there is a 'completed' (Wait, enum didn't have 'completed')
-  -- Enum: 'pending', 'awaiting_payment', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
-  -- I should probably use 'delivered'.
-  
+  -- Only fire when status changes to 'delivered'
   IF NEW.status = 'delivered' AND OLD.status != 'delivered' THEN
-    -- Calculate points: 1 point per 10 GHS of subtotal
-    points_to_award := FLOOR(NEW.subtotal / 10);
+    -- Count total items in the order
+    SELECT COALESCE(SUM(quantity), 0) INTO total_items
+    FROM order_items WHERE order_id = NEW.id;
+    
+    -- 5 points per item purchased
+    points_to_award := total_items * 5;
     
     IF points_to_award > 0 AND NEW.user_id IS NOT NULL THEN
-      -- Check if user exists in loyalty_points
       SELECT EXISTS(SELECT 1 FROM loyalty_points WHERE user_id = NEW.user_id) INTO user_points_exists;
       
       IF user_points_exists THEN
@@ -26,11 +26,12 @@ BEGIN
         SET 
           points = points + points_to_award,
           lifetime_earned = lifetime_earned + points_to_award,
+          expires_at = NOW() + INTERVAL '6 months',
           updated_at = NOW()
         WHERE user_id = NEW.user_id;
       ELSE
-        INSERT INTO loyalty_points (user_id, points, lifetime_earned)
-        VALUES (NEW.user_id, points_to_award, points_to_award);
+        INSERT INTO loyalty_points (user_id, points, lifetime_earned, expires_at)
+        VALUES (NEW.user_id, points_to_award, points_to_award, NOW() + INTERVAL '6 months');
       END IF;
       
       -- Log transaction
@@ -40,8 +41,11 @@ BEGIN
         NEW.id, 
         points_to_award, 
         'earn', 
-        'Points earned from Order #' || NEW.order_number
+        'Earned ' || points_to_award || ' points (' || total_items || ' items x 5 pts) from Order #' || NEW.order_number
       );
+      
+      -- Store points earned on the order record
+      UPDATE orders SET points_earned = points_to_award WHERE id = NEW.id;
     END IF;
   END IF;
   
@@ -49,7 +53,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger definition
 DROP TRIGGER IF EXISTS trigger_award_loyalty_points ON orders;
 CREATE TRIGGER trigger_award_loyalty_points
   AFTER UPDATE ON orders

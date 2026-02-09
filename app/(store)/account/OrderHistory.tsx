@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useCart } from '@/context/CartContext';
+import { toast } from 'sonner';
 
 interface Order {
   id: string;
@@ -22,6 +24,7 @@ interface Order {
 export default function OrderHistory() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const { addToCart } = useCart();
 
   useEffect(() => {
     async function fetchOrders() {
@@ -83,14 +86,108 @@ export default function OrderHistory() {
   };
 
   const handleReorder = (order: Order) => {
-    // Implement reorder logic (add items back to cart)
-    console.log('Reordering:', order);
-    alert('Reorder feature coming soon!');
+    let added = 0;
+    order.items.forEach(item => {
+      addToCart({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        quantity: item.quantity,
+      });
+      added++;
+    });
+    toast.success(`${added} item${added > 1 ? 's' : ''} added to cart`);
   };
 
-  const handleDownloadInvoice = (orderId: string) => {
-    console.log('Downloading invoice for order:', orderId);
-    alert('Invoice download coming soon!');
+  const handleDownloadInvoice = async (order: Order) => {
+    // Generate a printable invoice in a new window
+    const invoiceWindow = window.open('', '_blank');
+    if (!invoiceWindow) {
+      toast.error('Please allow popups to download invoices');
+      return;
+    }
+
+    const itemsHtml = order.items.map(item => `
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">GH₵ ${item.price.toFixed(2)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">GH₵ ${(item.price * item.quantity).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    invoiceWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice - ${order.orderNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #333; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+          .logo { font-size: 24px; font-weight: bold; color: #047857; }
+          .invoice-title { font-size: 28px; font-weight: bold; color: #333; text-align: right; }
+          .invoice-meta { text-align: right; font-size: 14px; color: #666; margin-top: 8px; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th { background: #f3f4f6; padding: 10px 8px; text-align: left; font-weight: 600; }
+          .totals { text-align: right; margin-top: 20px; }
+          .totals td { padding: 4px 0; }
+          .total-row { font-size: 18px; font-weight: bold; border-top: 2px solid #333; padding-top: 8px; }
+          .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="logo">Hy_stepper</div>
+            <p style="font-size: 14px; color: #666; margin-top: 4px;">Premium Footwear</p>
+          </div>
+          <div>
+            <div class="invoice-title">INVOICE</div>
+            <div class="invoice-meta">
+              <p><strong>Order:</strong> ${order.orderNumber}</p>
+              <p><strong>Date:</strong> ${new Date(order.date).toLocaleDateString()}</p>
+              <p><strong>Status:</strong> ${order.status}</p>
+            </div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th style="text-align: center;">Qty</th>
+              <th style="text-align: right;">Unit Price</th>
+              <th style="text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <table class="totals" style="width: 300px; margin-left: auto;">
+          <tr>
+            <td>Subtotal:</td>
+            <td style="text-align: right;">GH₵ ${order.items.reduce((s, i) => s + i.price * i.quantity, 0).toFixed(2)}</td>
+          </tr>
+          <tr class="total-row">
+            <td>Total:</td>
+            <td style="text-align: right;">GH₵ ${order.total.toFixed(2)}</td>
+          </tr>
+        </table>
+
+        <div class="footer">
+          <p>Thank you for shopping with Hy_stepper!</p>
+          <p>For questions, contact us on WhatsApp or Instagram</p>
+        </div>
+
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `);
+    invoiceWindow.document.close();
   };
 
   if (loading) {
@@ -195,7 +292,7 @@ export default function OrderHistory() {
                   Reorder
                 </button>
                 <button
-                  onClick={() => handleDownloadInvoice(order.id)}
+                  onClick={() => handleDownloadInvoice(order)}
                   className="px-4 py-2 border-2 border-gray-300 text-gray-900 rounded-lg font-semibold hover:bg-gray-50 transition-colors whitespace-nowrap"
                 >
                   <i className="ri-download-line mr-2"></i>

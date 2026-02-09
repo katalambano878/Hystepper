@@ -106,16 +106,33 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
       setStatusUpdating(true);
       const statusToUpdate = newStatus || order.status;
 
+      // Build update payload
+      const updatePayload: any = {
+        status: statusToUpdate,
+        notes: adminNotes,
+        metadata: {
+          ...order.metadata,
+          tracking_number: trackingNumber
+        }
+      };
+
+      // If cancelling an order that was paid, auto-set payment_status to refunded
+      if (statusToUpdate === 'cancelled' && order.payment_status === 'paid') {
+        updatePayload.payment_status = 'refunded';
+        updatePayload.cancel_reason = adminNotes || 'Cancelled by admin';
+        updatePayload.metadata = {
+          ...updatePayload.metadata,
+          refund_initiated_at: new Date().toISOString(),
+          refund_method: 'original_payment_method',
+          refund_note: 'Refund to original payment method initiated on cancellation'
+        };
+      } else if (statusToUpdate === 'cancelled') {
+        updatePayload.cancel_reason = adminNotes || 'Cancelled by admin';
+      }
+
       const { error } = await supabase
         .from('orders')
-        .update({
-          status: statusToUpdate,
-          notes: adminNotes,
-          metadata: {
-            ...order.metadata,
-            tracking_number: trackingNumber
-          }
-        })
+        .update(updatePayload)
         .eq('id', order.id);
 
       if (error) throw error;
@@ -124,8 +141,9 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
       setOrder({
         ...order,
         status: statusToUpdate,
+        payment_status: updatePayload.payment_status || order.payment_status,
         notes: adminNotes,
-        metadata: { ...order.metadata, tracking_number: trackingNumber }
+        metadata: updatePayload.metadata
       });
 
       // Send Notification (Email + SMS)
@@ -310,14 +328,41 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                       <button
                         key={status}
                         onClick={() => {
-                          handleUpdateStatus(status);
+                          if (status === 'cancelled' && order.payment_status === 'paid') {
+                            if (confirm('This order has been paid. Cancelling will automatically initiate a refund to the original payment method. Continue?')) {
+                              handleUpdateStatus(status);
+                            }
+                          } else {
+                            handleUpdateStatus(status);
+                          }
                         }}
                         className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors capitalize ${status === currentStatus ? 'bg-emerald-50 font-semibold' : ''
-                          }`}
+                          } ${status === 'cancelled' ? 'text-red-600 hover:bg-red-50' : ''}`}
                       >
                         {status}
+                        {status === 'cancelled' && order.payment_status === 'paid' && (
+                          <span className="text-xs text-red-400 ml-2">(will trigger refund)</span>
+                        )}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {/* Refund indicator */}
+                {order.payment_status === 'refunded' && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                    <i className="ri-refund-2-line text-blue-600 mt-0.5"></i>
+                    <div className="text-sm">
+                      <p className="font-semibold text-blue-900">Refund Initiated</p>
+                      <p className="text-blue-700">
+                        Refund to original payment method.
+                        {order.metadata?.refund_initiated_at && (
+                          <span className="block text-xs text-blue-500 mt-1">
+                            Initiated: {new Date(order.metadata.refund_initiated_at).toLocaleString()}
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

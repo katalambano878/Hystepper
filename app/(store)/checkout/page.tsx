@@ -40,13 +40,21 @@ export default function CheckoutPage() {
   const [acceptedPolicy, setAcceptedPolicy] = useState(false);
   const [errors, setErrors] = useState<any>({});
 
+  // Coupon
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponApplied, setCouponApplied] = useState<any>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState('');
+
   // Loyalty
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
   const [redeemPoints, setRedeemPoints] = useState(false);
 
   // Settings
   const [settings, setSettings] = useState({
-    nextDayDelivery: false
+    nextDayDelivery: false,
+    deliveryUnavailable: false
   });
 
   // Dynamic zone lookup
@@ -79,11 +87,12 @@ export default function CheckoutPage() {
       const { data: settingsData } = await supabase
         .from('store_settings')
         .select('key, value')
-        .in('key', ['next_day_delivery_enabled']);
+        .in('key', ['next_day_delivery_enabled', 'delivery_unavailable']);
 
       if (settingsData) {
-        const nextDay = settingsData.find(s => s.key === 'next_day_delivery_enabled')?.value === true;
-        setSettings({ nextDayDelivery: nextDay });
+        const nextDay = settingsData.find(s => s.key === 'next_day_delivery_enabled')?.value === true || settingsData.find(s => s.key === 'next_day_delivery_enabled')?.value === 'true';
+        const unavailable = settingsData.find(s => s.key === 'delivery_unavailable')?.value === true || settingsData.find(s => s.key === 'delivery_unavailable')?.value === 'true';
+        setSettings({ nextDayDelivery: nextDay, deliveryUnavailable: unavailable });
       }
 
       // 3. Delivery Zones
@@ -109,14 +118,23 @@ export default function CheckoutPage() {
 
   // Calculate Totals
   const subtotal = cartSubtotal;
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const baseFee = activeZone?.base_fee || 0;
-  const shippingCost = deliveryMethod === 'express' ? (baseFee + 15) : deliveryMethod === 'standard' ? baseFee : 0;
+  const perItemFee = activeZone?.per_item_fee || 0;
+  // Outside Accra: base_fee + (per_item_fee x number_of_items)
+  // Inside Accra: base_fee only (flat rate)
+  const zoneFee = isAccra ? baseFee : baseFee + (perItemFee * totalItems);
+  const shippingCost = zoneFee;
 
-  // Loyalty Discount Logic: 15 points = 15 GHS
-  const pointsDiscount = (redeemPoints && loyaltyPoints >= 15) ? 15 : 0;
+  // Loyalty Discount Logic: 1 point = GH₵ 1 discount, minimum 15 points to redeem
+  // Cannot combine with coupon/promo discounts
+  const pointsDiscount = (redeemPoints && loyaltyPoints >= 15 && !couponApplied) ? Math.min(loyaltyPoints, subtotal) : 0;
+
+  // Total discount (coupon OR points, never both)
+  const totalDiscount = couponApplied ? couponDiscount : pointsDiscount;
 
   const tax = 0;
-  const totalBeforeSplit = subtotal + shippingCost + tax - pointsDiscount;
+  const totalBeforeSplit = subtotal + shippingCost + tax - totalDiscount;
 
   const deliveryFeeToPayLater = paymentOption === 'item_only' ? shippingCost : 0;
   const payableNow = totalBeforeSplit - deliveryFeeToPayLater;
@@ -136,6 +154,83 @@ export default function CheckoutPage() {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    setCouponError('');
+
+    try {
+      const { data: coupon, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode.trim().toUpperCase())
+        .eq('is_active', true)
+        .single();
+
+      if (error || !coupon) {
+        setCouponError('Invalid or expired coupon code');
+        setCouponLoading(false);
+        return;
+      }
+
+      // Check dates
+      if (coupon.start_date && new Date(coupon.start_date) > new Date()) {
+        setCouponError('This coupon is not yet active');
+        setCouponLoading(false);
+        return;
+      }
+      if (coupon.end_date && new Date(coupon.end_date) < new Date()) {
+        setCouponError('This coupon has expired');
+        setCouponLoading(false);
+        return;
+      }
+
+      // Check usage limit
+      if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
+        setCouponError('This coupon has reached its usage limit');
+        setCouponLoading(false);
+        return;
+      }
+
+      // Check minimum purchase
+      if (coupon.minimum_purchase && subtotal < coupon.minimum_purchase) {
+        setCouponError(`Minimum purchase of GH₵ ${coupon.minimum_purchase} required`);
+        setCouponLoading(false);
+        return;
+      }
+
+      // Cannot combine with loyalty points
+      if (redeemPoints) {
+        setRedeemPoints(false);
+      }
+
+      // Calculate discount
+      let discount = 0;
+      if (coupon.type === 'percentage') {
+        discount = (subtotal * coupon.value) / 100;
+        if (coupon.maximum_discount) {
+          discount = Math.min(discount, coupon.maximum_discount);
+        }
+      } else if (coupon.type === 'fixed_amount') {
+        discount = Math.min(coupon.value, subtotal);
+      }
+
+      setCouponDiscount(discount);
+      setCouponApplied(coupon);
+    } catch (err) {
+      setCouponError('Failed to apply coupon');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponApplied(null);
+    setCouponDiscount(0);
+    setCouponCode('');
+    setCouponError('');
   };
 
   const handleContinueToDelivery = () => {
@@ -177,13 +272,13 @@ export default function CheckoutPage() {
           subtotal: subtotal,
           tax_total: tax,
           shipping_total: shippingCost,
-          discount_total: pointsDiscount,
+          discount_total: totalDiscount,
           total: total,
           shipping_method: deliveryMethod,
           payment_method: paymentMethod,
           payment_option: paymentOption,
           delivery_notes: deliveryNotes,
-          points_redeemed: pointsDiscount > 0 ? 15 : 0,
+          points_redeemed: pointsDiscount > 0 ? pointsDiscount : 0,
           points_discount: pointsDiscount,
           shipping_address: shippingData,
           billing_address: shippingData,
@@ -193,7 +288,9 @@ export default function CheckoutPage() {
             last_name: shippingData.lastName,
             region: shippingData.region,
             payable_now: payableNow,
-            delivery_fee_due: deliveryFeeToPayLater
+            delivery_fee_due: deliveryFeeToPayLater,
+            coupon_code: couponApplied?.code || null,
+            coupon_discount: couponDiscount || 0
           }
         }])
         .select()
@@ -224,23 +321,64 @@ export default function CheckoutPage() {
 
       if (itemsError) throw itemsError;
 
+      // Increment coupon usage
+      if (couponApplied) {
+        await supabase
+          .from('coupons')
+          .update({ usage_count: (couponApplied.usage_count || 0) + 1 })
+          .eq('id', couponApplied.id);
+      }
+
       // Deduct Points if used
       if (pointsDiscount > 0 && user) {
         await supabase
           .from('loyalty_points')
-          .update({ points: loyaltyPoints - 15 })
+          .update({ points: loyaltyPoints - pointsDiscount, updated_at: new Date().toISOString() })
           .eq('user_id', user.id);
 
         await supabase.from('loyalty_transactions').insert({
           user_id: user.id,
           order_id: order.id,
-          amount: -15,
+          amount: -pointsDiscount,
           type: 'redemption',
-          description: `Redeemed on order ${orderNumber}`
+          description: `Redeemed ${pointsDiscount} points (GH₵ ${pointsDiscount.toFixed(2)} off) on order ${orderNumber}`
         });
       }
 
-      // 3. Handle Payment Redirects
+      // 3. Send order confirmation notification
+      try {
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'order_confirmation',
+            payload: {
+              email: shippingData.email,
+              name: `${shippingData.firstName} ${shippingData.lastName}`,
+              orderNumber: orderNumber,
+              subtotal: subtotal,
+              shipping: shippingCost,
+              discount: totalDiscount,
+              total: total,
+              payableNow: payableNow,
+              items: cart.map(item => ({
+                name: item.name,
+                variant: item.variant,
+                quantity: item.quantity,
+                price: item.price
+              })),
+              shippingAddress: shippingData,
+              phone: shippingData.phone,
+              paymentOption: paymentOption
+            }
+          })
+        });
+      } catch (notifErr) {
+        console.error('Failed to send confirmation:', notifErr);
+        // Don't block order flow if notification fails
+      }
+
+      // 4. Handle Payment Redirects
       if (paymentMethod === 'moolre') {
         try {
           // Logic for 0 payable flow (e.g. fully covered by discount, unlikely but possible)
@@ -502,63 +640,99 @@ export default function CheckoutPage() {
 
             {currentStep === 2 && (
               <>
-                <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-6">Delivery Method</h2>
-                  <div className="space-y-4">
-                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'standard' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'}`}>
-                      <div className="flex items-center space-x-4">
-                        <input
-                          type="radio"
-                          name="delivery"
-                          value="standard"
-                          checked={deliveryMethod === 'standard'}
-                          onChange={(e) => setDeliveryMethod(e.target.value)}
-                          className="w-5 h-5 text-emerald-700"
-                        />
-                        <div>
-                          <p className="font-semibold text-gray-900">Standard Delivery</p>
-                          <p className="text-sm text-gray-600">Within {isAccra ? '1-2' : '3-5'} business days</p>
-                        </div>
-                      </div>
-                      <p className="font-bold text-gray-900">GH₵ {baseFee.toFixed(2)}</p>
-                    </label>
+                {settings.deliveryUnavailable ? (
+                  <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-center">
+                      <i className="ri-truck-line text-4xl text-red-400 mb-3 block"></i>
+                      <h2 className="text-xl font-bold text-red-900 mb-2">Delivery Unavailable Today</h2>
+                      <p className="text-red-700 mb-4">We are not dispatching deliveries at this time. Please check back later or contact us on WhatsApp/Instagram for updates.</p>
+                      <button
+                        onClick={() => setCurrentStep(1)}
+                        className="px-6 py-3 border-2 border-gray-300 hover:border-gray-400 text-gray-700 rounded-lg font-semibold transition-colors cursor-pointer"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <h2 className="text-xl font-bold text-gray-900 mb-6">Delivery Method</h2>
 
                     {settings.nextDayDelivery && (
-                      <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'express' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'}`}>
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                        <i className="ri-information-line text-blue-600 mt-0.5"></i>
+                        <p className="text-sm text-blue-800">
+                          <strong>Next-day delivery is currently active.</strong> All orders placed today will be delivered tomorrow.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors border-emerald-700 bg-emerald-50`}>
                         <div className="flex items-center space-x-4">
                           <input
                             type="radio"
                             name="delivery"
-                            value="express"
-                            checked={deliveryMethod === 'express'}
-                            onChange={(e) => setDeliveryMethod(e.target.value)}
+                            value="standard"
+                            checked={true}
+                            readOnly
                             className="w-5 h-5 text-emerald-700"
                           />
                           <div>
-                            <p className="font-semibold text-gray-900">Express Delivery</p>
-                            <p className="text-sm text-gray-600">Get it sooner</p>
+                            <p className="font-semibold text-gray-900">
+                              {settings.nextDayDelivery ? 'Next-Day Delivery' : 'Standard Delivery'}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {settings.nextDayDelivery
+                                ? 'Delivered tomorrow'
+                                : `Within ${isAccra ? '1-2' : '3-5'} business days`
+                              }
+                            </p>
                           </div>
                         </div>
-                        <p className="font-bold text-gray-900">GH₵ {(baseFee + 15).toFixed(2)}</p>
+                        <p className="font-bold text-gray-900">GH₵ {shippingCost.toFixed(2)}</p>
                       </label>
-                    )}
-                  </div>
+                    </div>
 
-                  <div className="flex flex-col-reverse md:flex-row gap-4 mt-6">
-                    <button
-                      onClick={() => setCurrentStep(1)}
-                      className="flex-1 border-2 border-gray-300 hover:border-gray-400 text-gray-700 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={handleContinueToPayment}
-                      className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
-                    >
-                      Continue to Payment
-                    </button>
+                    {/* Transport service info for outside Accra */}
+                    {!isAccra && activeZone?.transport_service && (
+                      <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-2">
+                        <i className="ri-bus-line text-gray-600 mt-0.5"></i>
+                        <p className="text-sm text-gray-700">
+                          Delivery to <strong>{activeZone.name}</strong> via <strong>{activeZone.transport_service}</strong> transport service.
+                          {perItemFee > 0 && (
+                            <span className="block mt-1 text-gray-500">
+                              Fee breakdown: GH₵ {baseFee.toFixed(2)} base + GH₵ {perItemFee.toFixed(2)} × {totalItems} item{totalItems !== 1 ? 's' : ''} = GH₵ {shippingCost.toFixed(2)}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Contact for unlisted locations */}
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                      <i className="ri-map-pin-line text-amber-600 mt-0.5"></i>
+                      <p className="text-sm text-amber-800">
+                        Don&apos;t see your location? Contact us on <strong>WhatsApp</strong> or <strong>Instagram</strong> and we&apos;ll arrange delivery for you.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col-reverse md:flex-row gap-4 mt-6">
+                      <button
+                        onClick={() => setCurrentStep(1)}
+                        className="flex-1 border-2 border-gray-300 hover:border-gray-400 text-gray-700 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={handleContinueToPayment}
+                        className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
+                      >
+                        Continue to Payment
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
 
@@ -611,8 +785,54 @@ export default function CheckoutPage() {
                   )}
                 </div>
 
+                {/* Coupon Code */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-3">Have a promo code?</h3>
+                  {couponApplied ? (
+                    <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <div>
+                        <p className="font-semibold text-emerald-800 flex items-center gap-2">
+                          <i className="ri-coupon-3-line"></i>
+                          {couponApplied.code}
+                        </p>
+                        <p className="text-sm text-emerald-600">
+                          {couponApplied.type === 'percentage' ? `${couponApplied.value}% off` : `GH₵ ${couponApplied.value} off`}
+                          {' '}&bull; Saving GH₵ {couponDiscount.toFixed(2)}
+                        </p>
+                      </div>
+                      <button onClick={removeCoupon} className="text-red-500 hover:text-red-700 cursor-pointer p-1">
+                        <i className="ri-close-circle-line text-xl"></i>
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 uppercase"
+                          placeholder="Enter promo code"
+                        />
+                        <button
+                          onClick={handleApplyCoupon}
+                          disabled={couponLoading || !couponCode.trim()}
+                          className="px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                        >
+                          {couponLoading ? 'Applying...' : 'Apply'}
+                        </button>
+                      </div>
+                      {couponError && (
+                        <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
+                          <i className="ri-error-warning-line"></i> {couponError}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Loyalty Points Section */}
-                {user && loyaltyPoints >= 15 && (
+                {user && loyaltyPoints >= 15 && !couponApplied && (
                   <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
                     <div className="flex items-start">
                       <div className="flex-1">
@@ -620,7 +840,12 @@ export default function CheckoutPage() {
                           <i className="ri-award-line"></i> Loyalty Reward Available
                         </h3>
                         <p className="text-sm text-emerald-700 mt-1">
-                          You have <b>{loyaltyPoints} points</b>. Use 15 points to get <b>GH₵ 15.00 off</b> your order?
+                          You have <b>{loyaltyPoints} points</b> (1 point = GH₵ 1 discount).
+                          {redeemPoints && <span className="block mt-1">Applying <b>GH₵ {pointsDiscount.toFixed(2)}</b> discount.</span>}
+                        </p>
+                        <p className="text-xs text-emerald-600 mt-1">
+                          Points earned: 5 per item on delivered orders. Points expire 6 months after earning.
+                          Cannot be combined with coupon/promo codes.
                         </p>
                       </div>
                       <label className="flex items-center space-x-2 cursor-pointer mt-1">
@@ -671,22 +896,54 @@ export default function CheckoutPage() {
                     placeholder="Any special instructions for delivery..."
                     rows={3}
                   ></textarea>
-                  <p className="text-xs text-gray-500 mt-1">Note: We cannot guarantee specific time slots, but will do our best to accommodate.</p>
+                  <p className="text-xs text-gray-500 mt-1">Note: Not all notes or requests can be accommodated. You may be contacted if a request cannot be fulfilled.</p>
                 </div>
 
-                {/* Policy Acceptance */}
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <label className="flex items-start space-x-3 cursor-pointer">
+                {/* Exchange & Refund Policy Summary */}
+                <div className="mb-6 p-5 bg-amber-50 rounded-lg border border-amber-200">
+                  <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <i className="ri-error-warning-line text-amber-600"></i>
+                    Exchange & Refund Summary (Please Read):
+                  </h3>
+                  <ul className="text-sm text-gray-700 space-y-2 mb-4">
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">•</span>
+                      <span>Exchanges must be initiated within <strong>24 hours</strong> of delivery</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">•</span>
+                      <span>Exchanges apply to faulty items, sizing issues, or wrong items delivered</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">•</span>
+                      <span>No exchanges for heel height, style, or product preference, as these are stated before purchase</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">•</span>
+                      <span>Refunds apply for faulty or wrong items delivered only if an exchange is not possible</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">•</span>
+                      <span>Delivery fees are non-refundable once delivery is completed or once the rider has been directed to your location</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">•</span>
+                      <span>Customers are responsible for delivery fees for exchanges when exchanging a size they personally selected</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">•</span>
+                      <span>Items must be unused, unworn, and returned with all original packaging intact</span>
+                    </li>
+                  </ul>
+                  <label className="flex items-start space-x-3 cursor-pointer pt-3 border-t border-amber-200">
                     <input
                       type="checkbox"
                       checked={acceptedPolicy}
                       onChange={(e) => setAcceptedPolicy(e.target.checked)}
                       className="w-5 h-5 text-emerald-700 rounded border-gray-300 focus:ring-emerald-500 mt-0.5"
                     />
-                    <div className="text-sm text-gray-700">
-                      I accept the <Link href="/policy" className="text-emerald-700 underline hover:text-emerald-800">Exchange & Refund Policy</Link>.
-                      <br />
-                      <span className="text-xs text-gray-500">I understand that returns are only accepted within 7 days for exchange only.</span>
+                    <div className="text-sm text-gray-900 font-medium">
+                      I have read and agree to the <Link href="/policy" className="text-emerald-700 underline hover:text-emerald-800">Exchange & Refund Policy</Link>
                     </div>
                   </label>
                 </div>
@@ -723,7 +980,7 @@ export default function CheckoutPage() {
               subtotal={subtotal}
               shipping={shippingCost}
               tax={tax}
-              discount={pointsDiscount}
+              discount={totalDiscount}
               total={total}
               payableNow={payableNow}
               payLater={deliveryFeeToPayLater}

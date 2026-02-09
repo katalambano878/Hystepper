@@ -9,6 +9,8 @@ interface DeliveryZone {
     id: string;
     name: string;
     base_fee: number;
+    per_item_fee: number;
+    transport_service: string | null;
     is_accra: boolean;
     is_active: boolean;
 }
@@ -23,6 +25,8 @@ export default function DeliverySettingsPage() {
     const [formData, setFormData] = useState({
         name: '',
         base_fee: 0,
+        per_item_fee: 0,
+        transport_service: '',
         is_accra: false,
         is_active: true
     });
@@ -52,6 +56,8 @@ export default function DeliverySettingsPage() {
         setFormData({
             name: zone.name,
             base_fee: zone.base_fee,
+            per_item_fee: zone.per_item_fee || 0,
+            transport_service: zone.transport_service || '',
             is_accra: zone.is_accra,
             is_active: zone.is_active
         });
@@ -62,7 +68,9 @@ export default function DeliverySettingsPage() {
     function handleAddNew() {
         setFormData({
             name: '',
-            base_fee: 0, // Default fee
+            base_fee: 0,
+            per_item_fee: 0,
+            transport_service: '',
             is_accra: false,
             is_active: true
         });
@@ -77,13 +85,14 @@ export default function DeliverySettingsPage() {
             const payload = {
                 name: formData.name,
                 base_fee: formData.base_fee,
+                per_item_fee: formData.per_item_fee,
+                transport_service: formData.transport_service || null,
                 is_accra: formData.is_accra,
                 is_active: formData.is_active,
                 updated_at: new Date().toISOString()
             };
 
             if (editingId) {
-                // Update
                 const { error } = await supabase
                     .from('delivery_zones')
                     .update(payload)
@@ -91,7 +100,6 @@ export default function DeliverySettingsPage() {
                 if (error) throw error;
                 toast.success('Zone updated');
             } else {
-                // Insert
                 const { error } = await supabase
                     .from('delivery_zones')
                     .insert(payload);
@@ -132,7 +140,7 @@ export default function DeliverySettingsPage() {
                     </Link>
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">Delivery Zones</h1>
-                        <p className="text-gray-600">Manage shipping regions and fees</p>
+                        <p className="text-gray-600">Manage shipping regions, fees, and transport services</p>
                     </div>
                 </div>
                 <button
@@ -159,13 +167,35 @@ export default function DeliverySettingsPage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold mb-2">Delivery Fee (GH₵)</label>
+                            <label className="block text-sm font-semibold mb-2">Base Delivery Fee (GH₵)</label>
                             <input
                                 type="number"
                                 value={formData.base_fee}
-                                onChange={e => setFormData({ ...formData, base_fee: parseFloat(e.target.value) })}
+                                onChange={e => setFormData({ ...formData, base_fee: parseFloat(e.target.value) || 0 })}
                                 className="w-full px-4 py-2 border rounded-lg focus:ring-emerald-500"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold mb-2">Per-Item Fee (GH₵) <span className="text-gray-500 font-normal">(for outside Accra)</span></label>
+                            <input
+                                type="number"
+                                value={formData.per_item_fee}
+                                onChange={e => setFormData({ ...formData, per_item_fee: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-emerald-500"
+                                placeholder="Extra fee per additional item"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Total = base_fee + (per_item_fee x number_of_items). Set to 0 for Accra zones.</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold mb-2">Transport Service <span className="text-gray-500 font-normal">(for outside Accra)</span></label>
+                            <input
+                                type="text"
+                                value={formData.transport_service}
+                                onChange={e => setFormData({ ...formData, transport_service: e.target.value })}
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-emerald-500"
+                                placeholder="e.g. VIP / STC"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">The bus or transport service used for this region</p>
                         </div>
                         <div className="flex items-center space-x-4 pt-4">
                             <label className="flex items-center space-x-2 cursor-pointer">
@@ -211,7 +241,9 @@ export default function DeliverySettingsPage() {
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Region Name</th>
-                            <th className="text-left py-4 px-6 font-semibold text-gray-700">Fee</th>
+                            <th className="text-left py-4 px-6 font-semibold text-gray-700">Base Fee</th>
+                            <th className="text-left py-4 px-6 font-semibold text-gray-700">Per-Item Fee</th>
+                            <th className="text-left py-4 px-6 font-semibold text-gray-700">Transport</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Type</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Status</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Actions</th>
@@ -221,7 +253,13 @@ export default function DeliverySettingsPage() {
                         {zones.map((zone) => (
                             <tr key={zone.id} className="border-b border-gray-100 hover:bg-gray-50">
                                 <td className="py-4 px-6 font-medium text-gray-900">{zone.name}</td>
-                                <td className="py-4 px-6 text-gray-700">GH₵ {zone.base_fee.toFixed(2)}</td>
+                                <td className="py-4 px-6 text-gray-700">GH₵ {zone.base_fee?.toFixed(2)}</td>
+                                <td className="py-4 px-6 text-gray-700">
+                                    {zone.per_item_fee > 0 ? `GH₵ ${zone.per_item_fee.toFixed(2)}` : '—'}
+                                </td>
+                                <td className="py-4 px-6 text-gray-700">
+                                    {zone.transport_service || '—'}
+                                </td>
                                 <td className="py-4 px-6">
                                     {zone.is_accra ? (
                                         <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-bold">Inside Accra</span>
@@ -264,6 +302,19 @@ export default function DeliverySettingsPage() {
                         No delivery zones found. Add one to get started.
                     </div>
                 )}
+            </div>
+
+            <div className="bg-amber-50 rounded-xl border border-amber-200 p-6">
+                <div className="flex items-start gap-3">
+                    <i className="ri-information-line text-amber-600 text-xl mt-0.5"></i>
+                    <div>
+                        <h3 className="font-bold text-amber-900 mb-1">Outside Accra Delivery Fee Calculation</h3>
+                        <p className="text-amber-800 text-sm">
+                            For locations outside Accra, the delivery fee is calculated as: <strong>Base Fee + (Per-Item Fee × Number of Items)</strong>.
+                            For Accra zones, only the base fee applies regardless of item count.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     );

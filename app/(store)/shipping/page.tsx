@@ -17,11 +17,11 @@ export default function ShippingPage() {
       icon: 'ri-rocket-line'
     },
     {
-      type: 'Store Pickup',
-      time: 'Same Day',
-      cost: 'FREE',
-      description: 'Collect from our East Legon store',
-      icon: 'ri-store-2-line'
+      type: 'Outside Accra Delivery',
+      time: '3-5 Business Days',
+      cost: 'Varies by location',
+      description: 'Delivery to selected locations outside Accra via transport services',
+      icon: 'ri-map-pin-line'
     }
   ];
 

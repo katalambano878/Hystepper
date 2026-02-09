@@ -27,6 +27,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
   const [lowStockThreshold, setLowStockThreshold] = useState('5');
 
   // New Footwear Fields
+  const [productCode, setProductCode] = useState('');
   const [styleName, setStyleName] = useState('');
   const [material, setMaterial] = useState('');
   const [heelHeight, setHeelHeight] = useState('');
@@ -90,6 +91,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
         // lowStockThreshold not in DB schema provided, assuming it might be in metadata or skip
 
         // New Fields
+        setProductCode(product.product_code || '');
         setStyleName(product.style_name || '');
         setMaterial(product.material || '');
         setHeelHeight(product.heel_height || '');
@@ -156,6 +158,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
         quantity: parseInt(stock) || 0,
         slug: slug || productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         // New Fields
+        product_code: productCode,
         style_name: styleName,
         material: material,
         heel_height: heelHeight,
@@ -415,6 +418,19 @@ export default function ProductEditor({ productId }: { productId: string }) {
               {/* LIVE DATABASE FIELDS - FOOTWEAR */}
               <div className="pt-6 border-t border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Product Details</h3>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Product Code <span className="text-gray-500 font-normal">(Unique identifier for this product)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={productCode}
+                    onChange={(e) => setProductCode(e.target.value)}
+                    placeholder="e.g., HYS-001"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  />
+                </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>

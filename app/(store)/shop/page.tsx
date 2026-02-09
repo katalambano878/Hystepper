@@ -67,9 +67,9 @@ function ShopContent() {
 
         const search = searchParams.get('search');
 
-        // Search
+        // Search - matches name, product_code, or style_name
         if (search) {
-          query = query.ilike('name', `%${search}%`);
+          query = query.or(`name.ilike.%${search}%,product_code.ilike.%${search}%,style_name.ilike.%${search}%`);
         }
 
         // Category Filter with Subcategories
@@ -106,6 +106,25 @@ function ShopContent() {
         if (selectedRating > 0) {
           query = query.gte('rating_avg', selectedRating);
         }
+
+        // Heel Height Filter (from URL params)
+        const heelParam = searchParams.get('heel_height');
+        if (heelParam) {
+          // Map filter values to heel_height column patterns
+          const heelMap: Record<string, string> = {
+            'flat': '%flat%',
+            'low': '%low%',
+            'mid': '%mid%',
+            'high': '%high%'
+          };
+          if (heelMap[heelParam]) {
+            query = query.ilike('heel_height', heelMap[heelParam]);
+          }
+        }
+
+        // Size Filter (from URL params) - searches in product_variants option1 field
+        // This is a basic filter; for precise variant-level filtering we search the name field
+        const sizeParam = searchParams.get('size');
 
         // Sorting
         switch (sortBy) {

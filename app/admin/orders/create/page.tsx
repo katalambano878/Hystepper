@@ -5,12 +5,37 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+interface CartItem {
+    id: string;
+    product_id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    variant_id?: string;
+    variant_name?: string;
+    image?: string;
+}
+
+interface DeliveryZone {
+    id: string;
+    name: string;
+    is_accra: boolean;
+    base_fee: number;
+    per_item_fee: number;
+    transport_service: string | null;
+}
+
 export default function CreateOrderPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [products, setProducts] = useState<any[]>([]);
-    const [cart, setCart] = useState<any[]>([]);
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [zones, setZones] = useState<DeliveryZone[]>([]);
+
+    // Variant selection state for the product being added
+    const [selectedProduct, setSelectedProduct] = useState<any>(null);
+    const [selectedVariant, setSelectedVariant] = useState<string>('');
 
     const [customer, setCustomer] = useState({
         firstName: '',
@@ -19,21 +44,35 @@ export default function CreateOrderPage() {
         phone: '',
         address: '',
         city: 'Accra',
-        region: 'Greater Accra'
+        region: ''
     });
 
-    const [deliveryMethod, setDeliveryMethod] = useState('standard');
     const [paymentStatus, setPaymentStatus] = useState('pending');
+    const [paymentOption, setPaymentOption] = useState('full_payment');
 
-    // Product Search
+    // Fetch delivery zones on mount
+    useEffect(() => {
+        async function fetchZones() {
+            const { data } = await supabase
+                .from('delivery_zones')
+                .select('*')
+                .eq('is_active', true)
+                .order('name');
+            if (data) setZones(data);
+        }
+        fetchZones();
+    }, []);
+
+    // Product Search - includes variants
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
             if (searchTerm.length > 2) {
                 const { data } = await supabase
                     .from('products')
-                    .select('id, name, price, images:product_images(url)')
-                    .ilike('name', `%${searchTerm}%`)
-                    .limit(5);
+                    .select('id, name, price, sku, product_code, product_images(url), product_variants(id, name, option1, option2, price, quantity)')
+                    .or(`name.ilike.%${searchTerm}%,product_code.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%`)
+                    .eq('status', 'active')
+                    .limit(10);
 
                 setProducts(data || []);
             } else {
@@ -44,12 +83,59 @@ export default function CreateOrderPage() {
         return () => clearTimeout(delayDebounceFn);
     }, [searchTerm]);
 
-    const addToCart = (product: any) => {
-        const existing = cart.find(item => item.id === product.id);
+    const selectProduct = (product: any) => {
+        setSelectedProduct(product);
+        setSelectedVariant('');
+    };
+
+    const addToCart = () => {
+        if (!selectedProduct) return;
+
+        const variant = selectedProduct.product_variants?.find((v: any) => v.id === selectedVariant);
+        const cartItem: CartItem = {
+            id: variant ? `${selectedProduct.id}-${variant.id}` : selectedProduct.id,
+            product_id: selectedProduct.id,
+            name: selectedProduct.name,
+            price: variant?.price || selectedProduct.price,
+            quantity: 1,
+            variant_id: variant?.id,
+            variant_name: variant ? [variant.name || variant.option1, variant.option2].filter(Boolean).join(' / ') : undefined,
+            image: selectedProduct.product_images?.[0]?.url
+        };
+
+        const existing = cart.find(item => item.id === cartItem.id);
         if (existing) {
-            setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
+            setCart(cart.map(item => item.id === cartItem.id ? { ...item, quantity: item.quantity + 1 } : item));
         } else {
-            setCart([...cart, { ...product, quantity: 1 }]);
+            setCart([...cart, cartItem]);
+        }
+
+        setSelectedProduct(null);
+        setSelectedVariant('');
+        setSearchTerm('');
+        setProducts([]);
+    };
+
+    const addDirectly = (product: any) => {
+        // If product has variants, show variant picker
+        if (product.product_variants && product.product_variants.length > 0) {
+            selectProduct(product);
+            return;
+        }
+        // No variants - add directly
+        const cartItem: CartItem = {
+            id: product.id,
+            product_id: product.id,
+            name: product.name,
+            price: product.price,
+            quantity: 1,
+            image: product.product_images?.[0]?.url
+        };
+        const existing = cart.find(item => item.id === cartItem.id);
+        if (existing) {
+            setCart(cart.map(item => item.id === cartItem.id ? { ...item, quantity: item.quantity + 1 } : item));
+        } else {
+            setCart([...cart, cartItem]);
         }
     };
 
@@ -67,9 +153,18 @@ export default function CreateOrderPage() {
         }));
     };
 
+    // Dynamic fee calculation
+    const activeZone = zones.find(z => z.name === customer.region);
+    const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const shipping = deliveryMethod === 'express' ? 25 : deliveryMethod === 'standard' ? 15 : 0;
-    const total = subtotal + shipping;
+
+    const shippingFee = activeZone
+        ? activeZone.is_accra
+            ? activeZone.base_fee
+            : activeZone.base_fee + (activeZone.per_item_fee * totalItems)
+        : 0;
+
+    const total = subtotal + shippingFee;
 
     const handleSubmit = async () => {
         if (cart.length === 0) {
@@ -78,6 +173,10 @@ export default function CreateOrderPage() {
         }
         if (!customer.email || !customer.firstName) {
             toast.error('Customer details required');
+            return;
+        }
+        if (!customer.region) {
+            toast.error('Select a delivery region');
             return;
         }
 
@@ -95,16 +194,19 @@ export default function CreateOrderPage() {
                     payment_status: paymentStatus,
                     currency: 'GHS',
                     subtotal,
-                    shipping_total: shipping,
+                    shipping_total: shippingFee,
                     total,
-                    shipping_method: deliveryMethod,
+                    shipping_method: 'standard',
                     payment_method: 'manual',
+                    payment_option: paymentOption,
                     shipping_address: customer,
                     billing_address: customer,
                     metadata: {
                         source: 'admin_manual',
                         first_name: customer.firstName,
-                        last_name: customer.lastName
+                        last_name: customer.lastName,
+                        delivery_zone: activeZone?.name,
+                        transport_service: activeZone?.transport_service
                     }
                 }])
                 .select()
@@ -114,8 +216,10 @@ export default function CreateOrderPage() {
 
             const orderItems = cart.map(item => ({
                 order_id: order.id,
-                product_id: item.id,
+                product_id: item.product_id,
+                variant_id: item.variant_id || null,
                 product_name: item.name,
+                variant_name: item.variant_name || null,
                 quantity: item.quantity,
                 unit_price: item.price,
                 total_price: item.price * item.quantity
@@ -125,7 +229,7 @@ export default function CreateOrderPage() {
             if (itemsError) throw itemsError;
 
             toast.success('Order created successfully');
-            router.push(`/admin/orders/${order.id}`); // Or just /admin/orders
+            router.push(`/admin/orders/${order.id}`);
 
         } catch (err: any) {
             console.error('Create order error:', err);
@@ -146,29 +250,73 @@ export default function CreateOrderPage() {
                         <h2 className="text-lg font-semibold mb-4">Add Products</h2>
                         <input
                             type="text"
-                            placeholder="Search products..."
+                            placeholder="Search by name, product code, or SKU..."
                             className="w-full px-4 py-2 border rounded-lg"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                         />
-                        {products.length > 0 && (
+                        {products.length > 0 && !selectedProduct && (
                             <div className="mt-2 border rounded-lg bg-white divide-y max-h-60 overflow-y-auto">
                                 {products.map(p => (
-                                    <div key={p.id} className="p-3 hover:bg-gray-50 flex justify-between items-center cursor-pointer" onClick={() => addToCart(p)}>
+                                    <div key={p.id} className="p-3 hover:bg-gray-50 flex justify-between items-center cursor-pointer" onClick={() => addDirectly(p)}>
                                         <div>
                                             <p className="font-medium">{p.name}</p>
-                                            <p className="text-sm text-gray-500">GH₵ {p.price}</p>
+                                            <p className="text-sm text-gray-500">
+                                                GH₵ {p.price}
+                                                {p.product_code && <span className="ml-2 text-gray-400">({p.product_code})</span>}
+                                                {p.product_variants?.length > 0 && <span className="ml-2 text-blue-500 text-xs">{p.product_variants.length} variants</span>}
+                                            </p>
                                         </div>
                                         <i className="ri-add-circle-line text-2xl text-emerald-600"></i>
                                     </div>
                                 ))}
                             </div>
                         )}
+
+                        {/* Variant Picker */}
+                        {selectedProduct && (
+                            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <h3 className="font-semibold text-gray-900 mb-2">
+                                    Select variant for: <span className="text-blue-700">{selectedProduct.name}</span>
+                                </h3>
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    {selectedProduct.product_variants?.map((v: any) => (
+                                        <button
+                                            key={v.id}
+                                            onClick={() => setSelectedVariant(v.id)}
+                                            className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer ${
+                                                selectedVariant === v.id
+                                                    ? 'border-blue-600 bg-blue-100 text-blue-800'
+                                                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            {[v.name || v.option1, v.option2].filter(Boolean).join(' / ')}
+                                            <span className="text-gray-400 ml-1">(GH₵ {v.price})</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={addToCart}
+                                        disabled={!selectedVariant}
+                                        className="px-4 py-2 bg-emerald-700 text-white rounded-lg text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50 cursor-pointer"
+                                    >
+                                        Add to Order
+                                    </button>
+                                    <button
+                                        onClick={() => { setSelectedProduct(null); setSelectedVariant(''); }}
+                                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Cart Items */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h2 className="text-lg font-semibold mb-4">Order Items</h2>
+                        <h2 className="text-lg font-semibold mb-4">Order Items ({cart.length})</h2>
                         {cart.length === 0 ? (
                             <p className="text-gray-500 text-center py-4">No items added</p>
                         ) : (
@@ -177,13 +325,16 @@ export default function CreateOrderPage() {
                                     <div key={item.id} className="py-3 flex justify-between items-center">
                                         <div>
                                             <p className="font-medium">{item.name}</p>
-                                            <p className="text-sm text-gray-500">GH₵ {item.price}</p>
+                                            {item.variant_name && (
+                                                <p className="text-sm text-blue-600">{item.variant_name}</p>
+                                            )}
+                                            <p className="text-sm text-gray-500">GH₵ {item.price.toFixed(2)}</p>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 bg-gray-100 rounded-full">-</button>
-                                            <span>{item.quantity}</span>
-                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 bg-gray-100 rounded-full">+</button>
-                                            <button onClick={() => removeFromCart(item.id)} className="text-red-500 ml-2"><i className="ri-delete-bin-line"></i></button>
+                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center cursor-pointer">-</button>
+                                            <span className="font-medium">{item.quantity}</span>
+                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center cursor-pointer">+</button>
+                                            <button onClick={() => removeFromCart(item.id)} className="text-red-500 ml-2 cursor-pointer"><i className="ri-delete-bin-line"></i></button>
                                         </div>
                                     </div>
                                 ))}
@@ -199,7 +350,7 @@ export default function CreateOrderPage() {
                         <div className="space-y-3">
                             <input
                                 className="w-full p-2 border rounded"
-                                placeholder="First Name"
+                                placeholder="First Name *"
                                 value={customer.firstName}
                                 onChange={e => setCustomer({ ...customer, firstName: e.target.value })}
                             />
@@ -211,7 +362,7 @@ export default function CreateOrderPage() {
                             />
                             <input
                                 className="w-full p-2 border rounded"
-                                placeholder="Email"
+                                placeholder="Email *"
                                 value={customer.email}
                                 onChange={e => setCustomer({ ...customer, email: e.target.value })}
                             />
@@ -227,21 +378,25 @@ export default function CreateOrderPage() {
                                 value={customer.address}
                                 onChange={e => setCustomer({ ...customer, address: e.target.value })}
                             />
-                            <select
-                                className="w-full p-2 border rounded"
-                                value={customer.region}
-                                onChange={e => setCustomer({ ...customer, region: e.target.value })}
-                            >
-                                <option>Greater Accra</option>
-                                <option>Ashanti</option>
-                                {/* Add others as needed */}
-                            </select>
+                            <div>
+                                <label className="text-sm font-medium text-gray-700">Delivery Region *</label>
+                                <select
+                                    className="w-full p-2 border rounded mt-1"
+                                    value={customer.region}
+                                    onChange={e => setCustomer({ ...customer, region: e.target.value })}
+                                >
+                                    <option value="">Select Delivery Zone</option>
+                                    {zones.map(z => (
+                                        <option key={z.id} value={z.name}>{z.name} (GH₵ {z.base_fee})</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
 
                     {/* Order Settings */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h2 className="text-lg font-semibold mb-4">Payment & Shipping</h2>
+                        <h2 className="text-lg font-semibold mb-4">Payment & Delivery</h2>
                         <div className="space-y-3">
                             <div>
                                 <label className="text-sm font-medium">Payment Status</label>
@@ -255,29 +410,43 @@ export default function CreateOrderPage() {
                                 </select>
                             </div>
                             <div>
-                                <label className="text-sm font-medium">Shipping Method</label>
+                                <label className="text-sm font-medium">Payment Option</label>
                                 <select
                                     className="w-full p-2 border rounded mt-1"
-                                    value={deliveryMethod}
-                                    onChange={e => setDeliveryMethod(e.target.value)}
+                                    value={paymentOption}
+                                    onChange={e => setPaymentOption(e.target.value)}
                                 >
-                                    <option value="standard">Standard (GH₵ 15)</option>
-                                    <option value="express">Express (GH₵ 25)</option>
-                                    <option value="pickup">Pickup (Free)</option>
+                                    <option value="full_payment">Full Payment (Item + Delivery)</option>
+                                    <option value="item_only">Item Only (Pay delivery on arrival)</option>
+                                    <option value="pay_on_delivery">Pay on Delivery (Full amount)</option>
                                 </select>
                             </div>
                         </div>
 
+                        {/* Fee Breakdown */}
                         <div className="border-t mt-4 pt-4 space-y-2">
-                            <div className="flex justify-between">
+                            <div className="flex justify-between text-sm">
                                 <span>Subtotal</span>
                                 <span>GH₵ {subtotal.toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span>Shipping</span>
-                                <span>GH₵ {shipping.toFixed(2)}</span>
+                            <div className="flex justify-between text-sm">
+                                <span>
+                                    Delivery Fee
+                                    {activeZone && !activeZone.is_accra && activeZone.per_item_fee > 0 && (
+                                        <span className="text-gray-400 text-xs block">
+                                            {activeZone.base_fee} + ({activeZone.per_item_fee} × {totalItems} items)
+                                        </span>
+                                    )}
+                                </span>
+                                <span>GH₵ {shippingFee.toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between font-bold text-lg">
+                            {activeZone?.transport_service && (
+                                <div className="text-xs text-gray-500 flex items-center gap-1">
+                                    <i className="ri-bus-line"></i>
+                                    Via {activeZone.transport_service}
+                                </div>
+                            )}
+                            <div className="flex justify-between font-bold text-lg pt-2 border-t">
                                 <span>Total</span>
                                 <span>GH₵ {total.toFixed(2)}</span>
                             </div>
@@ -286,7 +455,7 @@ export default function CreateOrderPage() {
                         <button
                             onClick={handleSubmit}
                             disabled={loading}
-                            className="w-full mt-6 bg-emerald-700 text-white py-3 rounded-lg font-semibold hover:bg-emerald-800 disabled:opacity-50"
+                            className="w-full mt-6 bg-emerald-700 text-white py-3 rounded-lg font-semibold hover:bg-emerald-800 disabled:opacity-50 cursor-pointer"
                         >
                             {loading ? 'Creating...' : 'Create Order'}
                         </button>

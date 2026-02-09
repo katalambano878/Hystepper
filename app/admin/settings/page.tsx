@@ -84,8 +84,8 @@ export default function AdminSettingsPage() {
 
                     <div className="border-t border-gray-100 pt-6 flex items-center justify-between">
                         <div>
-                            <p className="font-medium text-gray-900">Disable Delivery (Pickup Only)</p>
-                            <p className="text-sm text-gray-500">If enabled, delivery options will be hidden and only Store Pickup will be available.</p>
+                            <p className="font-medium text-gray-900">Delivery Unavailable / Not Dispatching Today</p>
+                            <p className="text-sm text-gray-500">If enabled, customers will see a notice that delivery is currently unavailable and cannot place orders.</p>
                         </div>
                         <button
                             onClick={() => toggleSetting('delivery_unavailable', settings.delivery_unavailable)}

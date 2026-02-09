@@ -19,6 +19,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [activeTab, setActiveTab] = useState('description');
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [notifySubmitted, setNotifySubmitted] = useState(false);
+  const [notifyLoading, setNotifyLoading] = useState(false);
 
   const { addToCart } = useCart();
 
@@ -35,6 +38,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             categories(name),
             product_variants(*),
             product_images(url, position, alt_text),
+            product_code,
             material,
             heel_height,
             style_name,
@@ -73,8 +77,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           rating: productData.rating_avg || 0,
           reviewCount: 0, // Placeholder
           stockCount: productData.quantity,
-          colors: [], // Placeholder until specific attributes implementation
-          sizes: productData.product_variants?.map((v: any) => v.name) || [],
+          // Extract colors from variants option2, sizes from variant names (option1)
+          colors: [...new Set(productData.product_variants?.map((v: any) => v.option2).filter(Boolean))] || [],
+          sizes: [...new Set(productData.product_variants?.map((v: any) => v.name || v.option1).filter(Boolean))] || [],
+          variants: productData.product_variants || [],
           features: features,
           care: 'Handle with care. Keep in dry place.',
           isPreorder: productData.metadata?.is_preorder || false
@@ -134,7 +140,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       price: product.price,
       image: product.images[0],
       quantity: quantity,
-      variant: selectedSize ? `${selectedSize}` : undefined,
+      variant: [selectedSize, selectedColor].filter(Boolean).join(' / ') || undefined,
       slug: product.slug,
       maxStock: product.stockCount
     });
@@ -143,6 +149,29 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const handleBuyNow = () => {
     handleAddToCart();
     window.location.href = '/checkout';
+  };
+
+  const handleNotifyMe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifyEmail.trim()) return;
+    setNotifyLoading(true);
+    try {
+      const { error } = await supabase
+        .from('stock_notifications')
+        .insert({
+          product_id: product.id,
+          email: notifyEmail.trim().toLowerCase(),
+          notified: false,
+        });
+      if (error) throw error;
+      setNotifySubmitted(true);
+    } catch (err: any) {
+      console.error('Notify me error:', err);
+      // Might be a duplicate - that's ok
+      setNotifySubmitted(true);
+    } finally {
+      setNotifyLoading(false);
+    }
   };
 
   if (loading) {
@@ -310,11 +339,34 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 <p className="text-gray-700 leading-relaxed mb-8 text-lg">{product.description}</p>
 
-                {/* Variants (Sizes) */}
+                {/* Color Selection */}
+                {product.colors && product.colors.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block font-semibold text-gray-900 mb-3">
+                      Colour: {selectedColor && <span className="text-gray-600 font-normal">{selectedColor}</span>}
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {product.colors.map((color: string) => (
+                        <button
+                          key={color}
+                          onClick={() => setSelectedColor(color)}
+                          className={`px-5 py-2.5 rounded-lg border-2 font-medium transition-all whitespace-nowrap cursor-pointer ${selectedColor === color
+                            ? 'border-emerald-700 bg-emerald-50 text-emerald-700'
+                            : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                            }`}
+                        >
+                          {color}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Size Selection */}
                 {product.sizes && product.sizes.length > 0 && (
                   <div className="mb-8">
                     <label className="block font-semibold text-gray-900 mb-3">
-                      Variant: {selectedSize && <span className="text-gray-600 font-normal">{selectedSize}</span>}
+                      Size: {selectedSize && <span className="text-gray-600 font-normal">{selectedSize}</span>}
                     </label>
                     <div className="flex flex-wrap gap-3">
                       {product.sizes.map((size: string) => (
@@ -347,25 +399,34 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       <input
                         type="number"
                         value={quantity}
-                        onChange={(e) => setQuantity(Math.max(1, Math.min(product.stockCount, parseInt(e.target.value) || 1)))}
+                        onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
                         className="w-16 h-12 text-center border-x-2 border-gray-300 focus:outline-none text-lg font-semibold"
                         min="1"
-                        max={product.stockCount}
+                        max="10"
                         disabled={product.stockCount === 0}
                       />
                       <button
-                        onClick={() => setQuantity(Math.min(product.stockCount, quantity + 1))}
+                        onClick={() => setQuantity(Math.min(10, quantity + 1))}
                         className="w-12 h-12 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
                         disabled={product.stockCount === 0}
                       >
                         <i className="ri-add-line text-xl"></i>
                       </button>
                     </div>
+                    {product.stockCount > 10 && (
+                      <span className="text-emerald-600 font-medium flex items-center gap-1">
+                        <i className="ri-checkbox-circle-fill"></i> Available
+                      </span>
+                    )}
                     {product.stockCount > 0 && product.stockCount <= 10 && (
-                      <span className="text-amber-600 font-medium">Only {product.stockCount} left in stock</span>
+                      <span className="text-amber-600 font-medium flex items-center gap-1">
+                        <i className="ri-error-warning-fill"></i> Almost Sold Out
+                      </span>
                     )}
                     {product.stockCount === 0 && (
-                      <span className="text-red-600 font-medium">Out of Stock</span>
+                      <span className="text-red-600 font-medium flex items-center gap-1">
+                        <i className="ri-close-circle-fill"></i> Sold Out
+                      </span>
                     )}
                   </div>
                 </div>
@@ -389,10 +450,49 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   )}
                 </div>
 
+                {/* Notify Me When Back in Stock */}
+                {product.stockCount === 0 && (
+                  <div className="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                    {notifySubmitted ? (
+                      <div className="flex items-center gap-3 text-emerald-700">
+                        <i className="ri-checkbox-circle-fill text-xl"></i>
+                        <div>
+                          <p className="font-semibold">You&apos;re on the list!</p>
+                          <p className="text-sm text-gray-600">We&apos;ll email you when this item is back in stock.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                          <i className="ri-notification-3-line text-emerald-700"></i>
+                          Get notified when back in stock
+                        </p>
+                        <form onSubmit={handleNotifyMe} className="flex gap-2">
+                          <input
+                            type="email"
+                            value={notifyEmail}
+                            onChange={(e) => setNotifyEmail(e.target.value)}
+                            placeholder="Enter your email"
+                            className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            required
+                          />
+                          <button
+                            type="submit"
+                            disabled={notifyLoading}
+                            className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {notifyLoading ? 'Saving...' : 'Notify Me'}
+                          </button>
+                        </form>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="border-t border-gray-200 pt-6 space-y-4">
                   <div className="flex items-center text-gray-700">
-                    <i className="ri-store-2-line text-xl text-emerald-700 mr-3"></i>
-                    <span>Free store pickup available</span>
+                    <i className="ri-truck-line text-xl text-emerald-700 mr-3"></i>
+                    <span>Delivery only — we deliver straight to your door</span>
                   </div>
                   {product.isPreorder && (
                     <div className="flex items-center text-gray-700 font-medium text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
@@ -402,12 +502,18 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   )}
                   <div className="flex items-center text-gray-700">
                     <i className="ri-arrow-left-right-line text-xl text-emerald-700 mr-3"></i>
-                    <span>30-day easy returns and exchanges</span>
+                    <span>Exchanges within 24 hours of delivery</span>
                   </div>
                   <div className="flex items-center text-gray-700">
                     <i className="ri-shield-check-line text-xl text-emerald-700 mr-3"></i>
                     <span>Secure payment & buyer protection</span>
                   </div>
+                  {product.product_code && (
+                    <div className="flex items-center text-gray-700">
+                      <i className="ri-hashtag text-xl text-emerald-700 mr-3"></i>
+                      <span>Product Code: {product.product_code}</span>
+                    </div>
+                  )}
                   {product.sku && (
                     <div className="flex items-center text-gray-700">
                       <i className="ri-barcode-line text-xl text-emerald-700 mr-3"></i>

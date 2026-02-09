@@ -124,6 +124,28 @@ export default function InventoryManagementPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Low Stock Alert Banner */}
+        {(lowStockCount > 0 || outOfStockCount > 0) && (
+          <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 ${
+            outOfStockCount > 0 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+          }`}>
+            <i className={`ri-alarm-warning-line text-2xl mt-0.5 ${outOfStockCount > 0 ? 'text-red-500' : 'text-amber-500'}`}></i>
+            <div>
+              <h3 className={`font-bold ${outOfStockCount > 0 ? 'text-red-900' : 'text-amber-900'}`}>
+                Stock Alert
+              </h3>
+              <p className={`text-sm ${outOfStockCount > 0 ? 'text-red-700' : 'text-amber-700'}`}>
+                {outOfStockCount > 0 && <span className="font-semibold">{outOfStockCount} product{outOfStockCount > 1 ? 's' : ''} out of stock. </span>}
+                {lowStockCount > 0 && <span>{lowStockCount} product{lowStockCount > 1 ? 's' : ''} running low (under 10 units). </span>}
+                <button onClick={() => setStockFilter(outOfStockCount > 0 ? 'out' : 'low')} className="underline font-semibold cursor-pointer">
+                  View affected items
+                </button>
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventory Management</h1>

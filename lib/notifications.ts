@@ -184,13 +184,10 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
         html: `<h1>Order Update</h1><p>Hi ${name},</p><p>${message}</p>`
     });
 
-    // SMS
-    if (phone) {
-        await sendSMS({
-            to: phone,
-            message: message
-        });
-    }
+    // SMS disabled for status updates — only order confirmation SMS is sent
+    // if (phone) {
+    //     await sendSMS({ to: phone, message: message });
+    // }
 }
 
 export async function sendWelcomeMessage(user: { email: string, firstName: string, phone?: string }) {
@@ -209,13 +206,10 @@ export async function sendWelcomeMessage(user: { email: string, firstName: strin
     `
     });
 
-    // SMS
-    if (phone) {
-        await sendSMS({
-            to: phone,
-            message: `Welcome ${firstName}! Thanks for joining Hy_stepper.`
-        });
-    }
+    // SMS disabled for welcome — only order confirmation SMS is sent
+    // if (phone) {
+    //     await sendSMS({ to: phone, message: `Welcome ${firstName}! Thanks for joining Hy_stepper.` });
+    // }
 }
 
 export async function sendContactMessage(data: { name: string, email: string, subject: string, message: string }) {
@@ -227,7 +221,7 @@ export async function sendContactMessage(data: { name: string, email: string, su
         subject: `We received your message: ${subject}`,
         html: `
       <p>Hi ${name},</p>
-      <p>Thanks for contacting Sarah Lawson Imports.</p>
+      <p>Thanks for contacting Hy_stepper.</p>
       <p>We have received your message regarding "${subject}" and will get back to you shortly.</p>
     `
     });

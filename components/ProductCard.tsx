@@ -62,18 +62,6 @@ export default function ProductCard({
           </h3>
         </Link>
 
-        <div className="flex items-center mb-2">
-          <div className="flex items-center space-x-1 mr-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <i
-                key={star}
-                className={`${star <= rating ? 'ri-star-fill text-amber-400' : 'ri-star-line text-gray-300'} text-xs lg:text-sm`}
-              ></i>
-            ))}
-          </div>
-          <span className="text-xs text-gray-500">({reviewCount})</span>
-        </div>
-
         <div className="flex items-center justify-between mt-auto mb-3">
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="text-lg lg:text-xl font-bold text-gray-900">GH₵{price.toFixed(2)}</span>
@@ -97,7 +85,7 @@ export default function ProductCard({
               maxStock: 50
             });
           }}
-          className="w-full bg-gray-900 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 whitespace-nowrap text-sm lg:text-base cursor-pointer"
+          className="w-full bg-gray-900 hover:bg-gold-600 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 whitespace-nowrap text-sm lg:text-base cursor-pointer"
           disabled={!inStock}
         >
           <i className="ri-shopping-cart-line text-lg"></i>

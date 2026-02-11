@@ -74,8 +74,8 @@ export default function AnnouncementBar() {
     if (visibleBanners.length === 0) {
         // Show default banner if no custom banners
         return (
-            <div className="bg-emerald-800 text-white py-2 text-center text-sm">
-                <p>Fast Nationwide Delivery | Order Online, We Deliver to Your Door</p>
+            <div className="bg-gray-900 text-white py-2 text-center text-sm">
+                <p>Shop Premium Footwear — Nationwide Delivery Available</p>
             </div>
         );
     }

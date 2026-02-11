@@ -21,7 +21,6 @@ export default function Header() {
   const siteName = getSetting('site_name') || 'Hy_stepper';
 
   useEffect(() => {
-    // Wishlist logic
     const updateWishlistCount = () => {
       const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]');
       setWishlistCount(wishlist.length);
@@ -30,7 +29,6 @@ export default function Header() {
     updateWishlistCount();
     window.addEventListener('wishlistUpdated', updateWishlistCount);
 
-    // Auth logic
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
@@ -65,7 +63,7 @@ export default function Header() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
-                  className="lg:hidden p-1 -ml-1 text-gray-700 hover:text-emerald-700 transition-colors"
+                  className="lg:hidden p-1 -ml-1 text-gray-700 hover:text-gold-600 transition-colors"
                   onClick={() => setIsMobileMenuOpen(true)}
                   aria-label="Open menu"
                 >
@@ -81,39 +79,23 @@ export default function Header() {
               </div>
 
               <div className="hidden lg:flex items-center space-x-8">
-                <Link
-                  href="/shop"
-                  className="text-gray-700 hover:text-emerald-700 font-medium transition-colors whitespace-nowrap"
-                  aria-label="Shop all products"
-                >
+                <Link href="/shop" className="text-gray-700 hover:text-gold-600 font-medium transition-colors whitespace-nowrap" aria-label="Shop all products">
                   Shop
                 </Link>
-                <Link
-                  href="/categories"
-                  className="text-gray-700 hover:text-emerald-700 font-medium transition-colors whitespace-nowrap"
-                  aria-label="Browse categories"
-                >
+                <Link href="/categories" className="text-gray-700 hover:text-gold-600 font-medium transition-colors whitespace-nowrap" aria-label="Browse categories">
                   Categories
                 </Link>
-                <Link
-                  href="/about"
-                  className="text-gray-700 hover:text-emerald-700 font-medium transition-colors whitespace-nowrap"
-                  aria-label="Learn about us"
-                >
+                <Link href="/about" className="text-gray-700 hover:text-gold-600 font-medium transition-colors whitespace-nowrap" aria-label="Learn about us">
                   About
                 </Link>
-                <Link
-                  href="/contact"
-                  className="text-gray-700 hover:text-emerald-700 font-medium transition-colors whitespace-nowrap"
-                  aria-label="Contact us"
-                >
+                <Link href="/contact" className="text-gray-700 hover:text-gold-600 font-medium transition-colors whitespace-nowrap" aria-label="Contact us">
                   Contact
                 </Link>
               </div>
 
               <div className="flex items-center space-x-4">
                 <button
-                  className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-emerald-700 transition-colors lg:hidden"
+                  className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-gold-600 transition-colors lg:hidden"
                   onClick={() => setIsSearchOpen(true)}
                   aria-label="Open search"
                 >
@@ -124,7 +106,7 @@ export default function Header() {
                   <input
                     type="search"
                     placeholder="Search products..."
-                    className="w-80 pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all text-sm"
+                    className="w-80 pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:border-gold-400 focus:ring-2 focus:ring-gold-200 transition-all text-sm"
                     aria-label="Search products"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -135,12 +117,12 @@ export default function Header() {
 
                 <Link
                   href="/wishlist"
-                  className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-emerald-700 transition-colors relative"
+                  className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-gold-600 transition-colors relative"
                   aria-label={`Wishlist, ${wishlistCount} items`}
                 >
                   <i className="ri-heart-line text-2xl"></i>
                   {wishlistCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-700 text-white text-xs rounded-full flex items-center justify-center" aria-hidden="true">
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-gold-500 text-white text-xs rounded-full flex items-center justify-center" aria-hidden="true">
                       {wishlistCount}
                     </span>
                   )}
@@ -148,7 +130,7 @@ export default function Header() {
 
                 <div className="relative">
                   <button
-                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-emerald-700 transition-colors relative"
+                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-gold-600 transition-colors relative"
                     onClick={() => setIsCartOpen(!isCartOpen)}
                     aria-label={`Shopping cart, ${cartCount} items`}
                     aria-expanded={isCartOpen}
@@ -156,7 +138,7 @@ export default function Header() {
                   >
                     <i className="ri-shopping-cart-line text-2xl"></i>
                     {cartCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-700 text-white text-xs rounded-full flex items-center justify-center" aria-hidden="true">
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-gold-500 text-white text-xs rounded-full flex items-center justify-center" aria-hidden="true">
                         {cartCount}
                       </span>
                     )}
@@ -168,7 +150,7 @@ export default function Header() {
                 {user ? (
                   <Link
                     href="/account"
-                    className="hidden lg:flex w-10 h-10 items-center justify-center text-emerald-700 hover:text-emerald-900 transition-colors bg-emerald-50 rounded-full"
+                    className="hidden lg:flex w-10 h-10 items-center justify-center text-gold-600 hover:text-gold-700 transition-colors bg-gold-50 rounded-full"
                     aria-label="My account"
                     title="Account"
                   >
@@ -177,7 +159,7 @@ export default function Header() {
                 ) : (
                   <Link
                     href="/auth/login"
-                    className="hidden lg:flex w-10 h-10 items-center justify-center text-gray-700 hover:text-emerald-700 transition-colors"
+                    className="hidden lg:flex w-10 h-10 items-center justify-center text-gray-700 hover:text-gold-600 transition-colors"
                     aria-label="Login"
                     title="Login"
                   >
@@ -210,12 +192,12 @@ export default function Header() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search for products..."
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-base"
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-400 focus:border-gold-400 text-base"
                     autoFocus
                   />
                   <button
                     type="submit"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-emerald-700 hover:text-emerald-900"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-gold-600 hover:text-gold-700"
                   >
                     <i className="ri-search-line text-xl"></i>
                   </button>
@@ -260,7 +242,7 @@ export default function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="block px-4 py-3 text-lg font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors"
+                  className="block px-4 py-3 text-lg font-medium text-gray-700 hover:bg-gold-50 hover:text-gold-700 rounded-lg transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   {link.label}

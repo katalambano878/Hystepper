@@ -4,25 +4,6 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useCMS } from '@/context/CMSContext';
 
-function FooterSection({ title, children }: { title: string, children: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="border-b border-emerald-800/50 lg:border-none last:border-0">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between py-4 text-left lg:py-0 lg:cursor-default lg:mb-6"
-      >
-        <h4 className="font-bold text-lg text-white">{title}</h4>
-        <i className={`ri-arrow-down-s-line text-emerald-400 text-xl transition-transform duration-300 lg:hidden ${isOpen ? 'rotate-180' : ''}`}></i>
-      </button>
-      <div className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-96 pb-6' : 'max-h-0 lg:max-h-full lg:overflow-visible'}`}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 export default function Footer() {
   const { getSetting } = useCMS();
   const [email, setEmail] = useState('');
@@ -35,7 +16,6 @@ export default function Footer() {
     setSubmitStatus('idle');
 
     try {
-      // Newsletter simulation
       await new Promise(resolve => setTimeout(resolve, 1000));
       setSubmitStatus('success');
       setEmail('');
@@ -50,136 +30,161 @@ export default function Footer() {
   const siteTagline = getSetting('site_tagline') || 'Steps Ahead in Style.';
   const contactEmail = getSetting('contact_email') || '';
   const contactPhone = getSetting('contact_phone') || '0276558163';
+  const socialInstagram = 'https://www.instagram.com/hy_stepper';
   const socialFacebook = getSetting('social_facebook') || '';
-  const socialInstagram = getSetting('social_instagram') || '';
   const socialTwitter = getSetting('social_twitter') || '';
 
   return (
-    <footer className="bg-emerald-950 text-white rounded-t-[2.5rem] mt-8 lg:mt-0 overflow-hidden">
+    <footer className="bg-gray-900 text-gray-300 mt-8 lg:mt-0 overflow-hidden">
 
-      {/* Newsletter Section */}
-      <div className="bg-emerald-900/30 py-12 md:py-16 px-4">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="w-16 h-16 bg-emerald-800/50 rounded-2xl flex items-center justify-center mx-auto mb-6 rotate-3">
-            <i className="ri-mail-star-line text-3xl text-emerald-300"></i>
+      {/* Newsletter Strip */}
+      <div className="bg-gold-500">
+        <div className="max-w-7xl mx-auto px-6 py-8 md:py-10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-center md:text-left">
+              <h3 className="text-xl md:text-2xl font-bold text-white mb-1 font-serif">Stay in the Loop</h3>
+              <p className="text-white/80 text-sm">Be the first to know about new arrivals & exclusive offers.</p>
+            </div>
+            <form onSubmit={handleSubmit} className="w-full md:w-auto flex gap-2">
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Your email address"
+                className="flex-1 md:w-72 px-5 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 focus:bg-white/30 transition-all text-sm"
+              />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-gray-900 hover:bg-gray-800 text-white font-semibold px-6 py-3 rounded-full transition-all disabled:opacity-75 text-sm whitespace-nowrap"
+              >
+                {isSubmitting ? '...' : 'Subscribe'}
+              </button>
+            </form>
           </div>
-          <h3 className="text-2xl md:text-3xl font-bold mb-3 font-serif">Join Our Community</h3>
-          <p className="text-emerald-200 mb-8 max-w-md mx-auto leading-relaxed">
-            Get exclusive access to new arrivals, secret sales, and sourcing stories from Hy_stepper.
-          </p>
-
-          <form onSubmit={handleSubmit} className="max-w-md mx-auto relative">
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email address"
-              className="w-full pl-6 pr-32 py-4 bg-white/10 border border-emerald-500/30 rounded-full text-white placeholder-emerald-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white/20 transition-all backdrop-blur-sm"
-            />
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="absolute right-1.5 top-1.5 bottom-1.5 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold px-6 rounded-full transition-all disabled:opacity-75 disabled:cursor-not-allowed shadow-lg"
-            >
-              {isSubmitting ? '...' : 'Join'}
-            </button>
-          </form>
-
           {submitStatus === 'success' && (
-            <p className="text-emerald-300 text-sm mt-4 animate-in fade-in slide-in-from-bottom-2">
-              <i className="ri-checkbox-circle-line mr-1 align-middle"></i> You're on the list!
+            <p className="text-white text-sm mt-3 text-center md:text-right">
+              <i className="ri-checkbox-circle-line mr-1 align-middle"></i> You&apos;re on the list!
             </p>
           )}
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-12 lg:py-16">
-        <div className="grid lg:grid-cols-4 gap-12">
+      {/* Main Footer */}
+      <div className="max-w-7xl mx-auto px-6 py-14">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">
 
-          {/* Brand Column */}
-          <div className="lg:col-span-1 space-y-6">
+          {/* Brand */}
+          <div className="space-y-5">
             <Link href="/" className="inline-block">
-              {/* Using the logo directly can be nice, or text if needed. Assuming white version exists or adjusting brightness. */}
-              <img src="/logo-new.png" alt={siteName} className="h-14 w-auto object-contain brightness-0 invert opacity-90" />
+              <img src="/logo-new.png" alt={siteName} className="h-12 w-auto object-contain brightness-0 invert opacity-90" />
             </Link>
-            <p className="text-emerald-200/80 leading-relaxed text-sm">
+            <p className="text-gray-400 leading-relaxed text-sm">
               {siteTagline}
             </p>
 
-            <div className="flex gap-4 pt-2">
-              {[
-                { link: socialInstagram, icon: 'ri-instagram-line' },
-                { link: socialFacebook, icon: 'ri-facebook-fill' },
-                { link: socialTwitter, icon: 'ri-twitter-x-fill' }
-              ].map((social, i) => social.link && (
+            <div className="flex gap-3 pt-1">
+              <a
+                href={socialInstagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-gray-400 hover:bg-gold-500 hover:text-white transition-all"
+                aria-label="Instagram"
+              >
+                <i className="ri-instagram-line text-lg"></i>
+              </a>
+              {socialFacebook && (
                 <a
-                  key={i}
-                  href={social.link}
+                  href={socialFacebook}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 bg-emerald-900/50 rounded-full flex items-center justify-center text-emerald-300 hover:bg-emerald-500 hover:text-emerald-950 transition-all hover:-translate-y-1"
+                  className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-gray-400 hover:bg-gold-500 hover:text-white transition-all"
+                  aria-label="Facebook"
                 >
-                  <i className={social.icon}></i>
+                  <i className="ri-facebook-fill text-lg"></i>
                 </a>
-              ))}
+              )}
+              {socialTwitter && (
+                <a
+                  href={socialTwitter}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-gray-400 hover:bg-gold-500 hover:text-white transition-all"
+                  aria-label="Twitter"
+                >
+                  <i className="ri-twitter-x-fill text-lg"></i>
+                </a>
+              )}
             </div>
+          </div>
 
-            <div className="space-y-3 pt-4 border-t border-emerald-800/50">
+          {/* Shop Links */}
+          <div>
+            <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-5">Shop</h4>
+            <ul className="space-y-3 text-sm">
+              <li><Link href="/shop" className="text-gray-400 hover:text-gold-400 transition-colors">All Products</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-gold-400 transition-colors">Categories</Link></li>
+              <li><Link href="/shop?sort=newest" className="text-gray-400 hover:text-gold-400 transition-colors">New Arrivals</Link></li>
+              <li><Link href="/shop?sort=bestsellers" className="text-gray-400 hover:text-gold-400 transition-colors">Best Sellers</Link></li>
+            </ul>
+          </div>
+
+          {/* Support */}
+          <div>
+            <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-5">Support</h4>
+            <ul className="space-y-3 text-sm">
+              <li><Link href="/contact" className="text-gray-400 hover:text-gold-400 transition-colors">Contact Us</Link></li>
+              <li><Link href="/order-tracking" className="text-gray-400 hover:text-gold-400 transition-colors">Track My Order</Link></li>
+              <li><Link href="/shipping" className="text-gray-400 hover:text-gold-400 transition-colors">Shipping Info</Link></li>
+              <li><Link href="/returns" className="text-gray-400 hover:text-gold-400 transition-colors">Returns Policy</Link></li>
+            </ul>
+          </div>
+
+          {/* Company + Contact */}
+          <div>
+            <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-5">Company</h4>
+            <ul className="space-y-3 text-sm mb-6">
+              <li><Link href="/about" className="text-gray-400 hover:text-gold-400 transition-colors">Our Story</Link></li>
+              <li><Link href="/privacy" className="text-gray-400 hover:text-gold-400 transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="text-gray-400 hover:text-gold-400 transition-colors">Terms of Service</Link></li>
+            </ul>
+
+            {/* Contact Info */}
+            <div className="space-y-2 pt-4 border-t border-gray-800">
               {contactPhone && (
-                <div className="flex flex-col gap-2">
-                  <a href={`tel:${contactPhone}`} className="flex items-center gap-3 text-emerald-200 hover:text-white transition-colors text-sm">
-                    <i className="ri-phone-line"></i> {contactPhone}
-                  </a>
-                </div>
+                <a href={`tel:${contactPhone}`} className="flex items-center gap-2 text-gray-400 hover:text-gold-400 transition-colors text-sm">
+                  <i className="ri-phone-line text-gold-500"></i> {contactPhone}
+                </a>
               )}
               {contactEmail && (
-                <a href={`mailto:${contactEmail}`} className="flex items-center gap-3 text-emerald-200 hover:text-white transition-colors text-sm">
-                  <i className="ri-mail-line"></i> {contactEmail}
+                <a href={`mailto:${contactEmail}`} className="flex items-center gap-2 text-gray-400 hover:text-gold-400 transition-colors text-sm">
+                  <i className="ri-mail-line text-gold-500"></i> {contactEmail}
                 </a>
               )}
             </div>
           </div>
 
-          {/* Links Sections (Accordion on Mobile) */}
-          <div className="lg:col-span-3 grid lg:grid-cols-3 gap-8 lg:gap-12">
-
-            <FooterSection title="Shop">
-              <ul className="space-y-4 text-emerald-100/80">
-                <li><Link href="/shop" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> All Products</Link></li>
-                <li><Link href="/categories" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Categories</Link></li>
-                <li><Link href="/shop?sort=newest" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> New Arrivals</Link></li>
-                <li><Link href="/shop?sort=bestsellers" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Best Sellers</Link></li>
-              </ul>
-            </FooterSection>
-
-            <FooterSection title="Customer Care">
-              <ul className="space-y-4 text-emerald-100/80">
-                <li><Link href="/contact" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Contact Us</Link></li>
-                <li><Link href="/order-tracking" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Track My Order</Link></li>
-                <li><Link href="/shipping" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Shipping Info</Link></li>
-                <li><Link href="/returns" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Returns Policy</Link></li>
-              </ul>
-            </FooterSection>
-
-            <FooterSection title="Company">
-              <ul className="space-y-4 text-emerald-100/80">
-                <li><Link href="/about" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Our Story</Link></li>
-                <li><Link href="/blog" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Blog</Link></li>
-                <li><Link href="/privacy" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-emerald-300 transition-colors flex items-center gap-2"><i className="ri-arrow-right-s-line opacity-50"></i> Terms of Service</Link></li>
-              </ul>
-            </FooterSection>
-
-          </div>
         </div>
+      </div>
 
-        <div className="border-t border-emerald-800/50 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-emerald-400/60">
-          <p>&copy; {new Date().getFullYear()} {siteName}. All rights reserved.</p>
-          <div className="flex gap-4 grayscale opacity-50">
-            <i className="ri-visa-line text-2xl"></i>
-            <i className="ri-mastercard-line text-2xl"></i>
-            <i className="ri-paypal-line text-2xl"></i>
+      {/* Bottom Bar */}
+      <div className="border-t border-gray-800">
+        <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col md:flex-row justify-between items-center gap-3">
+          <p className="text-xs text-gray-500">&copy; {new Date().getFullYear()} {siteName}. All rights reserved.</p>
+          <div className="flex items-center gap-6">
+            <div className="flex gap-3 text-gray-600">
+              <i className="ri-visa-line text-xl"></i>
+              <i className="ri-mastercard-line text-xl"></i>
+            </div>
+            <a
+              href="https://doctorbarns.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-600 hover:text-gold-400 transition-colors"
+            >
+              Powered by Doctor Barns Tech
+            </a>
           </div>
         </div>
       </div>

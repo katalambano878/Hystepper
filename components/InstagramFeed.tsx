@@ -19,7 +19,7 @@ const mockPosts: InstagramPost[] = [
     caption: 'New summer collection arriving soon! 🌞',
     likes: 1247,
     comments: 89,
-    link: 'https://instagram.com'
+    link: 'https://www.instagram.com/hy_stepper'
   },
   {
     id: '2',
@@ -78,13 +78,13 @@ export default function InstagramFeed() {
             Join our community and get inspired by our latest posts
           </p>
           <a
-            href="https://instagram.com"
+            href="https://www.instagram.com/hy_stepper"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold hover:shadow-lg transition-all hover:scale-105"
           >
             <i className="ri-instagram-fill text-xl"></i>
-            Follow @yourstore
+            Follow @hy_stepper
           </a>
         </div>
 
@@ -104,10 +104,9 @@ export default function InstagramFeed() {
                 alt={post.caption}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               />
-              
-              <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300 ${
-                hoveredId === post.id ? 'opacity-100' : 'opacity-0'
-              }`}>
+
+              <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300 ${hoveredId === post.id ? 'opacity-100' : 'opacity-0'
+                }`}>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
                   <div className="flex items-center gap-4 mb-2">
                     <div className="flex items-center gap-1">
@@ -134,7 +133,7 @@ export default function InstagramFeed() {
 
         <div className="text-center mt-8">
           <p className="text-gray-600">
-            Tag us <span className="font-semibold text-emerald-600">#YourStore</span> to be featured!
+            Tag us <span className="font-semibold text-gold-600">#Hy_stepper</span> to be featured!
           </p>
         </div>
       </div>

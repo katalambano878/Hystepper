@@ -10,18 +10,14 @@ export default function HomePage() {
 
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [discountedProducts, setDiscountedProducts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]); // Dynamic Categories
   const [loading, setLoading] = useState(true);
 
-  // Config State - Managed in Code
   const config = {
     hero: {
       headline: 'Step Into Elegance',
-      subheadline: 'Discover premium footwear crafted for the modern trendsetter. From stunning heels to everyday essentials — walk with confidence.',
+      subheadline: 'Premium footwear crafted for the modern trendsetter.',
       primaryButtonText: 'Shop Now',
       primaryButtonLink: '/shop',
-      secondaryButtonText: 'New Arrivals',
-      secondaryButtonLink: '/shop?sort=new',
       backgroundImage: '/hero-new.jpeg'
     },
     sections: {
@@ -39,9 +35,7 @@ export default function HomePage() {
       try {
         setLoading(true);
 
-        // 1. Fetch featured or newest products
         const limit = 8;
-
 
         const { data: productsData, error: productsError } = await supabase
           .from('products')
@@ -74,34 +68,7 @@ export default function HomePage() {
           setFeaturedProducts(formatted);
         }
 
-        // 2. Fetch Categories
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from('categories')
-          .select('id, name, slug, image_url, metadata')
-          .eq('status', 'active')
-          .limit(4);
-
-        if (categoriesError) console.error('Error fetching categories:', categoriesError);
-
-        if (categoriesData && categoriesData.length > 0) {
-          setCategories(categoriesData.map(c => ({
-            id: c.id,
-            name: c.name,
-            image: c.image_url || 'https://via.placeholder.com/600',
-            count: 'Explore Collection',
-            slug: c.slug
-          })));
-        } else {
-          // Fallback for demo if no categories in DB yet
-          setCategories([
-            { name: 'Heels', image: '/hero-footwear.png', count: 'Shop Heels', slug: 'heels' },
-            { name: 'Flats', image: '/hero-footwear.png', count: 'Shop Flats', slug: 'flats' },
-            { name: 'Sandals', image: '/hero-footwear.png', count: 'Shop Sandals', slug: 'sandals' },
-            { name: 'Boots', image: '/hero-footwear.png', count: 'Shop Boots', slug: 'boots' }
-          ]);
-        }
-
-        // 3. Fetch discounted products (where compare_at_price > price)
+        // Fetch discounted products
         const { data: discountData, error: discountError } = await supabase
           .from('products')
           .select(`
@@ -149,176 +116,108 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-white">
 
-      {/* Hero Section - Premium Footwear */}
-      <section className="relative min-h-[90vh] lg:min-h-screen overflow-hidden">
-
-        {/* Background Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-900"></div>
-
-        {/* Decorative Elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 -right-32 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 -left-32 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-emerald-800/20 rounded-full blur-3xl"></div>
+      {/* Hero Section — Clean & Elegant */}
+      <section className="relative h-[70vh] lg:h-[85vh] overflow-hidden">
+        {/* Full Background Image */}
+        <div className="absolute inset-0">
+          <img
+            src={config.hero.backgroundImage}
+            alt="Hy_stepper Collection"
+            className="w-full h-full object-cover object-top"
+          />
+          {/* Gradient overlay for readability */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60"></div>
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 lg:pt-32 lg:pb-24">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center min-h-[70vh]">
-
-            {/* Content */}
-            <div className="text-center lg:text-left order-2 lg:order-1">
-              <div className="inline-flex items-center gap-3 mb-6">
-                <span className="h-px w-12 bg-emerald-400"></span>
-                <span className="text-emerald-400 text-sm font-semibold tracking-[0.2em] uppercase">New Collection 2026</span>
-              </div>
-
-              <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl xl:text-8xl text-white leading-[1.1] mb-6">
-                {config.hero.headline}
-              </h1>
-
-              <p className="text-lg lg:text-xl text-emerald-100/80 leading-relaxed max-w-xl mx-auto lg:mx-0 mb-10">
-                {config.hero.subheadline}
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Link
-                  href={config.hero.primaryButtonLink}
-                  className="group inline-flex items-center justify-center gap-3 bg-white text-emerald-900 hover:bg-emerald-50 px-8 py-4 rounded-full font-semibold text-lg transition-all shadow-2xl hover:shadow-emerald-500/25 hover:-translate-y-1"
-                >
-                  {config.hero.primaryButtonText}
-                  <i className="ri-arrow-right-line group-hover:translate-x-1 transition-transform"></i>
-                </Link>
-                <Link
-                  href={config.hero.secondaryButtonLink}
-                  className="inline-flex items-center justify-center gap-2 border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 px-8 py-4 rounded-full font-semibold text-lg transition-all"
-                >
-                  <i className="ri-sparkling-line"></i>
-                  {config.hero.secondaryButtonText}
-                </Link>
-              </div>
-
-              {/* Trust Badges */}
-              <div className="mt-12 pt-8 border-t border-white/10 grid grid-cols-3 gap-6">
-                <div className="text-center lg:text-left">
-                  <p className="text-2xl lg:text-3xl font-bold text-white mb-1">500+</p>
-                  <p className="text-sm text-emerald-200/60">Happy Customers</p>
-                </div>
-                <div className="text-center lg:text-left">
-                  <p className="text-2xl lg:text-3xl font-bold text-white mb-1">100%</p>
-                  <p className="text-sm text-emerald-200/60">Quality Assured</p>
-                </div>
-                <div className="text-center lg:text-left">
-                  <p className="text-2xl lg:text-3xl font-bold text-white mb-1">24/7</p>
-                  <p className="text-sm text-emerald-200/60">Customer Support</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Hero Image */}
-            <div className="relative order-1 lg:order-2 flex justify-center items-center">
-              <div className="relative">
-                {/* Glow Effect */}
-                <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/30 to-transparent rounded-3xl blur-2xl scale-110"></div>
-
-                {/* Main Image */}
-                <div className="relative w-full max-w-md lg:max-w-lg xl:max-w-xl mx-auto">
-                  <img
-                    src={config.hero.backgroundImage}
-                    alt="Premium Footwear Collection"
-                    className="w-full h-auto object-contain rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-700"
-                  />
-                </div>
-
-                {/* Floating Badge */}
-                <div className="absolute -bottom-4 -left-4 lg:-left-8 bg-white rounded-2xl p-4 lg:p-5 shadow-2xl animate-bounce-slow">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                      <i className="ri-truck-line text-2xl text-emerald-700"></i>
-                    </div>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm lg:text-base">Free Delivery</p>
-                      <p className="text-xs text-gray-500">On orders over GH₵200</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Another Floating Badge */}
-                <div className="absolute -top-4 -right-4 lg:-right-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-4 shadow-2xl text-white">
-                  <p className="text-xs font-semibold uppercase tracking-wide">Limited</p>
-                  <p className="text-xl lg:text-2xl font-bold">25% OFF</p>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Content */}
+        <div className="relative h-full flex flex-col items-center justify-end pb-16 lg:pb-24 px-4 text-center">
+          <h1 className="font-serif text-4xl sm:text-5xl lg:text-7xl text-white leading-tight mb-4 drop-shadow-lg">
+            {config.hero.headline}
+          </h1>
+          <p className="text-lg lg:text-xl text-white/90 max-w-xl mb-8 drop-shadow-md">
+            {config.hero.subheadline}
+          </p>
+          <Link
+            href={config.hero.primaryButtonLink}
+            className="inline-flex items-center gap-3 bg-gold-500 hover:bg-gold-600 text-white px-10 py-4 rounded-full font-semibold text-lg transition-all shadow-xl hover:shadow-gold-500/30 hover:-translate-y-0.5"
+          >
+            {config.hero.primaryButtonText}
+            <i className="ri-arrow-right-line"></i>
+          </Link>
         </div>
-
-
       </section>
 
-      {/* Categories Section */}
-      <section className="py-16 bg-white">
+      {/* Quick Filters: Shop by Heel Height & Size */}
+      <section className="py-12 lg:py-16 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-end justify-between mb-12">
-            <div>
-              <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">Shop by Category</h2>
-              <p className="text-lg text-gray-600 max-w-2xl">Explore our carefully curated collections</p>
+
+          {/* Heel Height */}
+          <div className="mb-12">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 bg-gold-100 rounded-lg flex items-center justify-center">
+                <i className="ri-ruler-line text-gold-600 text-lg"></i>
+              </div>
+              <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Shop by Heel Height</h2>
             </div>
-            <Link href="/categories" className="hidden sm:inline-flex items-center text-emerald-700 hover:text-emerald-900 font-semibold whitespace-nowrap cursor-pointer">
-              View All
-              <i className="ri-arrow-right-line ml-2"></i>
-            </Link>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
+              {[
+                { label: 'Flat (0-1")', value: 'flat', desc: 'Everyday comfort' },
+                { label: 'Low (1-2")', value: 'low', desc: 'Subtle lift' },
+                { label: 'Mid (2-3")', value: 'mid', desc: 'Versatile style' },
+                { label: 'High (3"+)', value: 'high', desc: 'Statement heels' },
+              ].map((height) => (
+                <Link
+                  key={height.value}
+                  href={`/shop?heel_height=${height.value}`}
+                  className="group relative p-5 bg-gray-50 rounded-xl text-center hover:bg-gold-50 transition-all border border-gray-100 hover:border-gold-300 hover:shadow-md cursor-pointer"
+                >
+                  <h3 className="font-bold text-gray-900 group-hover:text-gold-700 transition-colors text-sm lg:text-base">{height.label}</h3>
+                  <p className="text-xs text-gray-500 mt-1">{height.desc}</p>
+                </Link>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {categories.map((category, index) => (
-              <Link
-                key={index}
-                href={`/shop?category=${category.slug}`}
-                className="group relative aspect-square rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-shadow cursor-pointer"
-              >
-                <img
-                  src={category.image}
-                  alt={category.name}
-                  className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = 'https://via.placeholder.com/600?text=' + encodeURIComponent(category.name);
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
-                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                  <h3 className="text-xl font-bold mb-1">{category.name}</h3>
-                  <p className="text-sm text-white/90">{category.count}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-
-          <div className="mt-8 text-center sm:hidden">
-            <Link href="/categories" className="inline-flex items-center justify-center w-full px-6 py-3 border-2 border-gray-200 rounded-lg text-gray-900 font-semibold hover:border-emerald-700 hover:text-emerald-700 transition-colors">
-              View All Categories
-            </Link>
+          {/* Sizes */}
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 bg-gold-100 rounded-lg flex items-center justify-center">
+                <i className="ri-footprint-line text-gold-600 text-lg"></i>
+              </div>
+              <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Shop by Size</h2>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size) => (
+                <Link
+                  key={size}
+                  href={`/shop?size=${size}`}
+                  className="w-14 h-14 md:w-16 md:h-16 flex items-center justify-center bg-gray-50 border border-gray-200 rounded-xl text-base md:text-lg font-bold text-gray-800 hover:border-gold-400 hover:bg-gold-50 hover:text-gold-700 transition-all shadow-sm hover:shadow-md cursor-pointer"
+                >
+                  {size}
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* New Arrivals / Best Sellers Section */}
+      {/* Products Section */}
       {config.sections?.newArrivals?.enabled && (
-        <section className="py-20 bg-gray-50" data-product-shop>
+        <section className="py-16 lg:py-20 bg-gray-50" data-product-shop>
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="flex items-end justify-between mb-12">
+            <div className="flex items-end justify-between mb-10">
               <div>
-                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">{config.sections.newArrivals.title}</h2>
-                <p className="text-lg text-gray-600">{config.sections.newArrivals.subtitle}</p>
+                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">{config.sections.newArrivals.title}</h2>
+                <p className="text-gray-500">{config.sections.newArrivals.subtitle}</p>
               </div>
-              <Link href="/shop" className="hidden sm:inline-flex items-center text-emerald-700 hover:text-emerald-900 font-semibold whitespace-nowrap cursor-pointer">
+              <Link href="/shop" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer">
                 View All
                 <i className="ri-arrow-right-line ml-2"></i>
               </Link>
             </div>
 
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 {[1, 2, 3, 4].map(idx => (
                   <div key={idx} className="bg-white rounded-xl overflow-hidden shadow-sm h-96 animate-pulse">
                     <div className="h-64 bg-gray-200"></div>
@@ -330,7 +229,7 @@ export default function HomePage() {
                 ))}
               </div>
             ) : featuredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 {featuredProducts.map((product) => (
                   <ProductCard key={product.id} {...product} />
                 ))}
@@ -341,10 +240,10 @@ export default function HomePage() {
               </div>
             )}
 
-            <div className="text-center mt-12">
+            <div className="text-center mt-10">
               <Link
                 href="/shop"
-                className="inline-flex items-center gap-2 bg-gray-900 hover:bg-emerald-700 text-white px-8 py-4 rounded-full font-medium transition-colors whitespace-nowrap cursor-pointer"
+                className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gold-600 text-white px-8 py-3.5 rounded-full font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
                 View All Products
                 <i className="ri-arrow-right-line"></i>
@@ -354,77 +253,26 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Shop by Heel Height */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">Shop by Heel Height</h2>
-            <p className="text-lg text-gray-600">Find the perfect height for every occasion</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { label: 'Flat (0-1")', value: 'flat', icon: 'ri-footprint-line', desc: 'Everyday comfort' },
-              { label: 'Low (1-2")', value: 'low', icon: 'ri-footprint-line', desc: 'Subtle lift' },
-              { label: 'Mid (2-3")', value: 'mid', icon: 'ri-footprint-line', desc: 'Versatile style' },
-              { label: 'High (3"+)', value: 'high', icon: 'ri-footprint-line', desc: 'Statement heels' },
-            ].map((height) => (
-              <Link
-                key={height.value}
-                href={`/shop?heel_height=${height.value}`}
-                className="group p-6 bg-gray-50 rounded-xl text-center hover:bg-emerald-50 hover:shadow-lg transition-all border border-transparent hover:border-emerald-200 cursor-pointer"
-              >
-                <div className="w-16 h-16 bg-emerald-100 group-hover:bg-emerald-200 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors">
-                  <i className={`${height.icon} text-2xl text-emerald-700`}></i>
-                </div>
-                <h3 className="font-bold text-gray-900 mb-1">{height.label}</h3>
-                <p className="text-sm text-gray-500">{height.desc}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Shop by Size */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">Shop by Size</h2>
-            <p className="text-lg text-gray-600">Browse our available sizes</p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-4">
-            {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size) => (
-              <Link
-                key={size}
-                href={`/shop?size=${size}`}
-                className="w-16 h-16 md:w-20 md:h-20 flex items-center justify-center bg-white border-2 border-gray-200 rounded-xl text-lg md:text-xl font-bold text-gray-900 hover:border-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all shadow-sm hover:shadow-md cursor-pointer"
-              >
-                {size}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Discounted Items */}
       {discountedProducts.length > 0 && (
-        <section className="py-20 bg-gradient-to-br from-red-50 to-orange-50">
+        <section className="py-16 lg:py-20 bg-gradient-to-br from-gold-50 to-amber-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="flex items-end justify-between mb-12">
+            <div className="flex items-end justify-between mb-10">
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 text-sm font-bold rounded-full mb-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold-100 text-gold-700 text-sm font-bold rounded-full mb-3">
                   <i className="ri-fire-fill"></i>
                   Hot Deals
                 </div>
-                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">Discounted Items</h2>
-                <p className="text-lg text-gray-600">Grab these deals before they&apos;re gone</p>
+                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Discounted Items</h2>
+                <p className="text-gray-500">Grab these deals before they&apos;re gone</p>
               </div>
-              <Link href="/shop?sort=discount" className="hidden sm:inline-flex items-center text-red-600 hover:text-red-800 font-semibold whitespace-nowrap cursor-pointer">
+              <Link href="/shop?sort=discount" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer">
                 View All Deals
                 <i className="ri-arrow-right-line ml-2"></i>
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {discountedProducts.map((product) => (
                 <ProductCard key={product.id} {...product} />
               ))}
@@ -433,7 +281,7 @@ export default function HomePage() {
             <div className="text-center mt-10 sm:hidden">
               <Link
                 href="/shop?sort=discount"
-                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-full font-medium transition-colors"
+                className="inline-flex items-center gap-2 bg-gold-600 hover:bg-gold-700 text-white px-8 py-3.5 rounded-full font-medium transition-colors"
               >
                 View All Deals
                 <i className="ri-arrow-right-line"></i>
@@ -442,29 +290,6 @@ export default function HomePage() {
           </div>
         </section>
       )}
-
-      {/* Features Section */}
-      <section className="py-12 lg:py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8">
-            {[
-              { icon: 'ri-truck-line', title: 'Fast Delivery', description: 'Straight to your door' },
-              { icon: 'ri-arrow-left-right-line', title: 'Easy Exchanges', description: '24-hour exchange window' },
-              { icon: 'ri-customer-service-2-line', title: '24/7 Support', description: 'Dedicated service' },
-              { icon: 'ri-shield-check-line', title: 'Secure Payment', description: 'Safe checkout' }
-            ].map((item, index) => (
-              <div key={index} className="text-center p-4 rounded-lg bg-gray-50 lg:bg-transparent">
-                <div className="w-12 h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-3 bg-emerald-100 rounded-full">
-                  <i className={`${item.icon} text-2xl lg:text-3xl text-emerald-700`}></i>
-                </div>
-                <h3 className="font-semibold text-gray-900 mb-1 text-sm lg:text-base">{item.title}</h3>
-                <p className="text-xs lg:text-sm text-gray-600 leading-tight">{item.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
 
     </main>
   );

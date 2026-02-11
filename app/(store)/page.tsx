@@ -148,55 +148,89 @@ export default function HomePage() {
       </section>
 
       {/* Quick Filters: Shop by Heel Height & Size */}
-      <section className="py-12 lg:py-16 bg-white border-b border-gray-100">
+      <section className="py-20 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20">
 
-          {/* Heel Height */}
-          <div className="mb-12">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-gold-100 rounded-lg flex items-center justify-center">
-                <i className="ri-ruler-line text-gold-600 text-lg"></i>
+            {/* Heel Height */}
+            <div>
+              <div className="flex items-center gap-4 mb-8">
+                <span className="w-12 h-12 rounded-full bg-gold-50 flex items-center justify-center text-gold-600 ring-4 ring-gold-50/50">
+                  <i className="ri-ruler-2-line text-2xl"></i>
+                </span>
+                <div>
+                  <h2 className="text-3xl font-serif font-bold text-gray-900">Heel Height</h2>
+                  <p className="text-gray-500 text-sm">Find your perfect elevation</p>
+                </div>
               </div>
-              <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Shop by Heel Height</h2>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
-              {[
-                { label: 'Flat (0-1")', value: 'flat', desc: 'Everyday comfort' },
-                { label: 'Low (1-2")', value: 'low', desc: 'Subtle lift' },
-                { label: 'Mid (2-3")', value: 'mid', desc: 'Versatile style' },
-                { label: 'High (3"+)', value: 'high', desc: 'Statement heels' },
-              ].map((height) => (
-                <Link
-                  key={height.value}
-                  href={`/shop?heel_height=${height.value}`}
-                  className="group relative p-5 bg-gray-50 rounded-xl text-center hover:bg-gold-50 transition-all border border-gray-100 hover:border-gold-300 hover:shadow-md cursor-pointer"
-                >
-                  <h3 className="font-bold text-gray-900 group-hover:text-gold-700 transition-colors text-sm lg:text-base">{height.label}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{height.desc}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
 
-          {/* Sizes */}
-          <div>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-gold-100 rounded-lg flex items-center justify-center">
-                <i className="ri-footprint-line text-gold-600 text-lg"></i>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: 'Flat', value: 'flat', range: '0-1"', desc: 'Everyday Ease', icon: 'ri-footprint-line' },
+                  { label: 'Low', value: 'low', range: '1-2"', desc: 'Subtle Lift', icon: 'ri-arrow-right-up-line' },
+                  { label: 'Mid', value: 'mid', range: '2-3"', desc: 'Versatile Style', icon: 'ri-sort-asc' },
+                  { label: 'High', value: 'high', range: '3"+', desc: 'Statement Maker', icon: 'ri-vip-crown-line' },
+                ].map((item) => (
+                  <Link
+                    key={item.value}
+                    href={`/shop?heel_height=${item.value}`}
+                    className="group flex flex-col p-6 bg-gray-50 border border-transparent hover:bg-white hover:border-gold-200 rounded-2xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 overflow-hidden relative"
+                  >
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gold-100 rounded-bl-full -mr-8 -mt-8 opacity-0 group-hover:opacity-50 transition-opacity"></div>
+
+                    <div className="flex justify-between items-start mb-4 relative z-10">
+                      <span className="text-gray-400 group-hover:text-gold-600 transition-colors bg-white p-2 rounded-lg shadow-sm group-hover:shadow-md">
+                        <i className={`${item.icon} text-xl`}></i>
+                      </span>
+                      <span className="text-xs font-bold px-2 py-1 bg-white border border-gray-100 group-hover:border-gold-200 text-gray-400 group-hover:text-gold-700 rounded-md transition-colors">
+                        {item.range}
+                      </span>
+                    </div>
+
+                    <h3 className="text-lg font-bold text-gray-900 mb-1 relative z-10">{item.label}</h3>
+                    <p className="text-xs text-gray-500 group-hover:text-gray-600 relative z-10">{item.desc}</p>
+                  </Link>
+                ))}
               </div>
-              <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Shop by Size</h2>
             </div>
-            <div className="flex flex-wrap gap-3">
-              {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size) => (
-                <Link
-                  key={size}
-                  href={`/shop?size=${size}`}
-                  className="w-14 h-14 md:w-16 md:h-16 flex items-center justify-center bg-gray-50 border border-gray-200 rounded-xl text-base md:text-lg font-bold text-gray-800 hover:border-gold-400 hover:bg-gold-50 hover:text-gold-700 transition-all shadow-sm hover:shadow-md cursor-pointer"
-                >
-                  {size}
-                </Link>
-              ))}
+
+            {/* Sizes */}
+            <div className="flex flex-col justify-center">
+              <div className="flex items-center gap-4 mb-8">
+                <span className="w-12 h-12 rounded-full bg-gold-50 flex items-center justify-center text-gold-600 ring-4 ring-gold-50/50">
+                  <i className="ri-layout-grid-fill text-2xl"></i>
+                </span>
+                <div>
+                  <h2 className="text-3xl font-serif font-bold text-gray-900">Shop by Size</h2>
+                  <p className="text-gray-500 text-sm">Browse inclusive sizing options</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-3xl p-8 lg:p-10 border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gold-100/50 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gray-200/50 rounded-full blur-2xl -ml-10 -mb-10"></div>
+
+                <div className="flex flex-wrap gap-3 sm:gap-4 justify-center relative z-10">
+                  {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size) => (
+                    <Link
+                      key={size}
+                      href={`/shop?size=${size}`}
+                      className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-white border-2 border-transparent hover:border-gold-500 rounded-full text-lg sm:text-xl font-bold text-gray-700 hover:text-gold-600 shadow-sm hover:shadow-lg hover:scale-110 transition-all duration-300"
+                    >
+                      {size}
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="mt-8 text-center relative z-10">
+                  <p className="inline-flex items-center gap-2 text-sm text-gray-500 bg-white px-4 py-2 rounded-full shadow-sm">
+                    <i className="ri-ruler-line text-gold-500"></i>
+                    <span>True to size fit</span>
+                  </p>
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
       </section>

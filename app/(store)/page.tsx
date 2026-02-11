@@ -195,7 +195,7 @@ export default function HomePage() {
             </div>
 
             {/* Sizes */}
-            <div className="flex flex-col justify-center">
+            <div className="flex flex-col justify-center h-full">
               <div className="flex items-center gap-4 mb-8">
                 <span className="w-12 h-12 rounded-full bg-gold-50 flex items-center justify-center text-gold-600 ring-4 ring-gold-50/50">
                   <i className="ri-layout-grid-fill text-2xl"></i>
@@ -206,27 +206,30 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-3xl p-8 lg:p-10 border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gold-100/50 rounded-full blur-2xl -mr-10 -mt-10"></div>
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gray-200/50 rounded-full blur-2xl -ml-10 -mb-10"></div>
+              <div className="bg-white rounded-3xl p-8 lg:p-12 border border-gray-100 shadow-sm relative overflow-hidden flex-1 flex flex-col justify-center min-h-[400px]">
+                {/* Subtle decorative background pattern */}
+                <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#d4af37 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
 
-                <div className="flex flex-wrap gap-3 sm:gap-4 justify-center relative z-10">
+                <div className="grid grid-cols-3 gap-4 relative z-10 max-w-sm mx-auto w-full">
                   {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size) => (
                     <Link
                       key={size}
                       href={`/shop?size=${size}`}
-                      className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-white border-2 border-transparent hover:border-gold-500 rounded-full text-lg sm:text-xl font-bold text-gray-700 hover:text-gold-600 shadow-sm hover:shadow-lg hover:scale-110 transition-all duration-300"
+                      className="aspect-square flex flex-col items-center justify-center bg-gray-50 hover:bg-white text-gray-700 hover:text-gold-600 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl group border border-gray-100 hover:border-gold-300"
                     >
-                      {size}
+                      <span className="text-2xl font-bold font-serif">{size}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-gray-400 group-hover:text-gold-400 mt-1 font-medium">EU</span>
                     </Link>
                   ))}
                 </div>
 
                 <div className="mt-8 text-center relative z-10">
-                  <p className="inline-flex items-center gap-2 text-sm text-gray-500 bg-white px-4 py-2 rounded-full shadow-sm">
-                    <i className="ri-ruler-line text-gold-500"></i>
-                    <span>True to size fit</span>
-                  </p>
+                  <Link href="/size-guide" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gold-600 transition-colors group">
+                    <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-gold-50 flex items-center justify-center transition-colors">
+                      <i className="ri-ruler-line text-gray-500 group-hover:text-gold-600"></i>
+                    </span>
+                    <span className="font-medium">True to size fit</span>
+                  </Link>
                 </div>
               </div>
             </div>

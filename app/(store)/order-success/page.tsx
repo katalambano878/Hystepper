@@ -44,7 +44,7 @@ function OrderSuccessContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <i className="ri-loader-4-line text-4xl text-emerald-700 animate-spin mb-4 block"></i>
+          <i className="ri-loader-4-line text-4xl text-gold-700 animate-spin mb-4 block"></i>
           <p className="text-gray-500">Loading order details...</p>
         </div>
       </div>
@@ -59,7 +59,7 @@ function OrderSuccessContent() {
           <i className="ri-error-warning-line text-4xl text-red-500 mb-4 block"></i>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Order Not Found</h1>
           <p className="text-gray-600 mb-6">We couldn't locate the order details.</p>
-          <Link href="/shop" className="text-emerald-700 font-semibold hover:underline">
+          <Link href="/shop" className="text-gold-700 font-semibold hover:underline">
             Return to Shop
           </Link>
         </div>
@@ -72,7 +72,7 @@ function OrderSuccessContent() {
   const pointsEarned = Math.floor(order.total / 10); // Example logic: 1 point per 10 currency units
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50">
+    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
       {showConfetti && (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
           {[...Array(50)].map((_, i) => (
@@ -86,7 +86,7 @@ function OrderSuccessContent() {
                 animationDuration: `${3 + Math.random() * 2}s`
               }}
             >
-              <i className={`ri-${['heart', 'star', 'gift'][Math.floor(Math.random() * 3)]}-fill text-${['emerald', 'amber', 'blue'][Math.floor(Math.random() * 3)]}-500 text-xl opacity-70`}></i>
+              <i className={`ri-${['heart', 'star', 'gift'][Math.floor(Math.random() * 3)]}-fill text-${['yellow', 'amber', 'orange'][Math.floor(Math.random() * 3)]}-500 text-xl opacity-70`}></i>
             </div>
           ))}
         </div>
@@ -95,8 +95,8 @@ function OrderSuccessContent() {
       <section className="py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12 text-center mb-8">
-            <div className="w-24 h-24 flex items-center justify-center mx-auto mb-6 bg-emerald-100 rounded-full">
-              <i className="ri-checkbox-circle-fill text-6xl text-emerald-600"></i>
+            <div className="w-24 h-24 flex items-center justify-center mx-auto mb-6 bg-gold-100 rounded-full">
+              <i className="ri-checkbox-circle-fill text-6xl text-gold-600"></i>
             </div>
 
             <h1 className="text-4xl font-bold text-gray-900 mb-4">Order Confirmed!</h1>
@@ -104,7 +104,7 @@ function OrderSuccessContent() {
               Thank you for your purchase. We're processing your order now.
             </p>
 
-            <div className="bg-emerald-50 rounded-xl p-6 mb-8">
+            <div className="bg-gold-50 rounded-xl p-6 mb-8">
               <div className="grid md:grid-cols-3 gap-6 text-center">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Order Number</p>
@@ -116,7 +116,7 @@ function OrderSuccessContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Estimated Delivery</p>
-                  <p className="text-lg font-bold text-emerald-700">{estimatedDelivery}</p>
+                  <p className="text-lg font-bold text-gold-700">{estimatedDelivery}</p>
                 </div>
               </div>
             </div>
@@ -124,7 +124,7 @@ function OrderSuccessContent() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
               <Link
                 href={`/account?tab=orders`}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-8 py-4 rounded-lg font-semibold transition-colors inline-flex items-center justify-center whitespace-nowrap"
+                className="bg-gold-600 hover:bg-gold-700 text-white px-8 py-4 rounded-lg font-semibold transition-colors inline-flex items-center justify-center whitespace-nowrap"
               >
                 <i className="ri-file-list-3-line mr-2"></i>
                 View Order
@@ -138,10 +138,10 @@ function OrderSuccessContent() {
               </Link>
             </div>
 
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-6 border-2 border-amber-200">
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border-2 border-gold-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 flex items-center justify-center bg-amber-500 rounded-full">
+                  <div className="w-12 h-12 flex items-center justify-center bg-gold-500 rounded-full">
                     <i className="ri-star-fill text-white text-2xl"></i>
                   </div>
                   <div className="text-left">
@@ -151,7 +151,7 @@ function OrderSuccessContent() {
                 </div>
                 <Link
                   href="/register"
-                  className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap"
+                  className="bg-gold-500 hover:bg-gold-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap"
                 >
                   Join Now
                 </Link>
@@ -233,21 +233,21 @@ function OrderSuccessContent() {
                 <h3 className="font-semibold text-gray-900 mb-3">What's Next?</h3>
                 <div className="space-y-3">
                   <div className="flex items-start space-x-3">
-                    <i className="ri-mail-line text-emerald-700 mt-1"></i>
+                    <i className="ri-mail-line text-gold-700 mt-1"></i>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">Email Confirmation</p>
                       <p className="text-sm text-gray-600">Sent to {order.email}</p>
                     </div>
                   </div>
                   <div className="flex items-start space-x-3">
-                    <i className="ri-box-3-line text-emerald-700 mt-1"></i>
+                    <i className="ri-box-3-line text-gold-700 mt-1"></i>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">Processing</p>
                       <p className="text-sm text-gray-600">We'll pack your order today</p>
                     </div>
                   </div>
                   <div className="flex items-start space-x-3">
-                    <i className="ri-truck-line text-emerald-700 mt-1"></i>
+                    <i className="ri-truck-line text-gold-700 mt-1"></i>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">Shipping Updates</p>
                       <p className="text-sm text-gray-600">Track via email & SMS</p>
@@ -261,15 +261,15 @@ function OrderSuccessContent() {
           <div className="mt-8 text-center">
             <p className="text-gray-600 mb-4">Need help with your order?</p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Link href="/contact" className="text-emerald-700 hover:text-emerald-900 font-semibold whitespace-nowrap">
+              <Link href="/contact" className="text-gold-700 hover:text-gold-900 font-semibold whitespace-nowrap">
                 <i className="ri-customer-service-line mr-1"></i>
                 Contact Support
               </Link>
-              <Link href="/account/orders" className="text-emerald-700 hover:text-emerald-900 font-semibold whitespace-nowrap">
+              <Link href="/account/orders" className="text-gold-700 hover:text-gold-900 font-semibold whitespace-nowrap">
                 <i className="ri-question-line mr-1"></i>
                 Order Help
               </Link>
-              <Link href="/returns" className="text-emerald-700 hover:text-emerald-900 font-semibold whitespace-nowrap">
+              <Link href="/returns" className="text-gold-700 hover:text-gold-900 font-semibold whitespace-nowrap">
                 <i className="ri-arrow-left-right-line mr-1"></i>
                 Returns Policy
               </Link>
@@ -297,7 +297,7 @@ export default function OrderSuccessPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-16 h-16 border-4 border-gold-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     }>
       <OrderSuccessContent />

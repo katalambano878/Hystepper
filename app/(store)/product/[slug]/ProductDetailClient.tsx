@@ -179,7 +179,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     return (
       <div className="min-h-screen bg-white py-12 flex justify-center items-center">
         <div className="text-center">
-          <i className="ri-loader-4-line text-4xl text-emerald-700 animate-spin mb-4 block"></i>
+          <i className="ri-loader-4-line text-4xl text-gold-600 animate-spin mb-4 block"></i>
           <p className="text-gray-500">Loading product...</p>
         </div>
       </div>
@@ -191,7 +191,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       <div className="min-h-screen bg-white py-20 flex justify-center items-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h2>
-          <Link href="/shop" className="text-emerald-700 hover:underline">Return to Shop</Link>
+          <Link href="/shop" className="text-gold-600 hover:underline">Return to Shop</Link>
         </div>
       </div>
     );
@@ -228,11 +228,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         <section className="py-8 bg-gray-50 border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <nav className="flex items-center space-x-2 text-sm flex-wrap gap-y-2">
-              <Link href="/" className="text-gray-600 hover:text-emerald-700 transition-colors">Home</Link>
+              <Link href="/" className="text-gray-600 hover:text-gold-600 transition-colors">Home</Link>
               <i className="ri-arrow-right-s-line text-gray-400"></i>
-              <Link href="/shop" className="text-gray-600 hover:text-emerald-700 transition-colors">Shop</Link>
+              <Link href="/shop" className="text-gray-600 hover:text-gold-600 transition-colors">Shop</Link>
               <i className="ri-arrow-right-s-line text-gray-400"></i>
-              <Link href="#" className="text-gray-600 hover:text-emerald-700 transition-colors">{product.category}</Link>
+              <Link href="#" className="text-gray-600 hover:text-gold-600 transition-colors">{product.category}</Link>
               <i className="ri-arrow-right-s-line text-gray-400"></i>
               <span className="text-gray-900 font-medium truncate max-w-[200px]">{product.name}</span>
             </nav>
@@ -283,7 +283,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         <button
                           key={index}
                           onClick={() => setSelectedImage(index)}
-                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImage === index ? 'border-emerald-700 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImage === index ? 'border-gold-600 shadow-md' : 'border-gray-200 hover:border-gray-300'
                             }`}
                         >
                           {isVideo ? (
@@ -308,12 +308,12 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               <div>
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <p className="text-sm text-emerald-700 font-semibold mb-2">{product.category}</p>
+                    <p className="text-sm text-gold-600 font-semibold mb-2">{product.category}</p>
                     <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">{product.name}</h1>
                   </div>
                   <button
                     onClick={() => setIsWishlisted(!isWishlisted)}
-                    className="w-12 h-12 flex items-center justify-center border-2 border-gray-200 hover:border-emerald-700 rounded-full transition-colors cursor-pointer"
+                    className="w-12 h-12 flex items-center justify-center border-2 border-gray-200 hover:border-gold-600 rounded-full transition-colors cursor-pointer"
                   >
                     <i className={`${isWishlisted ? 'ri-heart-fill text-red-600' : 'ri-heart-line text-gray-700'} text-xl`}></i>
                   </button>
@@ -352,7 +352,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                           key={color}
                           onClick={() => setSelectedColor(color)}
                           className={`px-5 py-2.5 rounded-lg border-2 font-medium transition-all whitespace-nowrap cursor-pointer ${selectedColor === color
-                            ? 'border-emerald-700 bg-emerald-50 text-emerald-700'
+                            ? 'border-gold-600 bg-gold-50 text-gold-700'
                             : 'border-gray-300 text-gray-700 hover:border-gray-400'
                             }`}
                         >
@@ -375,7 +375,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                           key={size}
                           onClick={() => setSelectedSize(size)}
                           className={`px-6 py-3 rounded-lg border-2 font-medium transition-all whitespace-nowrap cursor-pointer ${selectedSize === size
-                            ? 'border-emerald-700 bg-emerald-50 text-emerald-700'
+                            ? 'border-gold-600 bg-gold-50 text-gold-700'
                             : 'border-gray-300 text-gray-700 hover:border-gray-400'
                             }`}
                         >
@@ -415,7 +415,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       </button>
                     </div>
                     {product.stockCount > 10 && (
-                      <span className="text-emerald-600 font-medium flex items-center gap-1">
+                      <span className="text-gold-600 font-medium flex items-center gap-1">
                         <i className="ri-checkbox-circle-fill"></i> Available
                       </span>
                     )}
@@ -435,7 +435,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
                   <button
                     disabled={product.stockCount === 0}
-                    className={`flex-1 bg-gray-900 hover:bg-emerald-700 text-white py-4 rounded-lg font-semibold transition-colors flex items-center justify-center space-x-2 text-lg whitespace-nowrap cursor-pointer ${product.stockCount === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`flex-1 bg-gray-900 hover:bg-gold-600 text-white py-4 rounded-lg font-semibold transition-colors flex items-center justify-center space-x-2 text-lg whitespace-nowrap cursor-pointer ${product.stockCount === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onClick={handleAddToCart}
                   >
                     <i className="ri-shopping-cart-line text-xl"></i>
@@ -444,7 +444,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   {product.stockCount > 0 && (
                     <button
                       onClick={handleBuyNow}
-                      className="sm:w-auto bg-emerald-700 hover:bg-emerald-800 text-white px-8 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
+                      className="sm:w-auto bg-gold-600 hover:bg-gold-700 text-white px-8 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
                     >
                       Buy Now
                     </button>
@@ -455,7 +455,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 {product.stockCount === 0 && (
                   <div className="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-xl">
                     {notifySubmitted ? (
-                      <div className="flex items-center gap-3 text-emerald-700">
+                      <div className="flex items-center gap-3 text-gold-700">
                         <i className="ri-checkbox-circle-fill text-xl"></i>
                         <div>
                           <p className="font-semibold">You&apos;re on the list!</p>
@@ -465,7 +465,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     ) : (
                       <div>
                         <p className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                          <i className="ri-notification-3-line text-emerald-700"></i>
+                          <i className="ri-notification-3-line text-gold-600"></i>
                           Get notified when back in stock
                         </p>
                         <form onSubmit={handleNotifyMe} className="flex gap-2">
@@ -474,13 +474,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             value={notifyEmail}
                             onChange={(e) => setNotifyEmail(e.target.value)}
                             placeholder="Enter your email"
-                            className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500"
                             required
                           />
                           <button
                             type="submit"
                             disabled={notifyLoading}
-                            className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                            className="px-6 py-3 bg-gold-600 hover:bg-gold-700 text-white rounded-lg font-semibold transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
                           >
                             {notifyLoading ? 'Saving...' : 'Notify Me'}
                           </button>
@@ -492,7 +492,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 <div className="border-t border-gray-200 pt-6 space-y-4">
                   <div className="flex items-center text-gray-700">
-                    <i className="ri-truck-line text-xl text-emerald-700 mr-3"></i>
+                    <i className="ri-truck-line text-xl text-gold-600 mr-3"></i>
                     <span>Delivery only — we deliver straight to your door</span>
                   </div>
                   {product.isPreorder && (
@@ -502,22 +502,22 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     </div>
                   )}
                   <div className="flex items-center text-gray-700">
-                    <i className="ri-arrow-left-right-line text-xl text-emerald-700 mr-3"></i>
+                    <i className="ri-arrow-left-right-line text-xl text-gold-600 mr-3"></i>
                     <span>Exchanges within 24 hours of delivery</span>
                   </div>
                   <div className="flex items-center text-gray-700">
-                    <i className="ri-shield-check-line text-xl text-emerald-700 mr-3"></i>
+                    <i className="ri-shield-check-line text-xl text-gold-600 mr-3"></i>
                     <span>Secure payment & buyer protection</span>
                   </div>
                   {product.product_code && (
                     <div className="flex items-center text-gray-700">
-                      <i className="ri-hashtag text-xl text-emerald-700 mr-3"></i>
+                      <i className="ri-hashtag text-xl text-gold-600 mr-3"></i>
                       <span>Product Code: {product.product_code}</span>
                     </div>
                   )}
                   {product.sku && (
                     <div className="flex items-center text-gray-700">
-                      <i className="ri-barcode-line text-xl text-emerald-700 mr-3"></i>
+                      <i className="ri-barcode-line text-xl text-gold-600 mr-3"></i>
                       <span>SKU: {product.sku}</span>
                     </div>
                   )}
@@ -536,7 +536,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={`pb-4 font-semibold transition-colors relative whitespace-nowrap cursor-pointer ${activeTab === tab
-                      ? 'text-emerald-700 border-b-2 border-emerald-700'
+                      ? 'text-gold-700 border-b-2 border-gold-600'
                       : 'text-gray-600 hover:text-gray-900'
                       }`}
                   >
@@ -558,7 +558,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <ul className="grid md:grid-cols-2 gap-4">
                   {product.features.map((feature: string, index: number) => (
                     <li key={index} className="flex items-start">
-                      <i className="ri-checkbox-circle-fill text-emerald-700 text-xl mr-3 mt-1"></i>
+                      <i className="ri-checkbox-circle-fill text-gold-600 text-xl mr-3 mt-1"></i>
                       <span className="text-gray-700 text-lg">{feature}</span>
                     </li>
                   ))}

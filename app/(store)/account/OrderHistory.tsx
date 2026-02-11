@@ -193,7 +193,7 @@ export default function OrderHistory() {
   if (loading) {
     return (
       <div className="py-8 text-center">
-        <i className="ri-loader-4-line animate-spin text-3xl text-emerald-700"></i>
+        <i className="ri-loader-4-line animate-spin text-3xl text-gold-600"></i>
         <p className="mt-2 text-gray-500">Loading orders...</p>
       </div>
     );
@@ -207,7 +207,7 @@ export default function OrderHistory() {
         </div>
         <h3 className="text-lg font-semibold text-gray-900 mb-1">No orders yet</h3>
         <p className="text-gray-500 mb-6">Start shopping to see your orders here.</p>
-        <Link href="/shop" className="inline-block bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium hover:bg-emerald-800 transition-colors">
+        <Link href="/shop" className="inline-block bg-gold-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-gold-700 transition-colors">
           Go to Shop
         </Link>
       </div>
@@ -245,7 +245,7 @@ export default function OrderHistory() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Total</p>
-                    <p className="font-bold text-emerald-700">GH₵{order.total.toFixed(2)}</p>
+                    <p className="font-bold text-gold-700">GH₵{order.total.toFixed(2)}</p>
                   </div>
                 </div>
                 <div>
@@ -279,7 +279,7 @@ export default function OrderHistory() {
               <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
                 <Link
                   href={`/order-tracking?order=${order.orderNumber}`}
-                  className="px-4 py-2 bg-emerald-700 text-white rounded-lg font-semibold hover:bg-emerald-800 transition-colors whitespace-nowrap"
+                  className="px-4 py-2 bg-gold-600 text-white rounded-lg font-semibold hover:bg-gold-700 transition-colors whitespace-nowrap"
                 >
                   <i className="ri-map-pin-line mr-2"></i>
                   Track Order

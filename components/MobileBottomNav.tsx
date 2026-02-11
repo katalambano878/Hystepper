@@ -17,7 +17,7 @@ export default function MobileBottomNav() {
       <div className="grid grid-cols-5 h-16">
         <Link
           href="/"
-          className={`flex flex-col items-center justify-center space-y-1 transition-colors ${isActive('/') ? 'text-emerald-700' : 'text-gray-600'
+          className={`flex flex-col items-center justify-center space-y-1 transition-colors ${isActive('/') ? 'text-gold-600' : 'text-gray-600'
             }`}
         >
           <div className="w-6 h-6 flex items-center justify-center">
@@ -28,7 +28,7 @@ export default function MobileBottomNav() {
 
         <Link
           href="/shop"
-          className={`flex flex-col items-center justify-center space-y-1 transition-colors ${isActive('/shop') ? 'text-emerald-700' : 'text-gray-600'
+          className={`flex flex-col items-center justify-center space-y-1 transition-colors ${isActive('/shop') ? 'text-gold-600' : 'text-gray-600'
             }`}
         >
           <div className="w-6 h-6 flex items-center justify-center">
@@ -39,7 +39,7 @@ export default function MobileBottomNav() {
 
         <Link
           href="/cart"
-          className={`flex flex-col items-center justify-center space-y-1 transition-colors relative ${isActive('/cart') ? 'text-emerald-700' : 'text-gray-600'
+          className={`flex flex-col items-center justify-center space-y-1 transition-colors relative ${isActive('/cart') ? 'text-gold-600' : 'text-gray-600'
             }`}
         >
           <div className="w-6 h-6 flex items-center justify-center relative">
@@ -55,7 +55,7 @@ export default function MobileBottomNav() {
 
         <Link
           href="/wishlist"
-          className={`flex flex-col items-center justify-center space-y-1 transition-colors relative ${isActive('/wishlist') ? 'text-emerald-700' : 'text-gray-600'
+          className={`flex flex-col items-center justify-center space-y-1 transition-colors relative ${isActive('/wishlist') ? 'text-gold-600' : 'text-gray-600'
             }`}
         >
           <div className="w-6 h-6 flex items-center justify-center relative">
@@ -71,7 +71,7 @@ export default function MobileBottomNav() {
 
         <Link
           href="/account"
-          className={`flex flex-col items-center justify-center space-y-1 transition-colors ${isActive('/account') ? 'text-emerald-700' : 'text-gray-600'
+          className={`flex flex-col items-center justify-center space-y-1 transition-colors ${isActive('/account') ? 'text-gold-600' : 'text-gray-600'
             }`}
         >
           <div className="w-6 h-6 flex items-center justify-center">

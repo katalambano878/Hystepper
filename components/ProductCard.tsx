@@ -39,7 +39,7 @@ export default function ProductCard({
           className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500"
         />
         {badge && (
-          <span className="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+          <span className="absolute top-3 left-3 bg-gold-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
             {badge}
           </span>
         )}
@@ -57,7 +57,7 @@ export default function ProductCard({
 
       <div className="p-4 flex flex-col flex-grow">
         <Link href={`/product/${id}`}>
-          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-emerald-700 transition-colors h-12 lg:h-auto">
+          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-gold-600 transition-colors h-12 lg:h-auto">
             {name}
           </h3>
         </Link>

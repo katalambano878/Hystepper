@@ -67,7 +67,7 @@ export default function InstagramFeed() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   return (
-    <div className="py-16 bg-gradient-to-b from-white to-emerald-50">
+    <div className="py-16 bg-gradient-to-b from-white to-gray-50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-2 mb-4">

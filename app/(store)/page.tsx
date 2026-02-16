@@ -117,13 +117,13 @@ export default function HomePage() {
     <main className="min-h-screen bg-white">
 
       {/* Hero Section — Clean & Elegant */}
-      <section className="relative h-[70vh] lg:h-[85vh] overflow-hidden">
+      <section className="relative h-[70vh] lg:h-[85vh] overflow-hidden group">
         {/* Full Background Image */}
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 overflow-hidden">
           <img
             src={config.hero.backgroundImage}
             alt="Hy_stepper Collection"
-            className="w-full h-full object-cover object-top"
+            className="w-full h-full object-cover object-top animate-zoom-in"
           />
           {/* Gradient overlay for readability */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60"></div>
@@ -131,19 +131,21 @@ export default function HomePage() {
 
         {/* Content */}
         <div className="relative h-full flex flex-col items-center justify-end pb-16 lg:pb-24 px-4 text-center">
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-7xl text-white leading-tight mb-4 drop-shadow-lg">
+          <h1 className="font-serif text-4xl sm:text-5xl lg:text-7xl text-white leading-tight mb-4 drop-shadow-lg animate-fade-in-up">
             {config.hero.headline}
           </h1>
-          <p className="text-lg lg:text-xl text-white/90 max-w-xl mb-8 drop-shadow-md">
+          <p className="text-lg lg:text-xl text-white/90 max-w-xl mb-8 drop-shadow-md animate-fade-in-up delay-100">
             {config.hero.subheadline}
           </p>
-          <Link
-            href={config.hero.primaryButtonLink}
-            className="inline-flex items-center gap-3 bg-gold-500 hover:bg-gold-600 text-white px-10 py-4 rounded-full font-semibold text-lg transition-all shadow-xl hover:shadow-gold-500/30 hover:-translate-y-0.5"
-          >
-            {config.hero.primaryButtonText}
-            <i className="ri-arrow-right-line"></i>
-          </Link>
+          <div className="animate-fade-in-up delay-200">
+            <Link
+              href={config.hero.primaryButtonLink}
+              className="group inline-flex items-center gap-3 bg-gold-500 hover:bg-gold-600 text-white px-10 py-4 rounded-full font-semibold text-lg transition-all shadow-xl hover:shadow-gold-500/50 hover:-translate-y-1 active:scale-95"
+            >
+              {config.hero.primaryButtonText}
+              <i className="ri-arrow-right-line transition-transform duration-300 group-hover:translate-x-1"></i>
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -170,16 +172,17 @@ export default function HomePage() {
                   { label: 'Low', value: 'low', range: '1-2"', desc: 'Subtle Lift', icon: 'ri-arrow-right-up-line' },
                   { label: 'Mid', value: 'mid', range: '2-3"', desc: 'Versatile Style', icon: 'ri-sort-asc' },
                   { label: 'High', value: 'high', range: '3"+', desc: 'Statement Maker', icon: 'ri-vip-crown-line' },
-                ].map((item) => (
+                ].map((item, idx) => (
                   <Link
                     key={item.value}
                     href={`/shop?heel_height=${item.value}`}
-                    className="group flex flex-col p-6 bg-gray-50 border border-transparent hover:bg-white hover:border-gold-200 rounded-2xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 overflow-hidden relative"
+                    className="group flex flex-col p-6 bg-gray-50 border border-transparent hover:bg-white hover:border-gold-200 rounded-2xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden relative"
+                    style={{ animationDelay: `${idx * 100}ms` }}
                   >
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-gold-100 rounded-bl-full -mr-8 -mt-8 opacity-0 group-hover:opacity-50 transition-opacity"></div>
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-gold-100 rounded-bl-full -mr-10 -mt-10 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out transform group-hover:scale-110"></div>
 
                     <div className="flex justify-between items-start mb-4 relative z-10">
-                      <span className="text-gray-400 group-hover:text-gold-600 transition-colors bg-white p-2 rounded-lg shadow-sm group-hover:shadow-md">
+                      <span className="text-gray-400 group-hover:text-gold-600 transition-all duration-300 bg-white p-2 rounded-lg shadow-sm group-hover:shadow-md group-hover:rotate-12">
                         <i className={`${item.icon} text-xl`}></i>
                       </span>
                       <span className="text-xs font-bold px-2 py-1 bg-white border border-gray-100 group-hover:border-gold-200 text-gray-400 group-hover:text-gold-700 rounded-md transition-colors">
@@ -206,31 +209,27 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-3xl p-8 lg:p-12 border border-gray-100 shadow-sm relative overflow-hidden flex-1 flex flex-col justify-center min-h-[400px]">
-                {/* Subtle decorative background pattern */}
-                <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#d4af37 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
-
-                <div className="grid grid-cols-3 gap-4 relative z-10 max-w-sm mx-auto w-full">
-                  {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size) => (
-                    <Link
-                      key={size}
-                      href={`/shop?size=${size}`}
-                      className="aspect-square flex flex-col items-center justify-center bg-gray-50 hover:bg-white text-gray-700 hover:text-gold-600 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl group border border-gray-100 hover:border-gold-300"
-                    >
-                      <span className="text-2xl font-bold font-serif">{size}</span>
-                      <span className="text-[10px] uppercase tracking-wider text-gray-400 group-hover:text-gold-400 mt-1 font-medium">EU</span>
-                    </Link>
-                  ))}
-                </div>
-
-                <div className="mt-8 text-center relative z-10">
-                  <Link href="/size-guide" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gold-600 transition-colors group">
-                    <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-gold-50 flex items-center justify-center transition-colors">
-                      <i className="ri-ruler-line text-gray-500 group-hover:text-gold-600"></i>
-                    </span>
-                    <span className="font-medium">True to size fit</span>
+              <div className="flex flex-wrap gap-4 pt-4">
+                {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size, idx) => (
+                  <Link
+                    key={size}
+                    href={`/shop?size=${size}`}
+                    className="w-24 h-24 flex flex-col items-center justify-center bg-gray-50 hover:bg-white border border-transparent hover:border-gold-200 rounded-2xl transition-all duration-300 transform hover:scale-110 hover:shadow-lg group shadow-sm"
+                    style={{ animationDelay: `${idx * 50}ms` }}
+                  >
+                    <span className="text-2xl font-bold font-serif text-gray-900 group-hover:text-gold-600 transition-colors">{size}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400 group-hover:text-gold-400 font-medium">EU</span>
                   </Link>
-                </div>
+                ))}
+              </div>
+
+              <div className="mt-10">
+                <Link href="/size-guide" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gold-600 transition-colors group">
+                  <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-gold-50 flex items-center justify-center transition-colors group-hover:scale-110 duration-300">
+                    <i className="ri-ruler-line text-gray-500 group-hover:text-gold-600"></i>
+                  </span>
+                  <span className="font-medium group-hover:translate-x-1 transition-transform">True to size fit</span>
+                </Link>
               </div>
             </div>
 
@@ -243,13 +242,13 @@ export default function HomePage() {
         <section className="py-16 lg:py-20 bg-gray-50" data-product-shop>
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-end justify-between mb-10">
-              <div>
+              <div className="animate-fade-in-up">
                 <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">{config.sections.newArrivals.title}</h2>
                 <p className="text-gray-500">{config.sections.newArrivals.subtitle}</p>
               </div>
-              <Link href="/shop" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer">
+              <Link href="/shop" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer group transition-all">
                 View All
-                <i className="ri-arrow-right-line ml-2"></i>
+                <i className="ri-arrow-right-line ml-2 transform group-hover:translate-x-1 transition-transform"></i>
               </Link>
             </div>
 
@@ -267,8 +266,10 @@ export default function HomePage() {
               </div>
             ) : featuredProducts.length > 0 ? (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                {featuredProducts.map((product) => (
-                  <ProductCard key={product.id} {...product} />
+                {featuredProducts.map((product, idx) => (
+                  <div key={product.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
+                    <ProductCard {...product} />
+                  </div>
                 ))}
               </div>
             ) : (
@@ -280,10 +281,10 @@ export default function HomePage() {
             <div className="text-center mt-10">
               <Link
                 href="/shop"
-                className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gold-600 text-white px-8 py-3.5 rounded-full font-medium transition-colors whitespace-nowrap cursor-pointer"
+                className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gold-600 text-white px-8 py-3.5 rounded-full font-medium transition-all hover:shadow-lg hover:-translate-y-1 whitespace-nowrap cursor-pointer group"
               >
                 View All Products
-                <i className="ri-arrow-right-line"></i>
+                <i className="ri-arrow-right-line transform group-hover:translate-x-1 transition-transform"></i>
               </Link>
             </div>
           </div>
@@ -295,33 +296,35 @@ export default function HomePage() {
         <section className="py-16 lg:py-20 bg-gradient-to-br from-gold-50 to-amber-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-end justify-between mb-10">
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold-100 text-gold-700 text-sm font-bold rounded-full mb-3">
+              <div className="animate-fade-in-up">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold-100 text-gold-700 text-sm font-bold rounded-full mb-3 animate-pulse">
                   <i className="ri-fire-fill"></i>
                   Hot Deals
                 </div>
                 <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Discounted Items</h2>
                 <p className="text-gray-500">Grab these deals before they&apos;re gone</p>
               </div>
-              <Link href="/shop?sort=discount" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer">
+              <Link href="/shop?sort=discount" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer group transition-all">
                 View All Deals
-                <i className="ri-arrow-right-line ml-2"></i>
+                <i className="ri-arrow-right-line ml-2 transform group-hover:translate-x-1 transition-transform"></i>
               </Link>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-              {discountedProducts.map((product) => (
-                <ProductCard key={product.id} {...product} />
+              {discountedProducts.map((product, idx) => (
+                <div key={product.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
+                  <ProductCard {...product} />
+                </div>
               ))}
             </div>
 
             <div className="text-center mt-10 sm:hidden">
               <Link
                 href="/shop?sort=discount"
-                className="inline-flex items-center gap-2 bg-gold-600 hover:bg-gold-700 text-white px-8 py-3.5 rounded-full font-medium transition-colors"
+                className="inline-flex items-center gap-2 bg-gold-600 hover:bg-gold-700 text-white px-8 py-3.5 rounded-full font-medium transition-all hover:shadow-lg hover:-translate-y-1 group"
               >
                 View All Deals
-                <i className="ri-arrow-right-line"></i>
+                <i className="ri-arrow-right-line transform group-hover:translate-x-1 transition-transform"></i>
               </Link>
             </div>
           </div>

@@ -84,13 +84,13 @@ export default function AnnouncementBar() {
 
     return (
         <div
-            className="py-2 px-4 text-center text-sm relative"
+            className="py-2 px-4 text-center text-sm relative transition-colors duration-500"
             style={{
                 backgroundColor: currentBanner.background_color,
                 color: currentBanner.text_color,
             }}
         >
-            <div className="max-w-7xl mx-auto flex items-center justify-center gap-4">
+            <div key={currentBanner.id} className="max-w-7xl mx-auto flex items-center justify-center gap-4 animate-fade-in">
                 <p className="font-medium">
                     {currentBanner.title}
                     {currentBanner.subtitle && (

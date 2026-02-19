@@ -22,7 +22,7 @@ export async function POST(req: Request) {
         const payload = {
             type: 1,
             amount: amount.toString(), // Ensure string
-            email: process.env.MOOLRE_MERCHANT_EMAIL || 'admin@standardecom.com', // Business email
+            email: process.env.MOOLRE_MERCHANT_EMAIL || 'hystepper2@gmail.com', // Business email
             externalref: orderId,
             callback: `${baseUrl}/api/payment/moolre/callback`,
             redirect: `${baseUrl}/order-success?order=${orderId}&payment_success=true`,

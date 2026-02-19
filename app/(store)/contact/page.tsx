@@ -76,7 +76,7 @@ export default function ContactPage() {
   };
 
   // Get contact details from CMS settings
-  const contactEmail = getSetting('contact_email') || 'support@standardstore.com';
+  const contactEmail = getSetting('contact_email') || 'hystepper2@gmail.com';
   const contactPhone = getSetting('contact_phone') || '+233 XX XXX XXXX';
   const contactAddress = getSetting('contact_address') || 'Accra, Ghana';
 
@@ -105,28 +105,25 @@ export default function ContactPage() {
       value: contactPhone,
       link: `https://wa.me/${contactPhone.replace(/\s/g, '').replace('+', '')}`,
       description: 'Chat with us instantly'
-    },
-    {
-      icon: 'ri-map-pin-line',
-      title: 'Visit Us',
-      value: contactAddress,
-      link: 'https://maps.google.com',
-      description: 'Mon-Sat, 9am-6pm'
     }
   ];
 
   const faqs = [
     {
-      question: 'What are your delivery times?',
-      answer: 'Standard delivery takes 2-5 business days. Express delivery is available for next-day service in major cities.'
+      question: 'How long does delivery take?',
+      answer: 'Delivery within Accra typically takes 1–2 business days. Other regions may take 2–4 business days depending on location.'
     },
     {
-      question: 'Do you offer international shipping?',
-      answer: 'Currently, we ship within Ghana only. We plan to expand to neighbouring countries soon.'
+      question: 'Can I exchange if the shoe doesn\'t fit?',
+      answer: 'Yes, exchanges for sizing issues must be reported within 24 hours of delivery. Please note that the customer is responsible for the exchange delivery fee if the size was self-selected.'
     },
     {
-      question: 'What payment methods do you accept?',
-      answer: 'We accept mobile money (MTN, Vodafone, AirtelTigo), credit/debit cards, and cash on delivery.'
+      question: 'Do you sell only heels?',
+      answer: 'We specialize in heels, sandals, and trendy bags. Our collection is curated for the modern, fashion-conscious woman.'
+    },
+    {
+      question: 'How do I know my size?',
+      answer: 'We recommend checking our size guide on each product page. Our sizes range from 37 to 41 (EU). If you\'re unsure, send us a message on WhatsApp and we\'ll help you find the right fit.'
     }
   ];
 
@@ -138,7 +135,7 @@ export default function ContactPage() {
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid lg:grid-cols-4 gap-6 mb-16">
+        <div className="grid md:grid-cols-3 gap-6 mb-16">
           {contactMethods.map((method, index) => (
             <a
               key={index}

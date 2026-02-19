@@ -77,8 +77,8 @@ export default function Footer() {
 
           {/* Brand */}
           <div className="space-y-5">
-            <Link href="/" className="inline-block">
-              <img src="/logo-new.png" alt={siteName} className="h-12 w-auto object-contain brightness-0 invert opacity-90" />
+            <Link href="/" className="inline-block group">
+              <span className="font-serif text-2xl font-bold tracking-tight text-white group-hover:text-gold-400 transition-colors">{siteName}</span>
             </Link>
             <p className="text-gray-400 leading-relaxed text-sm">
               {siteTagline}
@@ -137,7 +137,7 @@ export default function Footer() {
               <li><Link href="/contact" className="text-gray-400 hover:text-gold-400 transition-colors">Contact Us</Link></li>
               <li><Link href="/order-tracking" className="text-gray-400 hover:text-gold-400 transition-colors">Track My Order</Link></li>
               <li><Link href="/shipping" className="text-gray-400 hover:text-gold-400 transition-colors">Shipping Info</Link></li>
-              <li><Link href="/returns" className="text-gray-400 hover:text-gold-400 transition-colors">Returns Policy</Link></li>
+              <li><Link href="/policy" className="text-gray-400 hover:text-gold-400 transition-colors">Exchange & Refund Policy</Link></li>
             </ul>
           </div>
 

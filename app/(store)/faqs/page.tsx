@@ -258,13 +258,13 @@ export default function FAQsPage() {
             </p>
           </Link>
 
-          <Link href="/returns" className="bg-gray-50 p-8 rounded-2xl hover:shadow-lg transition-all cursor-pointer">
+          <Link href="/policy" className="bg-gray-50 p-8 rounded-2xl hover:shadow-lg transition-all cursor-pointer">
             <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
               <i className="ri-arrow-go-back-line text-2xl text-emerald-700"></i>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Returns Policy</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Exchange & Refund Policy</h3>
             <p className="text-gray-600 leading-relaxed">
-              Understand our return process, timeframes, and refund policy
+              Understand our exchange process, timeframes, and refund policy
             </p>
           </Link>
 

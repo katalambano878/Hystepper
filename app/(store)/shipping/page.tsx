@@ -3,52 +3,25 @@ import Link from 'next/link';
 export default function ShippingPage() {
   const deliveryOptions = [
     {
-      type: 'Standard Delivery',
-      time: '2-5 Business Days',
-      cost: 'GHS 20',
-      description: 'Perfect for regular orders with no rush',
+      type: 'Accra Delivery',
+      time: '1-2 Business Days',
+      cost: 'Calculated at checkout',
+      description: 'Fast and reliable delivery within Accra and Tema.',
+      icon: 'ri-motorbike-line'
+    },
+    {
+      type: 'Regional Delivery',
+      time: '2-4 Business Days',
+      cost: 'Calculated at checkout',
+      description: 'Delivery to other regions across Ghana via courier partners.',
       icon: 'ri-truck-line'
     },
     {
-      type: 'Express Delivery',
-      time: 'Next Day',
-      cost: 'GHS 40',
-      description: 'Available for Accra & Kumasi orders placed before 2pm',
-      icon: 'ri-rocket-line'
-    },
-    {
-      type: 'Outside Accra Delivery',
-      time: '3-5 Business Days',
-      cost: 'Varies by location',
-      description: 'Delivery to selected locations outside Accra via transport services',
-      icon: 'ri-map-pin-line'
-    }
-  ];
-
-  const zones = [
-    {
-      zone: 'Zone 1 - Accra Metro',
-      areas: 'East Legon, Osu, Labone, Airport, Dzorwulu, Cantonments, Adabraka, Tema',
-      standard: '1-2 days',
-      express: 'Next day'
-    },
-    {
-      zone: 'Zone 2 - Greater Accra',
-      areas: 'Madina, Legon, Haatso, Achimota, Dansoman, Spintex, Teshie, Kasoa',
-      standard: '2-3 days',
-      express: 'Next day'
-    },
-    {
-      zone: 'Zone 3 - Major Cities',
-      areas: 'Kumasi, Takoradi, Cape Coast, Tamale, Sunyani, Ho, Koforidua',
-      standard: '3-4 days',
-      express: '1-2 days'
-    },
-    {
-      zone: 'Zone 4 - Other Areas',
-      areas: 'All other locations within Ghana',
-      standard: '4-5 days',
-      express: 'Not available'
+      type: 'Store Pickup',
+      time: 'Same Day',
+      cost: 'Free',
+      description: 'Order online and pick up from our store in Accra.',
+      icon: 'ri-store-2-line'
     }
   ];
 
@@ -57,242 +30,140 @@ export default function ShippingPage() {
       <div className="bg-gradient-to-br from-emerald-50 via-white to-amber-50 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-5xl font-bold text-gray-900 mb-6">Shipping & Delivery</h1>
+            <h1 className="text-4xl md:text-5xl font-serif font-bold text-gray-900 mb-6">Shipping & Delivery</h1>
             <p className="text-xl text-gray-600 leading-relaxed">
-              Fast, reliable delivery across Ghana. Free standard shipping on orders over GHS 300.
+              Fast, reliable delivery across Ghana. Get your favorites delivered to your doorstep.
             </p>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Delivery Options</h2>
-          <div className="grid md:grid-cols-3 gap-6">
+        
+        {/* Delivery Options Grid */}
+        <div className="mb-20">
+          <h2 className="text-3xl font-bold text-gray-900 mb-10 text-center">Delivery Options</h2>
+          <div className="grid md:grid-cols-3 gap-8">
             {deliveryOptions.map((option, index) => (
-              <div key={index} className="bg-white border-2 border-gray-200 p-8 rounded-2xl hover:border-emerald-500 hover:shadow-lg transition-all">
-                <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
-                  <i className={`${option.icon} text-2xl text-emerald-700`}></i>
+              <div key={index} className="bg-white border border-gray-200 p-8 rounded-2xl hover:border-emerald-500 hover:shadow-lg transition-all group">
+                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-6 group-hover:bg-emerald-100 transition-colors">
+                  <i className={`${option.icon} text-3xl text-emerald-700`}></i>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">{option.type}</h3>
-                <div className="text-emerald-700 font-bold text-xl mb-2">{option.cost}</div>
-                <div className="text-gray-600 font-medium mb-4">{option.time}</div>
+                <div className="text-emerald-700 font-bold text-lg mb-2">{option.cost}</div>
+                <div className="text-gray-500 font-medium mb-4 flex items-center gap-2">
+                  <i className="ri-time-line"></i>
+                  {option.time}
+                </div>
                 <p className="text-gray-600 leading-relaxed">{option.description}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-8 mb-16 text-center">
-          <div className="w-16 h-16 bg-emerald-700 rounded-full flex items-center justify-center mx-auto mb-4">
-            <i className="ri-gift-line text-3xl text-white"></i>
-          </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">Free Standard Shipping</h3>
-          <p className="text-lg text-gray-600">
-            Spend GHS 300 or more and get <span className="font-bold text-emerald-700">FREE standard delivery</span> anywhere in Ghana
-          </p>
-        </div>
+        <div className="grid md:grid-cols-2 gap-12 mb-20">
+          {/* How It Works */}
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-8">How It Works</h2>
+            <div className="space-y-8">
+              <div className="flex gap-6">
+                <div className="flex-shrink-0 w-12 h-12 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-xl shadow-md">
+                  1
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Order Processing</h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Orders placed before 2pm are typically processed the same day. We verify your items and pack them securely.
+                  </p>
+                </div>
+              </div>
 
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8">Delivery Zones & Timeframes</h2>
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Zone</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Areas Covered</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Standard</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Express</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {zones.map((zone, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium text-gray-900">{zone.zone}</td>
-                      <td className="px-6 py-4 text-gray-600 text-sm">{zone.areas}</td>
-                      <td className="px-6 py-4 text-gray-900">{zone.standard}</td>
-                      <td className="px-6 py-4 text-gray-900">{zone.express}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="flex gap-6">
+                <div className="flex-shrink-0 w-12 h-12 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-xl shadow-md">
+                  2
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Dispatch & Tracking</h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Once dispatched to our delivery partner, you'll receive a confirmation. You can track your order status in your account.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-6">
+                <div className="flex-shrink-0 w-12 h-12 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-xl shadow-md">
+                  3
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Delivery</h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Our rider or courier partner will contact you to coordinate the drop-off. Please ensure your phone line is active.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="grid md:grid-cols-2 gap-8 mb-16">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">How Shipping Works</h2>
+          {/* Important Policy Info */}
+          <div className="bg-gray-50 rounded-3xl p-8 md:p-10">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+              <i className="ri-information-fill text-emerald-700"></i>
+              Important Information
+            </h2>
             <div className="space-y-6">
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <span className="font-bold text-emerald-700">1</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 mb-2">Order Processing</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Orders placed before 2pm are processed same day. We carefully pack your items and prepare them for dispatch.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <span className="font-bold text-emerald-700">2</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 mb-2">Dispatch</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Your order is handed to our trusted delivery partner. You'll receive a tracking number via email and SMS.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <span className="font-bold text-emerald-700">3</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 mb-2">Track Your Order</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Use your tracking number to monitor your delivery in real-time. You'll get updates at each stage.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <span className="font-bold text-emerald-700">4</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 mb-2">Delivery</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Our delivery partner will contact you before arrival. Sign for your package and enjoy your purchase!
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">Important Information</h2>
-            <div className="bg-gray-50 rounded-2xl p-6 space-y-6">
-              <div>
-                <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <i className="ri-time-line text-emerald-700"></i>
-                  Cut-off Times
-                </h3>
-                <p className="text-gray-600 leading-relaxed text-sm">
-                  Orders placed before 2pm are dispatched same day. Orders after 2pm are dispatched next business day.
+              <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                <h3 className="font-bold text-gray-900 mb-2 text-lg">Delivery Fees</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  Delivery fees are calculated based on your location. Please note that <strong>delivery fees are non-refundable</strong> once the delivery has been completed or the rider has been dispatched.
                 </p>
               </div>
 
-              <div>
-                <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <i className="ri-calendar-line text-emerald-700"></i>
-                  Business Days
-                </h3>
-                <p className="text-gray-600 leading-relaxed text-sm">
-                  Delivery timeframes exclude weekends and public holidays. We process orders Monday to Friday.
+              <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                <h3 className="font-bold text-gray-900 mb-2 text-lg">Exchange Delivery</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  If you need to exchange an item due to a size issue or personal preference, you will be responsible for the delivery fee for the exchange. We cover the cost only if the item is faulty or incorrect.
                 </p>
               </div>
 
-              <div>
-                <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <i className="ri-phone-line text-emerald-700"></i>
-                  Delivery Contact
-                </h3>
-                <p className="text-gray-600 leading-relaxed text-sm">
-                  Our delivery partner will call you before arrival. Please ensure your phone number is correct and reachable.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <i className="ri-home-line text-emerald-700"></i>
-                  Failed Deliveries
-                </h3>
-                <p className="text-gray-600 leading-relaxed text-sm">
-                  If you're unavailable, we'll attempt delivery twice. After that, the package is held at a collection point for 5 days.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <i className="ri-secure-payment-line text-emerald-700"></i>
-                  Package Security
-                </h3>
-                <p className="text-gray-600 leading-relaxed text-sm">
-                  All packages are insured during transit. Report any damage or missing items within 48 hours of delivery.
+              <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                <h3 className="font-bold text-gray-900 mb-2 text-lg">Failed Deliveries</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  Our riders will attempt to contact you upon arrival. If you are unavailable, we may need to reschedule, which could incur an additional fee.
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-2xl p-8 mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Order Tracking</h2>
-          <p className="text-gray-600 mb-6 leading-relaxed">
-            Track your order anytime using your order number and email address. You'll see real-time updates including:
-          </p>
-          <div className="grid md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <i className="ri-checkbox-circle-line text-2xl text-blue-700"></i>
-              </div>
-              <p className="font-medium text-gray-900">Order Confirmed</p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <i className="ri-package-line text-2xl text-amber-700"></i>
-              </div>
-              <p className="font-medium text-gray-900">Processing</p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <i className="ri-truck-line text-2xl text-purple-700"></i>
-              </div>
-              <p className="font-medium text-gray-900">Out for Delivery</p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <i className="ri-gift-line text-2xl text-emerald-700"></i>
-              </div>
-              <p className="font-medium text-gray-900">Delivered</p>
+        {/* CTA Section */}
+        <div className="bg-gray-900 rounded-3xl p-10 md:p-16 text-center text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <h2 className="text-3xl md:text-4xl font-serif font-bold mb-6">Ready to Shop?</h2>
+            <p className="text-gray-300 mb-10 max-w-2xl mx-auto text-lg">
+              Explore our latest collection and get it delivered straight to your door.
+            </p>
+            <div className="flex flex-wrap gap-4 justify-center">
+              <Link
+                href="/shop"
+                className="inline-flex items-center gap-2 bg-white text-gray-900 px-8 py-4 rounded-full font-bold hover:bg-emerald-50 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all"
+              >
+                Start Shopping
+                <i className="ri-arrow-right-line"></i>
+              </Link>
+              <Link
+                href="/order-tracking"
+                className="inline-flex items-center gap-2 bg-transparent border-2 border-white text-white px-8 py-4 rounded-full font-bold hover:bg-white/10 transition-colors"
+              >
+                Track Order
+              </Link>
             </div>
           </div>
-          <div className="mt-8 text-center">
-            <Link
-              href="/order-tracking"
-              className="inline-flex items-center gap-2 bg-emerald-700 text-white px-8 py-4 rounded-full font-medium hover:bg-emerald-800 transition-colors whitespace-nowrap"
-            >
-              <i className="ri-map-pin-line"></i>
-              Track Your Order
-            </Link>
-          </div>
+          
+          {/* Decorative background elements */}
+          <div className="absolute top-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+          <div className="absolute bottom-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-700 to-emerald-900 rounded-2xl p-8 text-white text-center">
-          <h2 className="text-3xl font-bold mb-4">Need Help with Your Delivery?</h2>
-          <p className="text-emerald-100 mb-6 leading-relaxed">
-            Questions about shipping costs, delivery times, or tracking? Our customer service team is here to help.
-          </p>
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Link
-              href="/contact"
-              className="inline-flex items-center gap-2 bg-white text-emerald-700 px-6 py-3 rounded-full font-medium hover:bg-emerald-50 transition-colors whitespace-nowrap"
-            >
-              Contact Support
-            </Link>
-            <Link
-              href="/faqs"
-              className="inline-flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-full font-medium hover:bg-emerald-500 transition-colors whitespace-nowrap"
-            >
-              View FAQs
-            </Link>
-          </div>
-        </div>
       </div>
     </div>
   );

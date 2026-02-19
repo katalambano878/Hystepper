@@ -281,7 +281,7 @@ export default function PrivacyPage() {
             </div>
 
             <p className="text-gray-600 leading-relaxed">
-              To exercise any of these rights, please contact us at <a href="mailto:privacy@premiumstore.com" className="text-emerald-700 font-medium hover:underline">privacy@premiumstore.com</a> or through your account settings. We will respond within 30 days.
+              To exercise any of these rights, please contact us at <a href="mailto:hystepper2@gmail.com" className="text-emerald-700 font-medium hover:underline">hystepper2@gmail.com</a> or through your account settings. We will respond within 30 days.
             </p>
           </section>
 
@@ -384,7 +384,7 @@ export default function PrivacyPage() {
                   <i className="ri-mail-line text-emerald-700 text-xl mt-1"></i>
                   <div>
                     <p className="font-medium text-gray-900">Email</p>
-                    <a href="mailto:privacy@premiumstore.com" className="text-emerald-700 hover:underline">privacy@premiumstore.com</a>
+                    <a href="mailto:hystepper2@gmail.com" className="text-emerald-700 hover:underline">hystepper2@gmail.com</a>
                   </div>
                 </div>
 

@@ -296,7 +296,7 @@ export default function TermsPage() {
                   <i className="ri-mail-line text-emerald-700 text-xl mt-1"></i>
                   <div>
                     <p className="font-medium text-gray-900">Email</p>
-                    <a href="mailto:legal@premiumstore.com" className="text-emerald-700 hover:underline">legal@premiumstore.com</a>
+                    <a href="mailto:hystepper2@gmail.com" className="text-emerald-700 hover:underline">hystepper2@gmail.com</a>
                   </div>
                 </div>
 

@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'missing_api_key');
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@hystepper.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'hystepper2@gmail.com';
 
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
     if (!process.env.RESEND_API_KEY) {
@@ -10,7 +10,7 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
     }
     try {
         const data = await resend.emails.send({
-            from: 'Hy_stepper <orders@hystepper.com>', // Updated Sender
+            from: 'Hy_stepper <hystepper2@gmail.com>', // Updated Sender
             to,
             subject,
             html,

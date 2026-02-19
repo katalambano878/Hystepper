@@ -6,7 +6,7 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function signUp() {
-    const email = 'admin@hy_stepper.com';
+    const email = 'hystepper2@gmail.com';
     const password = 'password123';
 
     console.log(`Attempting to create user: ${email}`);

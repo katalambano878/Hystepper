@@ -76,7 +76,7 @@ export default function ContactPage() {
   };
 
   // Get contact details from CMS settings
-  const contactEmail = getSetting('contact_email') || 'hystepper2@gmail.com';
+  const contactEmail = 'hystepper2@gmail.com';
   const contactPhone = getSetting('contact_phone') || '+233 XX XXX XXXX';
   const contactAddress = getSetting('contact_address') || 'Accra, Ghana';
 

@@ -14,11 +14,20 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState('');
   const [wishlistCount, setWishlistCount] = useState(0);
   const [user, setUser] = useState<any>(null);
+  const [scrolled, setScrolled] = useState(false);
 
   const { cartCount, isCartOpen, setIsCartOpen } = useCart();
   const { getSetting } = useCMS();
 
-  const siteName = getSetting('site_name') || 'Hy_stepper';
+  const siteName = getSetting('site_name') || 'Hy-Stepper';
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const updateWishlistCount = () => {
@@ -57,216 +66,223 @@ export default function Header() {
     <>
       <AnnouncementBar />
 
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <nav aria-label="Main navigation">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+      <header className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100' : 'bg-white border-b border-transparent'}`}>
+        <nav aria-label="Main navigation" className="relative">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-20">
+              
+              {/* Left: Mobile Menu & Logo (Mobile) / Logo (Desktop) */}
+              <div className="flex items-center gap-4 lg:gap-0">
                 <button
-                  className="lg:hidden p-1 -ml-1 text-gray-700 hover:text-gold-600 transition-colors"
+                  className="lg:hidden p-2 -ml-2 text-gray-900 hover:text-gold-600 transition-colors"
                   onClick={() => setIsMobileMenuOpen(true)}
                   aria-label="Open menu"
                 >
                   <i className="ri-menu-line text-2xl"></i>
                 </button>
+                
                 <Link
                   href="/"
-                  className="flex items-center"
+                  className="flex items-center group"
                   aria-label="Go to homepage"
                 >
-                  <img src="/logo-new.png" alt={siteName} className="h-8 md:h-10 w-auto object-contain" />
+                  <span className="font-serif text-2xl font-bold tracking-tight text-gray-900 group-hover:text-gold-600 transition-colors">
+                    {siteName}
+                  </span>
+                  {/* <img src="/logo-new.png" alt={siteName} className="h-8 md:h-10 w-auto object-contain" /> */}
                 </Link>
               </div>
 
-              <div className="hidden lg:flex items-center space-x-8">
-                <Link href="/shop" className="text-gray-700 hover:text-gold-600 font-medium transition-colors whitespace-nowrap" aria-label="Shop all products">
-                  Shop
-                </Link>
-                <Link href="/categories" className="text-gray-700 hover:text-gold-600 font-medium transition-colors whitespace-nowrap" aria-label="Browse categories">
-                  Categories
-                </Link>
-                <Link href="/about" className="text-gray-700 hover:text-gold-600 font-medium transition-colors whitespace-nowrap" aria-label="Learn about us">
-                  About
-                </Link>
-                <Link href="/contact" className="text-gray-700 hover:text-gold-600 font-medium transition-colors whitespace-nowrap" aria-label="Contact us">
-                  Contact
-                </Link>
+              {/* Center: Desktop Navigation */}
+              <div className="hidden lg:flex items-center justify-center space-x-10">
+                {[
+                  { label: 'Home', href: '/' },
+                  { label: 'Shop', href: '/shop' },
+                  { label: 'New Arrivals', href: '/shop?sort=newest' },
+                  { label: 'About', href: '/about' },
+                  { label: 'Contact', href: '/contact' },
+                ].map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="text-sm font-medium text-gray-700 hover:text-gold-600 transition-colors relative group py-2"
+                  >
+                    {link.label}
+                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gold-600 transition-all duration-300 group-hover:w-full"></span>
+                  </Link>
+                ))}
               </div>
 
-              <div className="flex items-center space-x-4">
+              {/* Right: Icons */}
+              <div className="flex items-center space-x-1 sm:space-x-3">
+                
+                {/* Search */}
                 <button
-                  className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-gold-600 transition-colors lg:hidden"
+                  className="p-2 text-gray-700 hover:text-gold-600 transition-colors hover:bg-gray-50 rounded-full"
                   onClick={() => setIsSearchOpen(true)}
-                  aria-label="Open search"
+                  aria-label="Search"
                 >
-                  <i className="ri-search-line text-2xl"></i>
+                  <i className="ri-search-line text-xl"></i>
                 </button>
 
-                <div className="hidden lg:block relative">
-                  <input
-                    type="search"
-                    placeholder="Search products..."
-                    className="w-80 pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:border-gold-400 focus:ring-2 focus:ring-gold-200 transition-all text-sm"
-                    aria-label="Search products"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch(e)}
-                  />
-                  <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
-                </div>
+                {/* User Account */}
+                <Link
+                  href={user ? "/account" : "/auth/login"}
+                  className="hidden sm:flex p-2 text-gray-700 hover:text-gold-600 transition-colors hover:bg-gray-50 rounded-full"
+                  aria-label={user ? "My Account" : "Login"}
+                >
+                  <i className={`${user ? 'ri-user-smile-line' : 'ri-user-line'} text-xl`}></i>
+                </Link>
 
+                {/* Wishlist */}
                 <Link
                   href="/wishlist"
-                  className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-gold-600 transition-colors relative"
-                  aria-label={`Wishlist, ${wishlistCount} items`}
+                  className="hidden sm:flex p-2 text-gray-700 hover:text-gold-600 transition-colors hover:bg-gray-50 rounded-full relative"
+                  aria-label="Wishlist"
                 >
-                  <i className="ri-heart-line text-2xl"></i>
+                  <i className="ri-heart-line text-xl"></i>
                   {wishlistCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-gold-500 text-white text-xs rounded-full flex items-center justify-center" aria-hidden="true">
-                      {wishlistCount}
-                    </span>
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-gold-500 rounded-full ring-2 ring-white"></span>
                   )}
                 </Link>
 
+                {/* Cart */}
                 <div className="relative">
                   <button
-                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-gold-600 transition-colors relative"
+                    className="p-2 text-gray-700 hover:text-gold-600 transition-colors hover:bg-gray-50 rounded-full relative"
                     onClick={() => setIsCartOpen(!isCartOpen)}
-                    aria-label={`Shopping cart, ${cartCount} items`}
-                    aria-expanded={isCartOpen}
-                    aria-controls="mini-cart"
+                    aria-label="Cart"
                   >
-                    <i className="ri-shopping-cart-line text-2xl"></i>
+                    <i className="ri-shopping-bag-line text-xl"></i>
                     {cartCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-gold-500 text-white text-xs rounded-full flex items-center justify-center" aria-hidden="true">
+                      <span className="absolute top-0 right-0 w-4 h-4 bg-gold-600 text-[10px] font-bold text-white flex items-center justify-center rounded-full ring-2 ring-white">
                         {cartCount}
                       </span>
                     )}
                   </button>
-
                   <MiniCart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
                 </div>
-
-                {user ? (
-                  <Link
-                    href="/account"
-                    className="hidden lg:flex w-10 h-10 items-center justify-center text-gold-600 hover:text-gold-700 transition-colors bg-gold-50 rounded-full"
-                    aria-label="My account"
-                    title="Account"
-                  >
-                    <i className="ri-user-fill text-2xl"></i>
-                  </Link>
-                ) : (
-                  <Link
-                    href="/auth/login"
-                    className="hidden lg:flex w-10 h-10 items-center justify-center text-gray-700 hover:text-gold-600 transition-colors"
-                    aria-label="Login"
-                    title="Login"
-                  >
-                    <i className="ri-user-line text-2xl"></i>
-                  </Link>
-                )}
               </div>
+
             </div>
           </div>
         </nav>
-      </header >
+      </header>
 
+      {/* Full Screen Search Overlay */}
       {isSearchOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-24">
-          <div className="bg-white rounded-lg w-full max-w-2xl mx-4 shadow-2xl">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-900">Search Products</h3>
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-[60] animate-in fade-in duration-200">
+          <div className="max-w-4xl mx-auto px-4 pt-32">
+            <div className="relative">
+              <button
+                onClick={() => setIsSearchOpen(false)}
+                className="absolute -top-16 right-0 p-2 text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                <i className="ri-close-line text-3xl"></i>
+              </button>
+              
+              <form onSubmit={handleSearch} className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search for..."
+                  className="w-full text-4xl md:text-5xl font-serif border-b-2 border-gray-200 py-4 bg-transparent focus:outline-none focus:border-gold-500 placeholder-gray-300 text-gray-900 transition-colors"
+                  autoFocus
+                />
                 <button
-                  onClick={() => setIsSearchOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700"
+                  type="submit"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 p-4 text-gray-400 hover:text-gold-600 transition-colors"
                 >
-                  <i className="ri-close-line text-2xl"></i>
+                  <i className="ri-arrow-right-line text-3xl"></i>
                 </button>
-              </div>
-              <form onSubmit={handleSearch}>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search for products..."
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-400 focus:border-gold-400 text-base"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-gold-600 hover:text-gold-700"
-                  >
-                    <i className="ri-search-line text-xl"></i>
-                  </button>
-                </div>
               </form>
+
+              <div className="mt-8">
+                <p className="text-sm text-gray-500 uppercase tracking-widest mb-4">Popular Searches</p>
+                <div className="flex flex-wrap gap-3">
+                  {['Heels', 'Sandals', 'New Arrivals', 'Sale'].map((term) => (
+                    <button
+                      key={term}
+                      onClick={() => {
+                        setSearchQuery(term);
+                        window.location.href = `/shop?search=${encodeURIComponent(term)}`;
+                      }}
+                      className="px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-full text-sm text-gray-700 transition-colors"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      )
-      }
+      )}
 
       {/* Mobile Menu Drawer */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-[100] lg:hidden">
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute top-0 left-0 bottom-0 w-4/5 max-w-xs bg-white shadow-xl flex flex-col animate-in slide-in-from-left duration-300">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-              <Link href="/" onClick={() => setIsMobileMenuOpen(false)}>
-                <img src="/logo-new.png" alt={siteName} className="h-8 w-auto object-contain" />
-              </Link>
+          <div className="absolute top-0 left-0 bottom-0 w-[85%] max-w-sm bg-white shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <span className="font-serif text-xl font-bold text-gray-900">{siteName}</span>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 -mr-2 text-gray-500 hover:text-gray-900"
-                aria-label="Close menu"
+                className="p-2 -mr-2 text-gray-500 hover:text-gray-900 transition-colors"
               >
                 <i className="ri-close-line text-2xl"></i>
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto p-4 space-y-2">
-              {[
-                { label: 'Home', href: '/' },
-                { label: 'Shop', href: '/shop' },
-                { label: 'Categories', href: '/categories' },
-                { label: 'About', href: '/about' },
-                { label: 'Contact', href: '/contact' },
-              ].map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="block px-4 py-3 text-lg font-medium text-gray-700 hover:bg-gold-50 hover:text-gold-700 rounded-lg transition-colors"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
-              <div className="h-px bg-gray-100 my-2"></div>
-              {[
-                { label: 'Track Order', href: '/order-tracking' },
-                { label: 'Wishlist', href: '/wishlist' },
-                { label: 'My Account', href: '/account' },
-              ].map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="block px-4 py-3 text-base font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
+            <nav className="flex-1 overflow-y-auto px-6 py-8 space-y-6">
+              <div className="space-y-4">
+                {[
+                  { label: 'Home', href: '/' },
+                  { label: 'Shop All', href: '/shop' },
+                  { label: 'New Arrivals', href: '/shop?sort=newest' },
+                  { label: 'Best Sellers', href: '/shop?sort=best-selling' },
+                  { label: 'About Us', href: '/about' },
+                  { label: 'Contact', href: '/contact' },
+                ].map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="block text-2xl font-serif text-gray-900 hover:text-gold-600 transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+
+              <div className="h-px bg-gray-100"></div>
+
+              <div className="space-y-3">
+                {[
+                  { label: 'My Account', href: '/account', icon: 'ri-user-line' },
+                  { label: 'Wishlist', href: '/wishlist', icon: 'ri-heart-line' },
+                  { label: 'Track Order', href: '/order-tracking', icon: 'ri-truck-line' },
+                ].map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="flex items-center gap-3 text-base font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <i className={`${link.icon} text-lg`}></i>
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
             </nav>
 
-            <div className="p-4 border-t border-gray-100">
-              <p className="text-xs text-gray-500 text-center">
+            <div className="p-6 bg-gray-50">
+              <p className="text-xs text-gray-400 text-center">
                 &copy; {new Date().getFullYear()} {siteName}
               </p>
             </div>

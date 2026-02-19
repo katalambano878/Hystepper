@@ -4,8 +4,8 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import SessionTimeoutWarning from '@/components/SessionTimeoutWarning';
-import PWAPrompt from '@/components/PWAPrompt';
-import PWAInstaller from '@/components/PWAInstaller';
+// import PWAPrompt from '@/components/PWAPrompt';
+// import PWAInstaller from '@/components/PWAInstaller';
 import PushNotificationManager from '@/components/PushNotificationManager';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import NetworkStatusMonitor from '@/components/NetworkStatusMonitor';
@@ -25,13 +25,13 @@ export default function StoreLayout({
   return (
     <CMSProvider>
       <div className="min-h-screen bg-gray-50">
-        <PWAInstaller />
+        {/* <PWAInstaller /> */}
         <Header />
         {children}
         <Footer />
         <MobileBottomNav />
         <SessionTimeoutWarning />
-        <PWAPrompt />
+        {/* <PWAPrompt /> */}
         <PushNotificationManager />
         <OfflineIndicator />
         <NetworkStatusMonitor />

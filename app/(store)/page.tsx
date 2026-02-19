@@ -14,8 +14,8 @@ export default function HomePage() {
 
   const config = {
     hero: {
-      headline: 'Step Into Elegance',
-      subheadline: 'Premium footwear crafted for the modern trendsetter.',
+      headline: 'Stay Sleek in Style',
+      subheadline: 'Elevate your look with our exclusive collection of footwear and bags — made for the modern woman.',
       primaryButtonText: 'Shop Now',
       primaryButtonLink: '/shop',
       backgroundImage: '/hero-new.jpeg'
@@ -149,92 +149,98 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Quick Filters: Shop by Heel Height & Size */}
-      <section className="py-20 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20">
-
-            {/* Heel Height */}
-            <div>
-              <div className="flex items-center gap-4 mb-8">
-                <span className="w-12 h-12 rounded-full bg-gold-50 flex items-center justify-center text-gold-600 ring-4 ring-gold-50/50">
-                  <i className="ri-ruler-2-line text-2xl"></i>
-                </span>
-                <div>
-                  <h2 className="text-3xl font-serif font-bold text-gray-900">Heel Height</h2>
-                  <p className="text-gray-500 text-sm">Find your perfect elevation</p>
+      {/* Shop By — Linear Stacked Design */}
+      <section className="relative overflow-hidden">
+        
+        {/* ROW 1: Heel Height — Full-width linear strip */}
+        <div className="bg-gray-900">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col md:flex-row md:items-center">
+              
+              {/* Left Label */}
+              <div className="py-4 md:py-0 md:pr-10 md:border-r border-white/10 md:w-56 flex-shrink-0">
+                <div className="flex items-baseline gap-2 md:block">
+                  <span className="text-gold-400 text-xs font-semibold tracking-[0.2em] uppercase md:block md:mb-1">Shop By</span>
+                  <h2 className="text-xl md:text-2xl font-serif font-bold text-white">Heel Height</h2>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Horizontal Items */}
+              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 divide-x divide-white/10">
                 {[
-                  { label: 'Flat', value: 'flat', range: '0-1"', desc: 'Everyday Ease', icon: 'ri-footprint-line' },
-                  { label: 'Low', value: 'low', range: '1-2"', desc: 'Subtle Lift', icon: 'ri-arrow-right-up-line' },
-                  { label: 'Mid', value: 'mid', range: '2-3"', desc: 'Versatile Style', icon: 'ri-sort-asc' },
-                  { label: 'High', value: 'high', range: '3"+', desc: 'Statement Maker', icon: 'ri-vip-crown-line' },
-                ].map((item, idx) => (
+                  { label: 'Flat', value: 'flat', range: '0–1"', desc: 'Everyday ease', icon: 'ri-footprint-line' },
+                  { label: 'Low', value: 'low', range: '1–2"', desc: 'Subtle lift', icon: 'ri-arrow-right-up-line' },
+                  { label: 'Mid', value: 'mid', range: '2–3"', desc: 'Classic versatility', icon: 'ri-sort-asc' },
+                  { label: 'High', value: 'high', range: '4"+', desc: 'Bold statement', icon: 'ri-vip-crown-line' },
+                ].map((item) => (
                   <Link
                     key={item.value}
                     href={`/shop?heel_height=${item.value}`}
-                    className="group flex flex-col p-6 bg-gray-50 border border-transparent hover:bg-white hover:border-gold-200 rounded-2xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden relative"
-                    style={{ animationDelay: `${idx * 100}ms` }}
+                    className="group relative flex items-center gap-4 px-6 py-8 md:py-10 transition-all duration-300 hover:bg-white/5"
                   >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-gold-100 rounded-bl-full -mr-10 -mt-10 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out transform group-hover:scale-110"></div>
+                    {/* Gold accent line — appears on hover */}
+                    <div className="absolute top-0 left-0 right-0 h-[3px] bg-gold-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
 
-                    <div className="flex justify-between items-start mb-4 relative z-10">
-                      <span className="text-gray-400 group-hover:text-gold-600 transition-all duration-300 bg-white p-2 rounded-lg shadow-sm group-hover:shadow-md group-hover:rotate-12">
-                        <i className={`${item.icon} text-xl`}></i>
-                      </span>
-                      <span className="text-xs font-bold px-2 py-1 bg-white border border-gray-100 group-hover:border-gold-200 text-gray-400 group-hover:text-gold-700 rounded-md transition-colors">
-                        {item.range}
-                      </span>
+                    <div className="w-10 h-10 rounded-full bg-white/5 group-hover:bg-gold-500/20 flex items-center justify-center transition-all duration-300 flex-shrink-0">
+                      <i className={`${item.icon} text-lg text-gray-400 group-hover:text-gold-400 transition-colors duration-300`}></i>
                     </div>
 
-                    <h3 className="text-lg font-bold text-gray-900 mb-1 relative z-10">{item.label}</h3>
-                    <p className="text-xs text-gray-500 group-hover:text-gray-600 relative z-10">{item.desc}</p>
+                    <div className="min-w-0">
+                      <div className="flex items-baseline gap-2 mb-0.5">
+                        <h3 className="text-white font-semibold text-base group-hover:text-gold-400 transition-colors duration-300">{item.label}</h3>
+                        <span className="text-[11px] text-gray-500 font-medium">{item.range}</span>
+                      </div>
+                      <p className="text-gray-500 text-xs group-hover:text-gray-400 transition-colors truncate">{item.desc}</p>
+                    </div>
+
+                    <i className="ri-arrow-right-s-line text-gray-600 group-hover:text-gold-400 ml-auto flex-shrink-0 opacity-0 group-hover:opacity-100 transform translate-x-[-8px] group-hover:translate-x-0 transition-all duration-300"></i>
                   </Link>
                 ))}
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* Sizes */}
-            <div className="flex flex-col justify-center h-full">
-              <div className="flex items-center gap-4 mb-8">
-                <span className="w-12 h-12 rounded-full bg-gold-50 flex items-center justify-center text-gold-600 ring-4 ring-gold-50/50">
-                  <i className="ri-layout-grid-fill text-2xl"></i>
-                </span>
-                <div>
-                  <h2 className="text-3xl font-serif font-bold text-gray-900">Shop by Size</h2>
-                  <p className="text-gray-500 text-sm">Browse inclusive sizing options</p>
+        {/* ROW 2: Size — Clean white linear strip */}
+        <div className="bg-white border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col md:flex-row md:items-center">
+
+              {/* Left Label */}
+              <div className="py-4 md:py-0 md:pr-10 md:border-r border-gray-100 md:w-56 flex-shrink-0">
+                <div className="flex items-baseline gap-2 md:block">
+                  <span className="text-gold-600 text-xs font-semibold tracking-[0.2em] uppercase md:block md:mb-1">Shop By</span>
+                  <h2 className="text-xl md:text-2xl font-serif font-bold text-gray-900">Size</h2>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-4 pt-4">
-                {[35, 36, 37, 38, 39, 40, 41, 42, 43].map((size, idx) => (
+              {/* Horizontal Size Strip */}
+              <div className="flex-1 flex items-center py-7 md:py-10 pl-0 md:pl-10 gap-3 overflow-x-auto scrollbar-hide">
+                {[37, 38, 39, 40, 41].map((size) => (
                   <Link
                     key={size}
                     href={`/shop?size=${size}`}
-                    className="w-24 h-24 flex flex-col items-center justify-center bg-gray-50 hover:bg-white border border-transparent hover:border-gold-200 rounded-2xl transition-all duration-300 transform hover:scale-110 hover:shadow-lg group shadow-sm"
-                    style={{ animationDelay: `${idx * 50}ms` }}
+                    className="group relative w-16 h-16 md:w-[72px] md:h-[72px] flex-shrink-0 flex items-center justify-center rounded-full border-2 border-gray-200 hover:border-gray-900 hover:bg-gray-900 transition-all duration-300 overflow-hidden"
                   >
-                    <span className="text-2xl font-bold font-serif text-gray-900 group-hover:text-gold-600 transition-colors">{size}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-gray-400 group-hover:text-gold-400 font-medium">EU</span>
+                    <span className="text-base font-bold text-gray-800 group-hover:text-white transition-colors duration-300 relative z-10">{size}</span>
                   </Link>
                 ))}
-              </div>
 
-              <div className="mt-10">
-                <Link href="/size-guide" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gold-600 transition-colors group">
-                  <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-gold-50 flex items-center justify-center transition-colors group-hover:scale-110 duration-300">
-                    <i className="ri-ruler-line text-gray-500 group-hover:text-gold-600"></i>
-                  </span>
-                  <span className="font-medium group-hover:translate-x-1 transition-transform">True to size fit</span>
+                {/* Separator + Size Guide */}
+                <div className="h-10 w-px bg-gray-200 flex-shrink-0 mx-2 hidden md:block"></div>
+                <Link
+                  href="/size-guide"
+                  className="flex-shrink-0 flex items-center gap-2 text-sm text-gray-400 hover:text-gold-600 transition-colors group whitespace-nowrap"
+                >
+                  <i className="ri-ruler-line text-base"></i>
+                  <span className="font-medium hidden md:inline group-hover:underline decoration-gold-500 underline-offset-4">Size Guide</span>
                 </Link>
               </div>
-            </div>
 
+            </div>
           </div>
         </div>
+
       </section>
 
       {/* Products Section */}

@@ -529,9 +529,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
         <section className="py-16 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="border-b border-gray-300 mb-8">
-              <div className="flex space-x-8">
-                {['description', 'features', 'care', 'reviews'].map((tab) => (
+            <div className="border-b border-gray-300 mb-8 overflow-x-auto scrollbar-hide">
+              <div className="flex space-x-8 min-w-max">
+                {['description', 'features', 'reviews'].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -563,13 +563,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
-
-            {activeTab === 'care' && (
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-6">Care Instructions</h3>
-                <p className="text-gray-700 text-lg leading-relaxed">{product.care}</p>
               </div>
             )}
 

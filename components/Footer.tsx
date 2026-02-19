@@ -26,7 +26,7 @@ export default function Footer() {
     }
   };
 
-  const siteName = getSetting('site_name') || 'Hy_stepper';
+  const siteName = getSetting('site_name') || 'Hy-Stepper';
   const siteTagline = getSetting('site_tagline') || 'Steps Ahead in Style.';
   const contactEmail = getSetting('contact_email') || '';
   const contactPhone = getSetting('contact_phone') || '0276558163';

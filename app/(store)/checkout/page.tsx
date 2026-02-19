@@ -785,33 +785,7 @@ export default function CheckoutPage() {
             {/* Exchange & Refund Policy */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="p-5 bg-amber-50 rounded-lg border border-amber-200">
-                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                  <i className="ri-error-warning-line text-amber-600"></i>
-                  Exchange & Refund Summary:
-                </h3>
-                <ul className="text-sm text-gray-700 space-y-2 mb-4">
-                  <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-0.5">•</span>
-                    <span>Exchanges apply to faulty items, sizing issues, or wrong items delivered</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-0.5">•</span>
-                    <span>No exchanges for heel height, style, or product preference</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-0.5">•</span>
-                    <span>Refunds apply for faulty or wrong items only if exchange is not possible</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-0.5">•</span>
-                    <span>Delivery fees are non-refundable once delivery is completed</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-0.5">•</span>
-                    <span>Items must be unused, unworn, and returned with all original packaging</span>
-                  </li>
-                </ul>
-                <label className="flex items-start space-x-3 cursor-pointer pt-3 border-t border-amber-200">
+                <label className="flex items-start space-x-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={acceptedPolicy}

@@ -9,7 +9,7 @@ export default function AboutPage() {
   const { getSetting } = useCMS();
   const [activeTab, setActiveTab] = useState('story');
 
-  const siteName = getSetting('site_name') || 'Hy_stepper';
+  const siteName = getSetting('site_name') || 'Hy-Stepper';
 
   const values = [
     {

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-white">
@@ -8,7 +10,7 @@ export default function TermsPage() {
             <p className="text-xl text-gray-600 leading-relaxed">
               Please read these terms carefully before using our website and services.
             </p>
-            <p className="text-sm text-gray-500 mt-4">Last updated: December 2024</p>
+            <p className="text-sm text-gray-500 mt-4">Last updated: February 2026</p>
           </div>
         </div>
       </div>
@@ -18,7 +20,7 @@ export default function TermsPage() {
           <section className="mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-6">1. Agreement to Terms</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              By accessing and using this website (premiumstore.com), you accept and agree to be bound by these Terms and Conditions. If you do not agree with any part of these terms, you must not use our website or services.
+              By accessing and using this website (Hy-Stepper), you accept and agree to be bound by these Terms and Conditions. If you do not agree with any part of these terms, you must not use our website or services.
             </p>
             <p className="text-gray-600 leading-relaxed">
               These terms apply to all visitors, users, and customers who access or use our service. We reserve the right to update or modify these terms at any time without prior notice. Your continued use of the website following any changes indicates your acceptance of the new terms.
@@ -147,12 +149,12 @@ export default function TermsPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <i className="ri-hand-coin-line text-emerald-700"></i>
-                  <span>Cash on Delivery (for orders under GHS 1,000)</span>
+                  <span>Cash on Delivery (subject to location and order value)</span>
                 </li>
               </ul>
             </div>
             <p className="text-gray-600 leading-relaxed">
-              Payment must be received in full before order dispatch. By providing payment information, you confirm that you are authorised to use the payment method and that there are sufficient funds available.
+              Payment must be received in full before order dispatch (unless Cash on Delivery is selected). By providing payment information, you confirm that you are authorised to use the payment method and that there are sufficient funds available.
             </p>
 
             <h3 className="text-xl font-bold text-gray-900 mb-4 mt-8">4.3 Order Modifications</h3>
@@ -164,128 +166,87 @@ export default function TermsPage() {
           <section className="mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-6">5. Shipping & Delivery</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              Delivery times and costs vary by location and shipping method selected. See our Shipping Policy for detailed information.
+              We offer delivery across Ghana. Typical delivery times are:
             </p>
+            <ul className="space-y-2 text-gray-600 mb-6">
+              <li className="flex items-start gap-2">
+                <i className="ri-motorbike-line text-emerald-700 mt-1"></i>
+                <span><strong>Accra Delivery:</strong> 1-2 Business Days</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="ri-truck-line text-emerald-700 mt-1"></i>
+                <span><strong>Regional Delivery:</strong> 2-4 Business Days</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="ri-store-2-line text-emerald-700 mt-1"></i>
+                <span><strong>Store Pickup:</strong> Same Day (Free)</span>
+              </li>
+            </ul>
             <p className="text-gray-600 leading-relaxed mb-4">
-              Risk of loss and title for products pass to you upon delivery to the carrier. We are not responsible for delays caused by the shipping carrier or circumstances beyond our control (weather, strikes, customs, etc.).
+              Delivery fees are calculated at checkout based on your location. <strong>Delivery fees are non-refundable</strong> once the delivery has been completed or the rider has been dispatched.
             </p>
             <p className="text-gray-600 leading-relaxed">
-              You must provide accurate and complete delivery information. We are not responsible for delivery failures due to incorrect addresses.
+              You must provide accurate and complete delivery information. We are not responsible for delivery failures due to incorrect addresses. If you are unavailable for delivery, rescheduling may incur an additional fee.
             </p>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">6. Returns & Refunds</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">6. Exchange & Refunds</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              We offer a 14-day return policy for most products. See our Returns Policy for complete details on eligibility, process, and conditions.
+              We want you to be happy with your purchase. Our policy is as follows:
             </p>
+            <ul className="space-y-2 text-gray-600 mb-6">
+              <li className="flex items-start gap-2">
+                <i className="ri-time-line text-emerald-700 mt-1"></i>
+                <span><strong>Faulty Items:</strong> Must be reported within 48 hours of delivery for exchange.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="ri-time-line text-emerald-700 mt-1"></i>
+                <span><strong>Other Issues (Size/Preference):</strong> Must be reported within 24 hours of delivery.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="ri-money-dollar-circle-line text-emerald-700 mt-1"></i>
+                <span><strong>Delivery Fees:</strong> Customers are responsible for delivery fees for exchanges due to size or personal preference. We cover delivery fees only for faulty or wrong items.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="ri-refund-line text-emerald-700 mt-1"></i>
+                <span><strong>Refunds:</strong> Only available for faulty items if an exchange is not possible. We do not offer refunds for change of mind.</span>
+              </li>
+            </ul>
             <p className="text-gray-600 leading-relaxed">
-              Refunds are processed within 5-7 business days of receiving your return. Refunds are issued to the original payment method.
+              Items must be returned unused, unworn, and with all original packaging intact. See our <Link href="/policy" className="text-emerald-700 underline">Exchange & Refund Policy</Link> for full details.
             </p>
           </section>
 
           <section className="mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-6">7. Intellectual Property</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              All content on this website, including text, graphics, logos, images, videos, and software, is the property of Premium Store or its content suppliers and is protected by copyright, trademark, and other intellectual property laws.
+              All content on this website, including text, graphics, logos, images, videos, and software, is the property of Hy-Stepper or its content suppliers and is protected by copyright, trademark, and other intellectual property laws.
             </p>
             <p className="text-gray-600 leading-relaxed mb-4">
               You may not reproduce, distribute, modify, create derivative works of, publicly display, or otherwise use any content from this website without our express written permission.
             </p>
-            <p className="text-gray-600 leading-relaxed">
-              Product names, logos, and brands are the property of their respective owners and are used for identification purposes only.
-            </p>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">8. User Content</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">8. Limitation of Liability</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              You may submit reviews, comments, and other content to our website. By doing so, you grant us a non-exclusive, royalty-free, perpetual, worldwide licence to use, reproduce, modify, and display such content.
+              To the fullest extent permitted by law, Hy-Stepper shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the website or services.
             </p>
-            <p className="text-gray-600 leading-relaxed mb-4">
-              You are solely responsible for your content and must ensure it:
-            </p>
-            <ul className="space-y-2 text-gray-600 mb-6">
-              <li className="flex items-start gap-2">
-                <i className="ri-checkbox-circle-line text-emerald-700 mt-1"></i>
-                <span>Does not violate any laws or third-party rights</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="ri-checkbox-circle-line text-emerald-700 mt-1"></i>
-                <span>Is not defamatory, offensive, or inappropriate</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="ri-checkbox-circle-line text-emerald-700 mt-1"></i>
-                <span>Does not contain viruses or malicious code</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="ri-checkbox-circle-line text-emerald-700 mt-1"></i>
-                <span>Is truthful and based on your genuine experience</span>
-              </li>
-            </ul>
-            <p className="text-gray-600 leading-relaxed">
-              We reserve the right to remove any content that violates these terms or that we deem inappropriate.
-            </p>
-          </section>
-
-          <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">9. Limitation of Liability</h2>
-            <p className="text-gray-600 leading-relaxed mb-4">
-              To the fullest extent permitted by law, Premium Store shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from:
-            </p>
-            <ul className="space-y-2 text-gray-600 mb-6">
-              <li className="flex items-start gap-2">
-                <i className="ri-arrow-right-s-line text-gray-400 mt-1"></i>
-                <span>Your use or inability to use the website or services</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="ri-arrow-right-s-line text-gray-400 mt-1"></i>
-                <span>Unauthorised access to or alteration of your data</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="ri-arrow-right-s-line text-gray-400 mt-1"></i>
-                <span>Errors or omissions in website content</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="ri-arrow-right-s-line text-gray-400 mt-1"></i>
-                <span>Product defects or performance issues</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="ri-arrow-right-s-line text-gray-400 mt-1"></i>
-                <span>Delivery delays or failures</span>
-              </li>
-            </ul>
             <p className="text-gray-600 leading-relaxed">
               Our total liability for any claim arising from your use of the website or purchase of products shall not exceed the amount you paid for the product or service in question.
             </p>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">10. Indemnification</h2>
-            <p className="text-gray-600 leading-relaxed">
-              You agree to indemnify and hold harmless Premium Store, its affiliates, officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including legal fees) arising from your use of the website, violation of these terms, or infringement of any third-party rights.
-            </p>
-          </section>
-
-          <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">11. Governing Law & Disputes</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">9. Governing Law</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
               These terms are governed by the laws of Ghana. Any disputes arising from these terms or your use of the website shall be subject to the exclusive jurisdiction of the courts of Ghana.
             </p>
-            <p className="text-gray-600 leading-relaxed">
-              Before initiating any legal action, you agree to first contact us to seek resolution through informal negotiation.
-            </p>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">12. Severability</h2>
-            <p className="text-gray-600 leading-relaxed">
-              If any provision of these terms is found to be invalid or unenforceable, the remaining provisions shall continue in full force and effect.
-            </p>
-          </section>
-
-          <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">13. Contact Information</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">10. Contact Information</h2>
             <p className="text-gray-600 leading-relaxed mb-6">
               For questions about these Terms and Conditions, please contact us:
             </p>
@@ -304,15 +265,15 @@ export default function TermsPage() {
                   <i className="ri-phone-line text-emerald-700 text-xl mt-1"></i>
                   <div>
                     <p className="font-medium text-gray-900">Phone</p>
-                    <a href="tel:+233241234567" className="text-emerald-700 hover:underline">+233 24 123 4567</a>
+                    <a href="tel:0276558163" className="text-emerald-700 hover:underline">0276558163</a>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <i className="ri-map-pin-line text-emerald-700 text-xl mt-1"></i>
                   <div>
-                    <p className="font-medium text-gray-900">Address</p>
-                    <p className="text-gray-600">Premium Store Ghana<br />East Legon, Accra<br />Ghana</p>
+                    <p className="font-medium text-gray-900">Location</p>
+                    <p className="text-gray-600">Accra, Ghana</p>
                   </div>
                 </div>
               </div>

@@ -28,37 +28,7 @@ export default function AdvancedCouponSystem({
   const [error, setError] = useState('');
   const [showAvailable, setShowAvailable] = useState(false);
 
-  const availableCoupons: Coupon[] = [
-    { 
-      code: 'WELCOME10', 
-      discount: 10, 
-      type: 'percentage',
-      minPurchase: 100,
-      description: '10% off on orders over GH₵100'
-    },
-    { 
-      code: 'SAVE20', 
-      discount: 20, 
-      type: 'percentage',
-      minPurchase: 200,
-      maxDiscount: 50,
-      description: '20% off (max GH₵50) on orders over GH₵200'
-    },
-    { 
-      code: 'FREE50', 
-      discount: 50, 
-      type: 'fixed',
-      minPurchase: 500,
-      description: 'GH₵50 off on orders over GH₵500'
-    },
-    { 
-      code: 'NEWCUSTOMER', 
-      discount: 15, 
-      type: 'percentage',
-      maxDiscount: 30,
-      description: '15% off (max GH₵30) for new customers'
-    }
-  ];
+  const availableCoupons: Coupon[] = [];
 
   const handleApply = () => {
     setError('');

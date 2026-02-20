@@ -98,6 +98,7 @@ export default function Header() {
                 {[
                   { label: 'Home', href: '/' },
                   { label: 'Shop', href: '/shop' },
+                  { label: 'Categories', href: '/categories' },
                   { label: 'New Arrivals', href: '/shop?sort=newest' },
                   { label: 'About', href: '/about' },
                   { label: 'Contact', href: '/contact' },
@@ -244,6 +245,7 @@ export default function Header() {
                 {[
                   { label: 'Home', href: '/' },
                   { label: 'Shop All', href: '/shop' },
+                  { label: 'Categories', href: '/categories' },
                   { label: 'New Arrivals', href: '/shop?sort=newest' },
                   { label: 'Best Sellers', href: '/shop?sort=best-selling' },
                   { label: 'About Us', href: '/about' },

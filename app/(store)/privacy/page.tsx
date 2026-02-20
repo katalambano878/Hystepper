@@ -392,15 +392,15 @@ export default function PrivacyPage() {
                   <i className="ri-phone-line text-emerald-700 text-xl mt-1"></i>
                   <div>
                     <p className="font-medium text-gray-900">Phone</p>
-                    <a href="tel:+233241234567" className="text-emerald-700 hover:underline">+233 24 123 4567</a>
+                    <a href="tel:0276558163" className="text-emerald-700 hover:underline">0276558163</a>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <i className="ri-map-pin-line text-emerald-700 text-xl mt-1"></i>
                   <div>
-                    <p className="font-medium text-gray-900">Address</p>
-                    <p className="text-gray-600">Premium Store Ghana<br />East Legon, Accra<br />Ghana</p>
+                    <p className="font-medium text-gray-900">Location</p>
+                    <p className="text-gray-600">Accra, Ghana</p>
                   </div>
                 </div>
               </div>

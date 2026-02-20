@@ -27,7 +27,7 @@ export default function Footer() {
   };
 
   const siteName = getSetting('site_name') || 'Hy-Stepper';
-  const siteTagline = getSetting('site_tagline') || 'Steps Ahead in Style.';
+  const siteTagline = getSetting('site_tagline') || 'Stay sleek in style';
   const contactEmail = 'hystepper2@gmail.com';
   const contactPhone = getSetting('contact_phone') || '0276558163';
   const socialInstagram = 'https://www.instagram.com/hy_stepper';

@@ -266,7 +266,7 @@ export default function Header() {
                 {[
                   { label: 'My Account', href: '/account', icon: 'ri-user-line' },
                   { label: 'Wishlist', href: '/wishlist', icon: 'ri-heart-line' },
-                  { label: 'Track Order', href: '/order-tracking', icon: 'ri-truck-line' },
+                  // { label: 'Track Order', href: '/order-tracking', icon: 'ri-truck-line' },
                 ].map((link) => (
                   <Link
                     key={link.href}

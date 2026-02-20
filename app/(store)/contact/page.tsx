@@ -154,7 +154,7 @@ export default function ContactPage() {
           ))}
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-12">
+        <div className="grid lg:grid-cols-2 gap-12 animate-fade-in-up delay-100">
           <div>
             <h2 className="text-3xl font-bold text-gray-900 mb-6">Send Us a Message</h2>
             <p className="text-gray-600 mb-8">
@@ -275,11 +275,12 @@ export default function ContactPage() {
 
             <div className="space-y-4 mb-12">
               {faqs.map((faq, index) => (
-                <details key={index} className="bg-gray-50 rounded-xl overflow-hidden">
-                  <summary className="px-6 py-4 font-medium text-gray-900 cursor-pointer hover:bg-gray-100 transition-colors">
+                <details key={index} className="bg-gray-50 rounded-xl overflow-hidden group">
+                  <summary className="px-6 py-4 font-medium text-gray-900 cursor-pointer hover:bg-gray-100 transition-colors list-none flex justify-between items-center">
                     {faq.question}
+                    <i className="ri-add-line transition-transform duration-300 group-open:rotate-45"></i>
                   </summary>
-                  <div className="px-6 pb-4 text-gray-600 leading-relaxed">
+                  <div className="px-6 pb-4 text-gray-600 leading-relaxed animate-fade-in">
                     {faq.answer}
                   </div>
                 </details>

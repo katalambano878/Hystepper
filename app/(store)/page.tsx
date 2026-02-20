@@ -153,7 +153,7 @@ export default function HomePage() {
       <section className="relative overflow-hidden">
         
         {/* ROW 1: Heel Height — Full-width linear strip */}
-        <div className="bg-gray-900">
+        <div className="bg-gray-900 animate-fade-in-up delay-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex flex-col md:flex-row md:items-center">
               
@@ -202,7 +202,7 @@ export default function HomePage() {
         </div>
 
         {/* ROW 2: Size — Clean white linear strip */}
-        <div className="bg-white border-b border-gray-100">
+        <div className="bg-white border-b border-gray-100 animate-fade-in-up delay-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex flex-col md:flex-row md:items-center">
 

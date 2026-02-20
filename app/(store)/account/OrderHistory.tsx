@@ -276,14 +276,15 @@ export default function OrderHistory() {
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+              {/* <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
                 <Link
                   href={`/order-tracking?order=${order.orderNumber}`}
                   className="px-4 py-2 bg-gold-600 text-white rounded-lg font-semibold hover:bg-gold-700 transition-colors whitespace-nowrap"
                 >
                   <i className="ri-map-pin-line mr-2"></i>
                   Track Order
-                </Link>
+                </Link> */}
+              <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
                 <button
                   onClick={() => handleReorder(order)}
                   className="px-4 py-2 border-2 border-gray-300 text-gray-900 rounded-lg font-semibold hover:bg-gray-50 transition-colors whitespace-nowrap"

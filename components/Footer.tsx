@@ -38,7 +38,7 @@ export default function Footer() {
     <footer className="bg-gray-900 text-gray-300 mt-8 lg:mt-0 overflow-hidden">
 
       {/* Newsletter Strip */}
-      <div className="bg-gold-500">
+      <div className="bg-gradient-to-r from-gold-600 to-gold-500">
         <div className="max-w-7xl mx-auto px-6 py-8 md:py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
@@ -135,8 +135,8 @@ export default function Footer() {
             <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-5">Support</h4>
             <ul className="space-y-3 text-sm">
               <li><Link href="/contact" className="text-gray-400 hover:text-gold-400 transition-colors">Contact Us</Link></li>
-              <li><Link href="/order-tracking" className="text-gray-400 hover:text-gold-400 transition-colors">Track My Order</Link></li>
-              <li><Link href="/shipping" className="text-gray-400 hover:text-gold-400 transition-colors">Shipping Info</Link></li>
+              {/* <li><Link href="/order-tracking" className="text-gray-400 hover:text-gold-400 transition-colors">Track My Order</Link></li> */}
+              {/* <li><Link href="/shipping" className="text-gray-400 hover:text-gold-400 transition-colors">Shipping Info</Link></li> */}
               <li><Link href="/policy" className="text-gray-400 hover:text-gold-400 transition-colors">Exchange & Refund Policy</Link></li>
             </ul>
           </div>

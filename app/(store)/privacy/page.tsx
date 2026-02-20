@@ -3,7 +3,7 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-white">
       <div className="bg-gradient-to-br from-emerald-50 via-white to-amber-50 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center">
+          <div className="max-w-3xl mx-auto text-center animate-fade-in-up">
             <h1 className="text-5xl font-bold text-gray-900 mb-6">Privacy Policy</h1>
             <p className="text-xl text-gray-600 leading-relaxed">
               Your privacy matters to us. Learn how we collect, use, and protect your personal information.
@@ -14,7 +14,7 @@ export default function PrivacyPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="prose prose-lg max-w-none">
+        <div className="prose prose-lg max-w-none animate-fade-in-up delay-100">
           <section className="mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-6">1. Information We Collect</h2>
             

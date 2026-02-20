@@ -18,7 +18,7 @@ export default function PolicyPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 space-y-10">
 
         {/* Exchange Policy */}
-        <section className="bg-gray-900 text-white rounded-2xl p-8 md:p-10">
+        <section className="bg-gray-900 text-white rounded-2xl p-8 md:p-10 animate-fade-in-up shadow-xl hover:shadow-2xl transition-shadow duration-300 border border-transparent hover:border-gold-500/20">
           <h2 className="text-xl md:text-2xl font-bold text-center tracking-wide uppercase mb-6">Exchange Policy</h2>
           <div className="space-y-4 text-gray-300 text-sm md:text-base leading-relaxed text-center">
             <p>
@@ -38,7 +38,7 @@ export default function PolicyPage() {
         </section>
 
         {/* Refund Policy */}
-        <section className="bg-gray-900 text-white rounded-2xl p-8 md:p-10">
+        <section className="bg-gray-900 text-white rounded-2xl p-8 md:p-10 animate-fade-in-up delay-100 shadow-xl hover:shadow-2xl transition-shadow duration-300 border border-transparent hover:border-gold-500/20">
           <h2 className="text-xl md:text-2xl font-bold text-center tracking-wide uppercase mb-6">Refund Policy</h2>
           <div className="space-y-4 text-gray-300 text-sm md:text-base leading-relaxed text-center">
             <p>
@@ -54,7 +54,7 @@ export default function PolicyPage() {
         </section>
 
         {/* Important Notice */}
-        <section className="bg-gray-900 text-white rounded-2xl p-8 md:p-10">
+        <section className="bg-gray-900 text-white rounded-2xl p-8 md:p-10 animate-fade-in-up delay-200 shadow-xl hover:shadow-2xl transition-shadow duration-300 border border-transparent hover:border-gold-500/20">
           <h2 className="text-xl md:text-2xl font-bold text-center tracking-wide uppercase mb-6">Important Notice</h2>
           <div className="space-y-3 text-gray-300 text-sm md:text-base leading-relaxed">
             <ul className="space-y-3 max-w-xl mx-auto">

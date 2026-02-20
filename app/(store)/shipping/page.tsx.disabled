@@ -15,13 +15,6 @@ export default function ShippingPage() {
       cost: 'Calculated at checkout',
       description: 'Delivery to other regions across Ghana via courier partners.',
       icon: 'ri-truck-line'
-    },
-    {
-      type: 'Store Pickup',
-      time: 'Same Day',
-      cost: 'Free',
-      description: 'Order online and pick up from our store in Accra.',
-      icon: 'ri-store-2-line'
     }
   ];
 

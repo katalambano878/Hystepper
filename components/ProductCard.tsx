@@ -31,7 +31,7 @@ export default function ProductCard({
   const discount = originalPrice ? Math.round((1 - price / originalPrice) * 100) : 0;
 
   return (
-    <div className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 h-full flex flex-col">
+    <div className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 border border-transparent hover:border-gold-500/30 h-full flex flex-col">
       <Link href={`/product/${id}`} className="relative block aspect-square overflow-hidden bg-gray-100 flex-shrink-0">
         <LazyImage
           src={image}

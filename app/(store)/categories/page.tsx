@@ -50,11 +50,12 @@ export default async function CategoriesPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {categories.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {categories.map((category) => (
+            {categories.map((category, idx) => (
               <Link
                 key={category.id}
                 href={`/shop?category=${category.slug}`}
-                className="group bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-2xl transition-all cursor-pointer"
+                className="group bg-white border border-transparent rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:border-gold-500/30 transition-all duration-300 hover:-translate-y-1 cursor-pointer animate-fade-in-up"
+                style={{ animationDelay: `${idx * 100}ms` }}
               >
                 <div className="relative h-48 overflow-hidden">
                   <img

@@ -25,12 +25,12 @@ const articles: any = {
         <li>You'll be redirected to the tracking page with real-time updates</li>
       </ol>
       
-      <h3>Method 2: Track on Website</h3>
+      {/* <h3>Method 2: Track on Website</h3>
       <ol>
         <li>Go to the <a href="/order-tracking">Order Tracking</a> page</li>
         <li>Enter your order number and email address</li>
         <li>Click "Track Order" to see your delivery status</li>
-      </ol>
+      </ol> */}
       
       <h3>Method 3: Track in Your Account</h3>
       <ol>

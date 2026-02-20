@@ -777,7 +777,7 @@ export default function CheckoutPage() {
                 value={deliveryNotes}
                 onChange={(e) => setDeliveryNotes(e.target.value)}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400"
-                placeholder="Any special instructions for delivery..."
+                placeholder="Kindly note that not all requests can be accommodated"
                 rows={3}
               ></textarea>
             </div>

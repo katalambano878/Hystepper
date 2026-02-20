@@ -5,7 +5,7 @@ export default function TermsPage() {
     <div className="min-h-screen bg-white">
       <div className="bg-gradient-to-br from-emerald-50 via-white to-amber-50 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center">
+          <div className="max-w-3xl mx-auto text-center animate-fade-in-up">
             <h1 className="text-5xl font-bold text-gray-900 mb-6">Terms & Conditions</h1>
             <p className="text-xl text-gray-600 leading-relaxed">
               Please read these terms carefully before using our website and services.
@@ -16,7 +16,7 @@ export default function TermsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="prose prose-lg max-w-none">
+        <div className="prose prose-lg max-w-none animate-fade-in-up delay-100">
           <section className="mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-6">1. Agreement to Terms</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
@@ -176,10 +176,6 @@ export default function TermsPage() {
               <li className="flex items-start gap-2">
                 <i className="ri-truck-line text-emerald-700 mt-1"></i>
                 <span><strong>Regional Delivery:</strong> 2-4 Business Days</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="ri-store-2-line text-emerald-700 mt-1"></i>
-                <span><strong>Store Pickup:</strong> Same Day (Free)</span>
               </li>
             </ul>
             <p className="text-gray-600 leading-relaxed mb-4">

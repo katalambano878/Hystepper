@@ -15,7 +15,7 @@ export default function AboutPage() {
         subtitle="Every woman deserves to walk with confidence."
       />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-20 animate-fade-in-up delay-100">
         <div className="space-y-8 text-gray-700 text-base md:text-lg leading-relaxed">
           <p>
             At <strong className="text-gray-900">{siteName}</strong>, we believe every woman deserves to walk with confidence. Since 2019, we&apos;ve been offering stylish, high-quality footwear and trendy bags at affordable prices. We source exclusive, on-trend pieces that help our customers stay sleek in style without breaking the bank.
@@ -36,7 +36,7 @@ export default function AboutPage() {
       </div>
 
       {/* CTA */}
-      <div className="bg-gray-900 py-20">
+      <div className="bg-gray-900 py-20 animate-fade-in-up delay-200">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
           <h2 className="text-3xl md:text-4xl font-serif font-bold mb-6">Ready to find your next pair?</h2>
           <p className="text-gray-400 mb-8 text-lg">
@@ -44,10 +44,10 @@ export default function AboutPage() {
           </p>
           <Link
             href="/shop"
-            className="inline-flex items-center gap-3 bg-gold-500 text-white px-10 py-4 rounded-full font-bold text-lg hover:bg-gold-600 transition-colors shadow-lg"
+            className="group inline-flex items-center gap-3 bg-gold-500 text-white px-10 py-4 rounded-full font-bold text-lg hover:bg-gold-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 active:scale-95"
           >
             Shop Now
-            <i className="ri-arrow-right-line"></i>
+            <i className="ri-arrow-right-line transition-transform duration-300 group-hover:translate-x-1"></i>
           </Link>
         </div>
       </div>

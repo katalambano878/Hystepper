@@ -391,8 +391,10 @@ function ShopContent() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8" data-product-shop>
-                    {products.map(product => (
-                      <ProductCard key={product.id} {...product} />
+                    {products.map((product, idx) => (
+                      <div key={product.id} className="animate-fade-in-up" style={{ animationDelay: `${(idx % 9) * 50}ms` }}>
+                        <ProductCard {...product} />
+                      </div>
                     ))}
                   </div>
 

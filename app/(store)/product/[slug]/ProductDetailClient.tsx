@@ -242,7 +242,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         <section className="py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="grid lg:grid-cols-2 gap-12">
-              <div>
+              <div className="animate-fade-in-up">
                 <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 mb-4 shadow-lg border border-gray-100">
                   {/* Main Media Display */}
                   {(() => {
@@ -305,7 +305,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 )}
               </div>
 
-              <div>
+              <div className="animate-fade-in-up delay-100">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <p className="text-sm text-gold-600 font-semibold mb-2">{product.category}</p>
@@ -583,8 +583,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {relatedProducts.map((p) => (
-                  <ProductCard key={p.id} {...p} />
+                {relatedProducts.map((p, idx) => (
+                  <div key={p.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
+                    <ProductCard {...p} />
+                  </div>
                 ))}
               </div>
             </div>

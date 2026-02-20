@@ -261,7 +261,7 @@ export default function HelpCenterPage() {
               <span className="text-purple-700 font-semibold whitespace-nowrap">View Policy →</span>
             </Link>
 
-            <Link
+{/*             <Link
               href="/order-tracking"
               className="bg-white rounded-xl shadow-sm p-6 hover:shadow-lg transition-all text-center"
             >
@@ -271,7 +271,7 @@ export default function HelpCenterPage() {
               <h3 className="text-lg font-bold text-gray-900 mb-2">Track Order</h3>
               <p className="text-gray-600 text-sm mb-4">Check your order status</p>
               <span className="text-amber-700 font-semibold whitespace-nowrap">Track Now →</span>
-            </Link>
+            </Link> */}
           </div>
         </div>
       </main>

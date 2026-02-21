@@ -147,14 +147,10 @@ export default function TermsPage() {
                   <i className="ri-bank-card-line text-emerald-700"></i>
                   <span>Credit/Debit Cards (Visa, Mastercard)</span>
                 </li>
-                <li className="flex items-center gap-2">
-                  <i className="ri-hand-coin-line text-emerald-700"></i>
-                  <span>Cash on Delivery (subject to location and order value)</span>
-                </li>
               </ul>
             </div>
             <p className="text-gray-600 leading-relaxed">
-              Payment must be received in full before order dispatch (unless Cash on Delivery is selected). By providing payment information, you confirm that you are authorised to use the payment method and that there are sufficient funds available.
+              Payment must be received in full before order dispatch. By providing payment information, you confirm that you are authorised to use the payment method and that there are sufficient funds available.
             </p>
 
             <h3 className="text-xl font-bold text-gray-900 mb-4 mt-8">4.3 Order Modifications</h3>

@@ -1,7 +1,7 @@
 INSERT INTO store_settings (key, value, description)
 VALUES
   ('site_name', '"Hy_stepper"', 'The name of the website'),
-  ('site_tagline', '"Steps Ahead in Style."', 'The tagline of the website'),
+  ('site_tagline', '"Stay sleek in style"', 'The tagline of the website'),
   ('site_logo', '"/logo.png"', 'Path to the site logo'),
   ('contact_email', '"info@hystepper.com"', 'Contact email address'),
   ('contact_phone', '"0276558163"', 'Contact phone number'),

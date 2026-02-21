@@ -90,7 +90,7 @@ const CMSContext = createContext<CMSContextType>({
 export function CMSProvider({ children }: { children: ReactNode }) {
     const [settings, setSettings] = useState<SiteSettings>({
         site_name: 'Hy_stepper',
-        site_tagline: 'Steps Ahead in Style.',
+        site_tagline: 'Stay sleek in style',
         site_logo: '/logo.png',
         contact_email: 'hystepper2@gmail.com',
         contact_phone: '0276558163',

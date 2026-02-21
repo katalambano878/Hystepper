@@ -6,7 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL('https://standardstore.vercel.app'),
   title: {
-    default: "Hy_stepper | Steps Ahead in Style",
+    default: "Hy_stepper | Stay sleek in style",
     template: "%s | Hy_stepper"
   },
   description: "Premium footwear delivered to your doorstep. Online-only delivery service.",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://standardstore.vercel.app",
-    title: "Hy_stepper | Steps Ahead in Style",
+    title: "Hy_stepper | Stay sleek in style",
     description: "Premium footwear delivered to your doorstep. Online-only delivery service.",
     siteName: "Hy_stepper",
     images: [

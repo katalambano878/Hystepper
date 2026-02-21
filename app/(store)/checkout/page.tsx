@@ -127,7 +127,6 @@ export default function CheckoutPage() {
     if (!shippingData.lastName) newErrors.lastName = 'Last name is required';
     if (!shippingData.phone) newErrors.phone = 'Phone is required';
     if (!shippingData.address) newErrors.address = 'Address is required';
-    if (!shippingData.city) newErrors.city = 'City is required';
     if (!shippingData.region) newErrors.region = 'Region is required';
 
     // Email is optional — but validate format if provided
@@ -545,43 +544,30 @@ export default function CheckoutPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Street Address *</label>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Delivery Location *</label>
                   <input
                     type="text"
                     value={shippingData.address}
                     onChange={(e) => setShippingData({ ...shippingData, address: e.target.value })}
                     className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.address ? 'border-red-500' : 'border-gray-300'}`}
-                    placeholder="House number and street name"
+                    placeholder="Area / Landmark / Street name"
                   />
                   {errors.address && <p className="text-sm text-red-600 mt-1">{errors.address}</p>}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">City *</label>
-                    <input
-                      type="text"
-                      value={shippingData.city}
-                      onChange={(e) => setShippingData({ ...shippingData, city: e.target.value })}
-                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.city ? 'border-red-500' : 'border-gray-300'}`}
-                      placeholder="Accra"
-                    />
-                    {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">Region *</label>
-                    <select
-                      value={shippingData.region}
-                      onChange={(e) => setShippingData({ ...shippingData, region: e.target.value })}
-                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.region ? 'border-red-500' : 'border-gray-300'} bg-white`}
-                    >
-                      <option value="">Select Region</option>
-                      {regions.map(r => (
-                        <option key={r.id} value={r.name}>{r.name}</option>
-                      ))}
-                    </select>
-                    {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
-                  </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Region *</label>
+                  <select
+                    value={shippingData.region}
+                    onChange={(e) => setShippingData({ ...shippingData, region: e.target.value })}
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.region ? 'border-red-500' : 'border-gray-300'} bg-white`}
+                  >
+                    <option value="">Select Region</option>
+                    {regions.map(r => (
+                      <option key={r.id} value={r.name}>{r.name}</option>
+                    ))}
+                  </select>
+                  {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
                 </div>
 
                 {checkoutType === 'account' && (

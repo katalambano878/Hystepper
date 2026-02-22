@@ -54,8 +54,7 @@ export default function CartPage() {
     }
   }
 
-  const shipping = subtotal >= 200 ? 0 : 15;
-  const total = subtotal - couponDiscount + shipping;
+  const total = subtotal - couponDiscount;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -72,7 +71,7 @@ export default function CartPage() {
                 <i className="ri-shopping-cart-line text-5xl text-gray-400"></i>
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h2>
-              <p className="text-gray-600 mb-8 text-lg">Looks like you&#39;t added anything to your cart yet</p>
+              <p className="text-gray-600 mb-8 text-lg">Looks like you haven&apos;t added anything to your cart yet</p>
               <Link href="/shop" className="inline-block bg-gray-900 hover:bg-gold-600 text-white px-8 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap">
                 Continue Shopping
               </Link>
@@ -205,14 +204,8 @@ export default function CartPage() {
 
                       <div className="flex justify-between text-gray-700">
                         <span>Shipping</span>
-                        <span className="font-semibold">{shipping === 0 ? 'FREE' : `GH₵${shipping.toFixed(2)}`}</span>
+                        <span className="font-semibold text-gray-500 italic">Calculated at checkout</span>
                       </div>
-
-                      {shipping > 0 && (
-                        <p className="text-sm text-amber-600">
-                          {/* Shipping threshold text removed */}
-                        </p>
-                      )}
                     </div>
 
                     <div className="border-t border-gray-200 pt-4 mb-6">

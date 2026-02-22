@@ -42,12 +42,12 @@ export default function PolicyPage() {
           <h2 className="text-xl md:text-2xl font-bold text-center tracking-wide uppercase mb-6">Refund Policy</h2>
           <div className="space-y-4 text-gray-300 text-sm md:text-base leading-relaxed text-center">
             <p>
-              Refunds are only available for faulty items. If a customer opts not to exchange a faulty item, a refund can be processed. We do not offer refunds for any other reasons.
+              Refunds are only available for faulty or wrong items delivered only if an exchange is not possible. We do not offer refunds for any other reasons.
             </p>
             <ul className="space-y-2 text-left max-w-xl mx-auto">
               <li className="flex items-start gap-2">
                 <span className="text-gold-400 mt-0.5">&bull;</span>
-                <span>We do not refund delivery fees under any circumstances.</span>
+                <span>Delivery fees are non-refundable once delivery is completed or once the rider has been directed to the customer&apos;s location.</span>
               </li>
             </ul>
           </div>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import OrderSummary from '@/components/OrderSummary';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
@@ -13,7 +14,6 @@ export default function CheckoutPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [checkoutType, setCheckoutType] = useState<'guest' | 'account'>('guest');
-  const [saveAddress, setSaveAddress] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   const [shippingData, setShippingData] = useState({
@@ -27,6 +27,9 @@ export default function CheckoutPage() {
   });
 
   const [regions, setRegions] = useState<any[]>([]);
+  const [selectedRegionType, setSelectedRegionType] = useState<string>('');
+  const [accraZones, setAccraZones] = useState<any[]>([]);
+  const [outsideZones, setOutsideZones] = useState<any[]>([]);
 
   const [paymentOption, setPaymentOption] = useState<'full_payment' | 'item_only'>('full_payment');
   const [deliveryNotes, setDeliveryNotes] = useState('');
@@ -52,7 +55,7 @@ export default function CheckoutPage() {
   });
 
   const activeZone = regions.find(r => r.name === shippingData.region);
-  const isAccra = activeZone?.is_accra || false;
+  const isAccra = selectedRegionType === 'greater_accra';
 
   useEffect(() => {
     async function init() {
@@ -92,6 +95,8 @@ export default function CheckoutPage() {
 
       if (zonesData) {
         setRegions(zonesData);
+        setAccraZones(zonesData.filter((z: any) => z.is_accra).sort((a: any, b: any) => a.name.localeCompare(b.name)));
+        setOutsideZones(zonesData.filter((z: any) => !z.is_accra).sort((a: any, b: any) => a.name.localeCompare(b.name)));
       }
     }
     init();
@@ -102,6 +107,12 @@ export default function CheckoutPage() {
       setPaymentOption('full_payment');
     }
   }, [isAccra, paymentOption]);
+
+  useEffect(() => {
+    if (selectedRegionType && selectedRegionType !== 'greater_accra') {
+      setShippingData(prev => ({ ...prev, region: selectedRegionType }));
+    }
+  }, [selectedRegionType]);
 
   // Calculate Totals
   const subtotal = cartSubtotal;
@@ -115,19 +126,28 @@ export default function CheckoutPage() {
   const totalDiscount = couponApplied ? couponDiscount : pointsDiscount;
 
   const tax = 0;
-  const totalBeforeSplit = subtotal + shippingCost + tax - totalDiscount;
+  const totalBeforeSplit = Math.max(0, subtotal + shippingCost + tax - totalDiscount);
 
   const deliveryFeeToPayLater = paymentOption === 'item_only' ? shippingCost : 0;
-  const payableNow = totalBeforeSplit - deliveryFeeToPayLater;
+  const payableNow = Math.max(0, totalBeforeSplit - deliveryFeeToPayLater);
   const total = totalBeforeSplit;
 
   const validateShipping = () => {
     const newErrors: any = {};
     if (!shippingData.firstName) newErrors.firstName = 'First name is required';
     if (!shippingData.lastName) newErrors.lastName = 'Last name is required';
-    if (!shippingData.phone) newErrors.phone = 'Phone is required';
+    if (!shippingData.phone) {
+      newErrors.phone = 'Phone is required';
+    } else {
+      const cleanPhone = shippingData.phone.replace(/[\s\-()]/g, '');
+      if (!/^(\+233|0)\d{9}$/.test(cleanPhone)) {
+        newErrors.phone = 'Enter a valid Ghanaian phone number (e.g. 0241234567)';
+      }
+    }
     if (!shippingData.address) newErrors.address = 'Address is required';
-    if (!shippingData.region) newErrors.region = 'Region is required';
+    if (!selectedRegionType) newErrors.region = 'Region is required';
+    if (selectedRegionType === 'greater_accra' && !shippingData.region) newErrors.region = 'Please select your delivery area';
+    if (selectedRegionType && selectedRegionType !== 'greater_accra' && !shippingData.city) newErrors.city = 'City is required';
 
     // Email is optional — but validate format if provided
     if (shippingData.email && !/\S+@\S+\.\S+/.test(shippingData.email)) {
@@ -213,11 +233,11 @@ export default function CheckoutPage() {
   const handleProceedToPayment = () => {
     if (!validateShipping()) return;
     if (!acceptedPolicy) {
-      alert('Please accept the Exchange & Refund Policy to proceed.');
+      toast.error('Please accept the Exchange & Refund Policy to proceed.');
       return;
     }
     if (cart.length === 0) {
-      alert('Your cart is empty');
+      toast.error('Your cart is empty');
       return;
     }
     setShowPaymentModal(true);
@@ -355,6 +375,8 @@ export default function CheckoutPage() {
         return;
       }
 
+      let redirectUrl = `/order-success?order=${orderNumber}`;
+
       if (gateway === 'moolre') {
         const paymentRes = await fetch('/api/payment/moolre', {
           method: 'POST',
@@ -372,12 +394,8 @@ export default function CheckoutPage() {
           throw new Error(paymentResult.message || 'Payment initialization failed');
         }
 
-        clearCart();
-        window.location.href = paymentResult.url;
-        return;
-      }
-
-      if (gateway === 'paystack') {
+        redirectUrl = paymentResult.url;
+      } else if (gateway === 'paystack') {
         const paymentRes = await fetch('/api/payment/paystack', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -395,17 +413,15 @@ export default function CheckoutPage() {
           throw new Error(paymentResult.message || 'Payment initialization failed');
         }
 
-        clearCart();
-        window.location.href = paymentResult.url;
-        return;
+        redirectUrl = paymentResult.url;
       }
 
       clearCart();
-      router.push(`/order-success?order=${orderNumber}`);
+      window.location.href = redirectUrl;
 
     } catch (err: any) {
       console.error('Checkout error:', err);
-      alert('Failed to place order: ' + err.message);
+      toast.error('Failed to place order: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -499,7 +515,7 @@ export default function CheckoutPage() {
                     <input
                       type="text"
                       value={shippingData.firstName}
-                      onChange={(e) => setShippingData({ ...shippingData, firstName: e.target.value })}
+                      onChange={(e) => { setShippingData({ ...shippingData, firstName: e.target.value }); setErrors((prev: any) => ({ ...prev, firstName: '' })); }}
                       className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.firstName ? 'border-red-500' : 'border-gray-300'}`}
                       placeholder="John"
                     />
@@ -510,7 +526,7 @@ export default function CheckoutPage() {
                     <input
                       type="text"
                       value={shippingData.lastName}
-                      onChange={(e) => setShippingData({ ...shippingData, lastName: e.target.value })}
+                      onChange={(e) => { setShippingData({ ...shippingData, lastName: e.target.value }); setErrors((prev: any) => ({ ...prev, lastName: '' })); }}
                       className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.lastName ? 'border-red-500' : 'border-gray-300'}`}
                       placeholder="Doe"
                     />
@@ -524,7 +540,7 @@ export default function CheckoutPage() {
                     type="email"
                     value={shippingData.email}
                     readOnly={!!user}
-                    onChange={(e) => setShippingData({ ...shippingData, email: e.target.value })}
+                    onChange={(e) => { setShippingData({ ...shippingData, email: e.target.value }); setErrors((prev: any) => ({ ...prev, email: '' })); }}
                     className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.email ? 'border-red-500' : 'border-gray-300'} ${user ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     placeholder="you@example.com"
                   />
@@ -536,9 +552,9 @@ export default function CheckoutPage() {
                   <input
                     type="tel"
                     value={shippingData.phone}
-                    onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value })}
+                    onChange={(e) => { setShippingData({ ...shippingData, phone: e.target.value }); setErrors((prev: any) => ({ ...prev, phone: '' })); }}
                     className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
-                    placeholder="+233 XX XXX XXXX"
+                    placeholder="0241234567"
                   />
                   {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone}</p>}
                 </div>
@@ -548,7 +564,7 @@ export default function CheckoutPage() {
                   <input
                     type="text"
                     value={shippingData.address}
-                    onChange={(e) => setShippingData({ ...shippingData, address: e.target.value })}
+                    onChange={(e) => { setShippingData({ ...shippingData, address: e.target.value }); setErrors((prev: any) => ({ ...prev, address: '' })); }}
                     className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.address ? 'border-red-500' : 'border-gray-300'}`}
                     placeholder="Area / Landmark / Street name"
                   />
@@ -558,29 +574,53 @@ export default function CheckoutPage() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-900 mb-1.5">Region *</label>
                   <select
-                    value={shippingData.region}
-                    onChange={(e) => setShippingData({ ...shippingData, region: e.target.value })}
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.region ? 'border-red-500' : 'border-gray-300'} bg-white`}
+                    value={selectedRegionType}
+                    onChange={(e) => {
+                      setSelectedRegionType(e.target.value);
+                      setShippingData({ ...shippingData, region: '', city: '' });
+                      setErrors((prev: any) => ({ ...prev, region: '', city: '' }));
+                    }}
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.region && !selectedRegionType ? 'border-red-500' : 'border-gray-300'} bg-white`}
                   >
                     <option value="">Select Region</option>
-                    {regions.map(r => (
-                      <option key={r.id} value={r.name}>{r.name}</option>
+                    <option value="greater_accra">Greater Accra</option>
+                    {outsideZones.map(z => (
+                      <option key={z.id} value={z.name}>{z.name}</option>
                     ))}
                   </select>
-                  {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
                 </div>
 
-                {checkoutType === 'account' && (
-                  <label className="flex items-center space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={saveAddress}
-                      onChange={(e) => setSaveAddress(e.target.checked)}
-                      className="w-5 h-5 text-gold-600 rounded border-gray-300 focus:ring-gold-400"
-                    />
-                    <span className="text-sm text-gray-700">Save this address for future orders</span>
-                  </label>
+                {selectedRegionType === 'greater_accra' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">Delivery Area *</label>
+                    <select
+                      value={shippingData.region}
+                      onChange={(e) => { setShippingData({ ...shippingData, region: e.target.value }); setErrors((prev: any) => ({ ...prev, region: '' })); }}
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.region ? 'border-red-500' : 'border-gray-300'} bg-white`}
+                    >
+                      <option value="">Select your area</option>
+                      {accraZones.map(z => (
+                        <option key={z.id} value={z.name}>{z.name} — GH₵{z.base_fee.toFixed(0)}</option>
+                      ))}
+                    </select>
+                    {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
+                  </div>
                 )}
+
+                {selectedRegionType && selectedRegionType !== 'greater_accra' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">City *</label>
+                    <input
+                      type="text"
+                      value={shippingData.city}
+                      onChange={(e) => { setShippingData({ ...shippingData, city: e.target.value }); setErrors((prev: any) => ({ ...prev, city: '' })); }}
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.city ? 'border-red-500' : 'border-gray-300'}`}
+                      placeholder="Enter your city"
+                    />
+                    {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
+                  </div>
+                )}
+
               </div>
             </div>
 
@@ -779,7 +819,7 @@ export default function CheckoutPage() {
                     className="w-5 h-5 text-gold-600 rounded border-gray-300 focus:ring-gold-400 mt-0.5"
                   />
                   <div className="text-sm text-gray-900 font-medium">
-                    I have read and agree to the <Link href="/policy" className="text-gold-600 underline hover:text-gold-700">Exchange & Refund Policy</Link>
+                    I have read and agree to the <Link href="/policy" target="_blank" className="text-gold-600 underline hover:text-gold-700">Exchange & Refund Policy</Link>
                   </div>
                 </label>
               </div>

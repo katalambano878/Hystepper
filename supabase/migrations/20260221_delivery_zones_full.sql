@@ -149,14 +149,15 @@ INSERT INTO delivery_zones (name, is_accra, base_fee, per_item_fee, transport_se
 -- OUTSIDE ACCRA REGIONS (is_accra = false)
 -- base_fee + per_item_fee per item
 -- ============================================================
+-- Outside Accra pricing: 1 item = GH₵60, 2 items = GH₵65 (capped), 3+ items = contact us
 INSERT INTO delivery_zones (name, is_accra, base_fee, per_item_fee, transport_service, is_active) VALUES
-('Berekum', false, 60.00, 10.00, 'VIP / VVIP Jeoun Transport', true),
-('Bolgatanga', false, 70.00, 10.00, 'VIP / OA Travel & Tour', true),
-('Cape Coast', false, 45.00, 10.00, 'VIP / OA Travel & Tour', true),
-('Kumasi', false, 50.00, 10.00, 'VIP / VVIP Jeoun Transport', true),
-('Sunyani', false, 55.00, 10.00, 'VIP / VVIP Jeoun Transport', true),
-('Takoradi', false, 50.00, 10.00, 'VIP / OA Travel & Tour', true),
-('Tarkwa', false, 55.00, 10.00, 'VIP / OA Travel & Tour', true),
-('Tamale', false, 65.00, 10.00, 'VIP / OA Travel & Tour', true),
-('Techiman', false, 55.00, 10.00, 'VIP / VVIP Jeoun Transport', true),
-('Wa', false, 75.00, 10.00, 'VIP / OA Travel & Tour', true);
+('Berekum', false, 60.00, 5.00, 'VIP / VVIP Jeoun Transport', true),
+('Bolgatanga', false, 60.00, 5.00, 'VIP / OA Travel & Tour', true),
+('Cape Coast', false, 60.00, 5.00, 'VIP / OA Travel & Tour', true),
+('Kumasi', false, 60.00, 5.00, 'VIP / VVIP Jeoun Transport', true),
+('Sunyani', false, 60.00, 5.00, 'VIP / VVIP Jeoun Transport', true),
+('Takoradi', false, 60.00, 5.00, 'VIP / OA Travel & Tour', true),
+('Tarkwa', false, 60.00, 5.00, 'VIP / OA Travel & Tour', true),
+('Tamale', false, 60.00, 5.00, 'VIP / OA Travel & Tour', true),
+('Techiman', false, 60.00, 5.00, 'VIP / VVIP Jeoun Transport', true),
+('Wa', false, 60.00, 5.00, 'VIP / OA Travel & Tour', true);

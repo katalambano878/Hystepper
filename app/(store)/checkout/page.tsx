@@ -119,7 +119,14 @@ export default function CheckoutPage() {
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const baseFee = activeZone?.base_fee || 0;
   const perItemFee = activeZone?.per_item_fee || 0;
-  const zoneFee = isAccra ? baseFee : baseFee + (perItemFee * totalItems);
+  const outsideAccraTooManyItems = !isAccra && activeZone && totalItems >= 3;
+  const zoneFee = isAccra
+    ? baseFee
+    : totalItems <= 1
+      ? baseFee
+      : totalItems === 2
+        ? baseFee + perItemFee
+        : 0;
   const shippingCost = zoneFee;
 
   const pointsDiscount = (redeemPoints && loyaltyPoints >= 15 && !couponApplied) ? Math.min(loyaltyPoints, subtotal) : 0;
@@ -646,35 +653,56 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
-                    <div className="p-4 border-2 border-gold-300 bg-gold-50 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-gray-900">
-                            {settings.nextDayDelivery ? 'Next-Day Delivery' : 'Standard Delivery'}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {settings.nextDayDelivery
-                              ? 'Delivered tomorrow'
-                              : `Within ${isAccra ? '1-2' : '3-5'} business days`
-                            }
-                          </p>
-                        </div>
-                        <p className="font-bold text-gray-900">GH₵ {shippingCost.toFixed(2)}</p>
-                      </div>
-                    </div>
-
-                    {!isAccra && activeZone?.transport_service && (
-                      <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-2">
-                        <i className="ri-bus-line text-gray-600 mt-0.5"></i>
-                        <p className="text-sm text-gray-700">
-                          Delivery to <strong>{activeZone.name}</strong> via <strong>{activeZone.transport_service}</strong>.
-                          {perItemFee > 0 && (
-                            <span className="block mt-1 text-gray-500">
-                              Fee: GH₵ {baseFee.toFixed(2)} base + GH₵ {perItemFee.toFixed(2)} × {totalItems} item{totalItems !== 1 ? 's' : ''} = GH₵ {shippingCost.toFixed(2)}
-                            </span>
-                          )}
+                    {outsideAccraTooManyItems ? (
+                      <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-xl text-center">
+                        <i className="ri-customer-service-2-line text-3xl text-amber-500 mb-2 block"></i>
+                        <h3 className="text-lg font-bold text-amber-900 mb-1">Contact Us for Delivery Quote</h3>
+                        <p className="text-sm text-amber-700 mb-3">
+                          For 3 or more items outside Accra, delivery fees are quoted individually. Please reach out to us for a price.
                         </p>
+                        <div className="flex items-center justify-center gap-4 text-sm font-semibold">
+                          <a href="https://wa.me/233276558163" target="_blank" className="text-green-700 hover:underline flex items-center gap-1">
+                            <i className="ri-whatsapp-line"></i> WhatsApp
+                          </a>
+                          <span className="text-gray-300">|</span>
+                          <a href="https://instagram.com/hy_stepper" target="_blank" className="text-pink-700 hover:underline flex items-center gap-1">
+                            <i className="ri-instagram-line"></i> Instagram
+                          </a>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <div className="p-4 border-2 border-gold-300 bg-gold-50 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                {settings.nextDayDelivery ? 'Next-Day Delivery' : 'Standard Delivery'}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                {settings.nextDayDelivery
+                                  ? 'Delivered tomorrow'
+                                  : `Within ${isAccra ? '1-2' : '3-5'} business days`
+                                }
+                              </p>
+                            </div>
+                            <p className="font-bold text-gray-900">GH₵ {shippingCost.toFixed(2)}</p>
+                          </div>
+                        </div>
+
+                        {!isAccra && activeZone?.transport_service && (
+                          <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-2">
+                            <i className="ri-bus-line text-gray-600 mt-0.5"></i>
+                            <p className="text-sm text-gray-700">
+                              Delivery to <strong>{activeZone.name}</strong> via <strong>{activeZone.transport_service}</strong>.
+                              {totalItems === 2 && (
+                                <span className="block mt-1 text-gray-500">
+                                  Fee: GH₵ {baseFee.toFixed(2)} + GH₵ {perItemFee.toFixed(2)} (2nd item) = GH₵ {shippingCost.toFixed(2)}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
@@ -828,7 +856,7 @@ export default function CheckoutPage() {
             {/* Place Order Button */}
             <button
               onClick={handleProceedToPayment}
-              disabled={isLoading || !acceptedPolicy || settings.deliveryUnavailable}
+              disabled={isLoading || !acceptedPolicy || settings.deliveryUnavailable || outsideAccraTooManyItems}
               className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer flex items-center justify-center text-lg shadow-lg"
             >
               {isLoading ? (

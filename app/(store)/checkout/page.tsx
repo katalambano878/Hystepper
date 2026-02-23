@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import OrderSummary from '@/components/OrderSummary';
@@ -31,6 +31,24 @@ export default function CheckoutPage() {
   const [accraZones, setAccraZones] = useState<any[]>([]);
   const [outsideZones, setOutsideZones] = useState<any[]>([]);
 
+  const [areaSearch, setAreaSearch] = useState('');
+  const [showAreaDropdown, setShowAreaDropdown] = useState(false);
+  const areaDropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredAccraZones = accraZones.filter(z =>
+    z.name.toLowerCase().includes(areaSearch.toLowerCase())
+  );
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (areaDropdownRef.current && !areaDropdownRef.current.contains(e.target as Node)) {
+        setShowAreaDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [paymentOption, setPaymentOption] = useState<'full_payment' | 'item_only'>('full_payment');
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [acceptedPolicy, setAcceptedPolicy] = useState(false);
@@ -50,6 +68,7 @@ export default function CheckoutPage() {
 
   // Settings
   const [settings, setSettings] = useState({
+    sameDayDelivery: false,
     nextDayDelivery: false,
     deliveryUnavailable: false
   });
@@ -79,12 +98,13 @@ export default function CheckoutPage() {
       const { data: settingsData } = await supabase
         .from('store_settings')
         .select('key, value')
-        .in('key', ['next_day_delivery_enabled', 'delivery_unavailable']);
+        .in('key', ['same_day_delivery_enabled', 'next_day_delivery_enabled', 'delivery_unavailable']);
 
       if (settingsData) {
+        const sameDay = settingsData.find(s => s.key === 'same_day_delivery_enabled')?.value === true || settingsData.find(s => s.key === 'same_day_delivery_enabled')?.value === 'true';
         const nextDay = settingsData.find(s => s.key === 'next_day_delivery_enabled')?.value === true || settingsData.find(s => s.key === 'next_day_delivery_enabled')?.value === 'true';
         const unavailable = settingsData.find(s => s.key === 'delivery_unavailable')?.value === true || settingsData.find(s => s.key === 'delivery_unavailable')?.value === 'true';
-        setSettings({ nextDayDelivery: nextDay, deliveryUnavailable: unavailable });
+        setSettings({ sameDayDelivery: sameDay, nextDayDelivery: nextDay, deliveryUnavailable: unavailable });
       }
 
       const { data: zonesData } = await supabase
@@ -109,8 +129,8 @@ export default function CheckoutPage() {
   }, [isAccra, paymentOption]);
 
   useEffect(() => {
-    if (selectedRegionType && selectedRegionType !== 'greater_accra') {
-      setShippingData(prev => ({ ...prev, region: selectedRegionType }));
+    if (selectedRegionType === 'other_regions') {
+      setShippingData(prev => ({ ...prev, region: '', city: '' }));
     }
   }, [selectedRegionType]);
 
@@ -151,10 +171,9 @@ export default function CheckoutPage() {
         newErrors.phone = 'Enter a valid Ghanaian phone number (e.g. 0241234567)';
       }
     }
-    if (!shippingData.address) newErrors.address = 'Address is required';
     if (!selectedRegionType) newErrors.region = 'Region is required';
     if (selectedRegionType === 'greater_accra' && !shippingData.region) newErrors.region = 'Please select your delivery area';
-    if (selectedRegionType && selectedRegionType !== 'greater_accra' && !shippingData.city) newErrors.city = 'City is required';
+    if (selectedRegionType === 'other_regions' && !shippingData.region) newErrors.region = 'Please select your city';
 
     // Email is optional — but validate format if provided
     if (shippingData.email && !/\S+@\S+\.\S+/.test(shippingData.email)) {
@@ -566,17 +585,6 @@ export default function CheckoutPage() {
                   {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone}</p>}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Delivery Location *</label>
-                  <input
-                    type="text"
-                    value={shippingData.address}
-                    onChange={(e) => { setShippingData({ ...shippingData, address: e.target.value }); setErrors((prev: any) => ({ ...prev, address: '' })); }}
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.address ? 'border-red-500' : 'border-gray-300'}`}
-                    placeholder="Area / Landmark / Street name"
-                  />
-                  {errors.address && <p className="text-sm text-red-600 mt-1">{errors.address}</p>}
-                </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-900 mb-1.5">Region *</label>
@@ -591,40 +599,97 @@ export default function CheckoutPage() {
                   >
                     <option value="">Select Region</option>
                     <option value="greater_accra">Greater Accra</option>
-                    {outsideZones.map(z => (
-                      <option key={z.id} value={z.name}>{z.name}</option>
-                    ))}
+                    <option value="other_regions">Other Regions</option>
                   </select>
                 </div>
 
                 {selectedRegionType === 'greater_accra' && (
-                  <div>
+                  <div ref={areaDropdownRef} className="relative">
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">Delivery Area *</label>
+                    <div
+                      className={`relative w-full border-2 rounded-lg overflow-hidden transition-colors ${errors.region ? 'border-red-500' : showAreaDropdown ? 'border-gold-400 ring-2 ring-gold-300' : 'border-gray-300'}`}
+                    >
+                      <div className="flex items-center">
+                        <i className="ri-search-line text-gray-400 ml-3"></i>
+                        <input
+                          type="text"
+                          value={shippingData.region ? `${shippingData.region} — GH₵${accraZones.find(z => z.name === shippingData.region)?.base_fee?.toFixed(0) || ''}` : areaSearch}
+                          onChange={(e) => {
+                            setAreaSearch(e.target.value);
+                            setShippingData({ ...shippingData, region: '' });
+                            setShowAreaDropdown(true);
+                            setErrors((prev: any) => ({ ...prev, region: '' }));
+                          }}
+                          onFocus={() => {
+                            if (shippingData.region) {
+                              setAreaSearch('');
+                              setShippingData({ ...shippingData, region: '' });
+                            }
+                            setShowAreaDropdown(true);
+                          }}
+                          className="w-full px-3 py-3 bg-white focus:outline-none"
+                          placeholder="Type to search your area..."
+                        />
+                        {shippingData.region && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShippingData({ ...shippingData, region: '' });
+                              setAreaSearch('');
+                              setShowAreaDropdown(true);
+                            }}
+                            className="mr-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                          >
+                            <i className="ri-close-line text-lg"></i>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {showAreaDropdown && !shippingData.region && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                        {filteredAccraZones.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                            No areas match &ldquo;{areaSearch}&rdquo;
+                          </div>
+                        ) : (
+                          filteredAccraZones.map(z => (
+                            <button
+                              key={z.id}
+                              type="button"
+                              onClick={() => {
+                                setShippingData({ ...shippingData, region: z.name });
+                                setAreaSearch('');
+                                setShowAreaDropdown(false);
+                                setErrors((prev: any) => ({ ...prev, region: '' }));
+                              }}
+                              className="w-full text-left px-4 py-2.5 hover:bg-gold-50 transition-colors flex items-center justify-between cursor-pointer"
+                            >
+                              <span className="text-gray-900">{z.name}</span>
+                              <span className="text-sm font-semibold text-gold-700">GH₵{z.base_fee.toFixed(0)}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
+                  </div>
+                )}
+
+                {selectedRegionType === 'other_regions' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">City *</label>
                     <select
                       value={shippingData.region}
                       onChange={(e) => { setShippingData({ ...shippingData, region: e.target.value }); setErrors((prev: any) => ({ ...prev, region: '' })); }}
                       className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.region ? 'border-red-500' : 'border-gray-300'} bg-white`}
                     >
-                      <option value="">Select your area</option>
-                      {accraZones.map(z => (
-                        <option key={z.id} value={z.name}>{z.name} — GH₵{z.base_fee.toFixed(0)}</option>
+                      <option value="">Select your city</option>
+                      {outsideZones.map(z => (
+                        <option key={z.id} value={z.name}>{z.name}</option>
                       ))}
                     </select>
                     {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
-                  </div>
-                )}
-
-                {selectedRegionType && selectedRegionType !== 'greater_accra' && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">City *</label>
-                    <input
-                      type="text"
-                      value={shippingData.city}
-                      onChange={(e) => { setShippingData({ ...shippingData, city: e.target.value }); setErrors((prev: any) => ({ ...prev, city: '' })); }}
-                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.city ? 'border-red-500' : 'border-gray-300'}`}
-                      placeholder="Enter your city"
-                    />
-                    {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
                   </div>
                 )}
 
@@ -644,11 +709,14 @@ export default function CheckoutPage() {
                   </div>
                 ) : (
                   <>
-                    {settings.nextDayDelivery && (
-                      <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
-                        <i className="ri-information-line text-blue-600 mt-0.5"></i>
-                        <p className="text-sm text-blue-800">
-                          <strong>Next-day delivery is active.</strong> All orders placed today will be delivered tomorrow.
+                    {(settings.sameDayDelivery || settings.nextDayDelivery) && (
+                      <div className={`mb-3 p-3 ${settings.sameDayDelivery ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'} border rounded-lg flex items-start gap-2`}>
+                        <i className={`ri-information-line ${settings.sameDayDelivery ? 'text-emerald-600' : 'text-blue-600'} mt-0.5`}></i>
+                        <p className={`text-sm ${settings.sameDayDelivery ? 'text-emerald-800' : 'text-blue-800'}`}>
+                          {settings.sameDayDelivery
+                            ? <><strong>Same-day delivery is active.</strong> Orders placed now will be delivered today.</>
+                            : <><strong>Next-day delivery is active.</strong> All orders placed today will be delivered tomorrow.</>
+                          }
                         </p>
                       </div>
                     )}
@@ -676,12 +744,14 @@ export default function CheckoutPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-semibold text-gray-900">
-                                {settings.nextDayDelivery ? 'Next-Day Delivery' : 'Standard Delivery'}
+                                {settings.sameDayDelivery ? 'Same-Day Delivery' : settings.nextDayDelivery ? 'Next-Day Delivery' : 'Standard Delivery'}
                               </p>
                               <p className="text-sm text-gray-600">
-                                {settings.nextDayDelivery
-                                  ? 'Delivered tomorrow'
-                                  : `Within ${isAccra ? '1-2' : '3-5'} business days`
+                                {settings.sameDayDelivery
+                                  ? 'Delivered today'
+                                  : settings.nextDayDelivery
+                                    ? 'Delivered tomorrow'
+                                    : `Within ${isAccra ? '1-2' : '3-5'} business days`
                                 }
                               </p>
                             </div>

@@ -406,27 +406,49 @@ export default function SettingsPage() {
                                     <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                         <div className="flex items-center justify-between mb-2">
                                             <label className="font-medium text-gray-900">Stop All Deliveries</label>
-                                            <input
-                                                type="checkbox"
-                                                checked={settings.delivery_unavailable || false}
-                                                onChange={(e) => updateSetting('delivery_unavailable', e.target.checked)}
-                                                className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 border-gray-300"
-                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => updateSetting('delivery_unavailable', !settings.delivery_unavailable)}
+                                                className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${settings.delivery_unavailable ? 'bg-red-500' : 'bg-gray-300'}`}
+                                            >
+                                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ${settings.delivery_unavailable ? 'translate-x-6' : 'translate-x-0'}`}></span>
+                                            </button>
                                         </div>
-                                        <p className="text-sm text-gray-500">Enable this to prevent customers from selecting delivery at checkout (e.g. during holidays).</p>
+                                        <p className="text-sm text-gray-500">Prevent customers from placing orders with delivery (e.g. during holidays).</p>
                                     </div>
 
                                     <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                         <div className="flex items-center justify-between mb-2">
-                                            <label className="font-medium text-gray-900">Next Day Delivery Only</label>
-                                            <input
-                                                type="checkbox"
-                                                checked={settings.next_day_delivery_enabled || false}
-                                                onChange={(e) => updateSetting('next_day_delivery_enabled', e.target.checked)}
-                                                className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 border-gray-300"
-                                            />
+                                            <label className="font-medium text-gray-900">Same Day Delivery</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    updateSetting('same_day_delivery_enabled', !settings.same_day_delivery_enabled);
+                                                    if (!settings.same_day_delivery_enabled) updateSetting('next_day_delivery_enabled', false);
+                                                }}
+                                                className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${settings.same_day_delivery_enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                            >
+                                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ${settings.same_day_delivery_enabled ? 'translate-x-6' : 'translate-x-0'}`}></span>
+                                            </button>
                                         </div>
-                                        <p className="text-sm text-gray-500">Restrict delivery selection to next day or later.</p>
+                                        <p className="text-sm text-gray-500">Show a notice that orders placed today will be delivered today.</p>
+                                    </div>
+
+                                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="font-medium text-gray-900">Next Day Delivery</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    updateSetting('next_day_delivery_enabled', !settings.next_day_delivery_enabled);
+                                                    if (!settings.next_day_delivery_enabled) updateSetting('same_day_delivery_enabled', false);
+                                                }}
+                                                className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${settings.next_day_delivery_enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                            >
+                                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ${settings.next_day_delivery_enabled ? 'translate-x-6' : 'translate-x-0'}`}></span>
+                                            </button>
+                                        </div>
+                                        <p className="text-sm text-gray-500">Show a notice that orders placed today will be delivered tomorrow.</p>
                                     </div>
 
                                     <div>

@@ -271,6 +271,48 @@ export default function ProductEditor({ productId }: { productId: string }) {
     }
   }
 
+  // Delivery notice toggles
+  const [deliverySettings, setDeliverySettings] = useState({
+    same_day_delivery_enabled: false,
+    next_day_delivery_enabled: false,
+    delivery_unavailable: false
+  });
+
+  useEffect(() => {
+    async function fetchDeliverySettings() {
+      const { data } = await supabase
+        .from('store_settings')
+        .select('key, value')
+        .in('key', ['same_day_delivery_enabled', 'next_day_delivery_enabled', 'delivery_unavailable']);
+      if (data) {
+        const map: any = {};
+        data.forEach(s => { map[s.key] = s.value === true || s.value === 'true'; });
+        setDeliverySettings(prev => ({ ...prev, ...map }));
+      }
+    }
+    fetchDeliverySettings();
+  }, []);
+
+  async function toggleDeliverySetting(key: string, value: boolean) {
+    setDeliverySettings(prev => {
+      const updated = { ...prev, [key]: value };
+      if (key === 'same_day_delivery_enabled' && value) updated.next_day_delivery_enabled = false;
+      if (key === 'next_day_delivery_enabled' && value) updated.same_day_delivery_enabled = false;
+      return updated;
+    });
+
+    const updates: any[] = [{ key, value, updated_at: new Date().toISOString() }];
+    if (key === 'same_day_delivery_enabled' && value) {
+      updates.push({ key: 'next_day_delivery_enabled', value: false, updated_at: new Date().toISOString() });
+    }
+    if (key === 'next_day_delivery_enabled' && value) {
+      updates.push({ key: 'same_day_delivery_enabled', value: false, updated_at: new Date().toISOString() });
+    }
+
+    await supabase.from('store_settings').upsert(updates);
+    toast.success('Delivery setting updated');
+  }
+
   const tabs = [
     { id: 'general', label: 'General', icon: 'ri-information-line' },
     { id: 'pricing', label: 'Pricing & Inventory', icon: 'ri-price-tag-3-line' },
@@ -315,6 +357,48 @@ export default function ProductEditor({ productId }: { productId: string }) {
               <i className="ri-save-line mr-2"></i>
             )}
             {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+
+      {/* Delivery Notice Quick Toggles */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <i className="ri-truck-line text-lg text-gray-600"></i>
+          <h3 className="font-semibold text-gray-900 text-sm">Delivery Notice</h3>
+        </div>
+        <div className="flex flex-wrap gap-4">
+          <button
+            type="button"
+            onClick={() => toggleDeliverySetting('same_day_delivery_enabled', !deliverySettings.same_day_delivery_enabled)}
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-colors ${deliverySettings.same_day_delivery_enabled ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}
+          >
+            <span className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${deliverySettings.same_day_delivery_enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${deliverySettings.same_day_delivery_enabled ? 'translate-x-5' : 'translate-x-0'}`}></span>
+            </span>
+            <span className="text-sm font-medium text-gray-700">Same Day</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => toggleDeliverySetting('next_day_delivery_enabled', !deliverySettings.next_day_delivery_enabled)}
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-colors ${deliverySettings.next_day_delivery_enabled ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+          >
+            <span className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${deliverySettings.next_day_delivery_enabled ? 'bg-blue-500' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${deliverySettings.next_day_delivery_enabled ? 'translate-x-5' : 'translate-x-0'}`}></span>
+            </span>
+            <span className="text-sm font-medium text-gray-700">Next Day</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => toggleDeliverySetting('delivery_unavailable', !deliverySettings.delivery_unavailable)}
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-colors ${deliverySettings.delivery_unavailable ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'}`}
+          >
+            <span className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${deliverySettings.delivery_unavailable ? 'bg-red-500' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${deliverySettings.delivery_unavailable ? 'translate-x-5' : 'translate-x-0'}`}></span>
+            </span>
+            <span className="text-sm font-medium text-gray-700">Stop Deliveries</span>
           </button>
         </div>
       </div>

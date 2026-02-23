@@ -30,3 +30,6 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+# Admin scripts & logs (may contain credentials)
+scripts/admin_creation_log*.txt

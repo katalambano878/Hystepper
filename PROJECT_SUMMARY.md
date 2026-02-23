@@ -70,8 +70,8 @@ Complete e-commerce platform for Hy_stepper, a premium footwear brand with onlin
 - Centralized settings management
 
 **Admin Access:**
-- Email: `hystepper.admin@gmail.com`
-- Password: `password123`
+- Email: Set via environment variable `ADMIN_EMAIL`
+- Password: Set via environment variable `ADMIN_PASSWORD`
 - Role: admin (full access)
 
 ### 7. **Shop & Search** ✅

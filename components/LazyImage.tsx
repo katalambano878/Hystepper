@@ -15,6 +15,8 @@ interface LazyImageProps {
   sizes?: string;
 }
 
+const FALLBACK_SRC = 'https://via.placeholder.com/400x400?text=Product';
+
 export default function LazyImage({
   src,
   alt,
@@ -28,6 +30,7 @@ export default function LazyImage({
 }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const safeSrc = typeof src === 'string' && src.trim() ? src : FALLBACK_SRC;
 
   const handleLoad = () => {
     setIsLoaded(true);
@@ -54,8 +57,8 @@ export default function LazyImage({
         </div>
       ) : useFill ? (
         <Image
-          src={src}
-          alt={alt}
+          src={safeSrc}
+          alt={alt || 'Product'}
           fill
           sizes={sizes}
           className={`object-cover object-top transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
@@ -66,8 +69,8 @@ export default function LazyImage({
         />
       ) : (
         <Image
-          src={src}
-          alt={alt}
+          src={safeSrc}
+          alt={alt || 'Product'}
           width={width!}
           height={height!}
           className={`transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}

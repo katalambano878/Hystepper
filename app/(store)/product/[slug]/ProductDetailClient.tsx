@@ -10,11 +10,13 @@ import { notFound } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 
 function isLightColor(hex: string | null): boolean {
-  if (!hex) return false;
-  const c = hex.replace('#', '');
+  if (!hex || typeof hex !== 'string') return false;
+  const c = hex.replace('#', '').trim();
+  if (c.length < 6) return false;
   const r = parseInt(c.substring(0, 2), 16);
   const g = parseInt(c.substring(2, 4), 16);
   const b = parseInt(c.substring(4, 6), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return false;
   return (r * 299 + g * 587 + b * 114) / 1000 > 160;
 }
 
@@ -79,25 +81,33 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         if (productData.sizing_notes) features.push(`Sizing: ${productData.sizing_notes}`);
         if (features.length === 0) features.push('Premium Quality', 'Authentic Design');
 
-        // Transform product data
+        // Transform product data (safe sort and filter invalid urls)
+        const rawImages = (productData.product_images || [])
+          .filter((img: any) => img && img.url)
+          .sort((a: any, b: any) => (Number(a?.position) ?? 0) - (Number(b?.position) ?? 0))
+          .map((img: any) => img.url);
         const transformedProduct = {
           ...productData,
-          images: productData.product_images?.sort((a: any, b: any) => a.position - b.position).map((img: any) => img.url) || [],
+          images: Array.isArray(rawImages) ? rawImages : [],
           category: productData.categories?.name || 'Shop',
           rating: productData.rating_avg || 0,
           reviewCount: 0, // Placeholder
           stockCount: productData.quantity,
           colors: (() => {
-            const seen = new Set();
+            const seen = new Set<string>();
             return (productData.product_variants || [])
-              .filter((v: any) => v.option2)
+              .filter((v: any) => v && (v.option2 ?? v.name))
               .reduce((acc: any[], v: any) => {
-                if (!seen.has(v.option2)) {
-                  seen.add(v.option2);
-                  acc.push({ name: v.option2, hex: v.option3 || null, image: v.image_url || null });
-                } else if (v.image_url && !acc.find((c: any) => c.name === v.option2)?.image) {
-                  const existing = acc.find((c: any) => c.name === v.option2);
-                  if (existing) existing.image = v.image_url;
+                const name = (v.option2 ?? v.name ?? '').toString().trim();
+                if (!name) return acc;
+                const hex = (v.option3 && typeof v.option3 === 'string') ? v.option3 : null;
+                const image = (v.image_url && typeof v.image_url === 'string') ? v.image_url : null;
+                if (!seen.has(name)) {
+                  seen.add(name);
+                  acc.push({ name, hex, image });
+                } else if (image) {
+                  const existing = acc.find((c: any) => c.name === name);
+                  if (existing) existing.image = image;
                 }
                 return acc;
               }, []);
@@ -275,12 +285,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 mb-4 shadow-lg border border-gray-100">
                   {/* Main Media Display — color override takes priority */}
                   {(() => {
-                    const currentMedia = colorOverrideImage || product.images[selectedImage];
-                    const isVideo = currentMedia?.startsWith('data:video') || currentMedia?.match(/\.(mp4|webm|ogg)$/i);
+                    const images = Array.isArray(product.images) ? product.images : [];
+                    const fallback = images[0] || 'https://via.placeholder.com/800x800?text=No+Image';
+                    const currentMedia = (colorOverrideImage && typeof colorOverrideImage === 'string')
+                      ? colorOverrideImage
+                      : (images[selectedImage] ?? fallback);
+                    const safeSrc = typeof currentMedia === 'string' && currentMedia ? currentMedia : fallback;
+                    const isVideo = safeSrc.startsWith('data:video') || /\.(mp4|webm|ogg)$/i.test(safeSrc);
 
                     return isVideo ? (
                       <video
-                        src={currentMedia}
+                        src={safeSrc}
                         className="w-full h-full object-cover"
                         controls
                         playsInline
@@ -290,8 +305,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       />
                     ) : (
                       <img
-                        src={currentMedia}
-                        alt={product.name}
+                        src={safeSrc}
+                        alt={product.name || 'Product'}
                         className="w-full h-full object-cover object-center transition-opacity duration-300"
                       />
                     );
@@ -304,10 +319,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   )}
                 </div>
 
-                {product.images.length > 1 && (
+                {Array.isArray(product.images) && product.images.length > 1 && (
                   <div className="grid grid-cols-4 gap-4">
-                    {product.images.map((image: string, index: number) => {
-                      const isVideo = image.startsWith('data:video') || image.match(/\.(mp4|webm|ogg)$/i);
+                    {product.images.filter((img: any) => img).map((image: string, index: number) => {
+                      const isVideo = typeof image === 'string' && (image.startsWith('data:video') || /\.(mp4|webm|ogg)$/i.test(image));
                       return (
                         <button
                           key={index}
@@ -317,13 +332,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         >
                           {isVideo ? (
                             <div className="w-full h-full bg-gray-900 flex items-center justify-center relative">
-                              <video src={image} className="w-full h-full object-cover opacity-70" muted />
+                              <video src={typeof image === 'string' ? image : ''} className="w-full h-full object-cover opacity-70" muted />
                               <i className="ri-play-circle-fill text-white text-3xl absolute z-10 drop-shadow-md"></i>
                             </div>
                           ) : (
                             <img
-                              src={image}
-                              alt={`${product.name} view ${index + 1}`}
+                              src={typeof image === 'string' ? image : ''}
+                              alt={`${product.name || 'Product'} view ${index + 1}`}
                               className="w-full h-full object-cover object-center"
                             />
                           )}
@@ -353,17 +368,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <i
                         key={star}
-                        className={`${star <= Math.round(product.rating) ? 'ri-star-fill text-amber-400' : 'ri-star-line text-gray-300'} text-lg`}
+                        className={`${star <= Math.round(Number(product.rating) || 0) ? 'ri-star-fill text-amber-400' : 'ri-star-line text-gray-300'} text-lg`}
                       ></i>
                     ))}
                   </div>
-                  <span className="text-gray-700 font-medium">{Number(product.rating).toFixed(1)}</span>
+                  <span className="text-gray-700 font-medium">{(Number(product.rating) || 0).toFixed(1)}</span>
                 </div>
 
                 <div className="flex items-baseline space-x-4 mb-6">
-                  <span className="text-3xl lg:text-4xl font-bold text-gray-900">GH₵{product.price.toFixed(2)}</span>
-                  {product.compare_at_price && product.compare_at_price > product.price && (
-                    <span className="text-xl text-gray-400 line-through">GH₵{product.compare_at_price.toFixed(2)}</span>
+                  <span className="text-3xl lg:text-4xl font-bold text-gray-900">GH₵{(Number(product.price) || 0).toFixed(2)}</span>
+                  {product.compare_at_price != null && Number(product.compare_at_price) > Number(product.price) && (
+                    <span className="text-xl text-gray-400 line-through">GH₵{(Number(product.compare_at_price) || 0).toFixed(2)}</span>
                   )}
                 </div>
 
@@ -376,38 +391,38 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       Colour: {selectedColor && <span className="text-gray-600 font-normal">{selectedColor}</span>}
                     </label>
                     <div className="flex flex-wrap gap-3">
-                      {product.colors.map((color: any) => (
+                      {product.colors.map((color: any) => {
+                        const colorName = color?.name ?? '';
+                        const colorImage = typeof color?.image === 'string' && color.image ? color.image : null;
+                        const colorHex = color?.hex ?? '#ccc';
+                        return (
                         <button
-                          key={color.name}
+                          key={colorName || colorHex}
                           onClick={() => {
-                            setSelectedColor(color.name);
-                            if (color.image) {
-                              setColorOverrideImage(color.image);
-                            } else {
-                              setColorOverrideImage(null);
-                            }
+                            setSelectedColor(colorName);
+                            setColorOverrideImage(colorImage);
                           }}
-                          className={`group relative w-10 h-10 rounded-full border-2 transition-all cursor-pointer ${selectedColor === color.name
+                          className={`group relative w-10 h-10 rounded-full border-2 transition-all cursor-pointer ${selectedColor === colorName
                             ? 'border-gold-600 ring-2 ring-gold-300 scale-110'
                             : 'border-gray-300 hover:border-gray-400 hover:scale-105'
                             }`}
-                          title={color.name}
+                          title={colorName}
                         >
-                          {color.image ? (
-                            <img src={color.image} alt={color.name} className="w-full h-full rounded-full object-cover" />
+                          {colorImage ? (
+                            <img src={colorImage} alt={colorName} className="w-full h-full rounded-full object-cover" />
                           ) : (
                             <span
                               className="block w-full h-full rounded-full"
-                              style={{ backgroundColor: color.hex || '#ccc' }}
+                              style={{ backgroundColor: colorHex }}
                             ></span>
                           )}
-                          {selectedColor === color.name && (
+                          {selectedColor === colorName && (
                             <span className="absolute inset-0 flex items-center justify-center">
-                              <i className={`ri-check-line text-sm font-bold ${color.image ? 'text-white drop-shadow-md' : isLightColor(color.hex) ? 'text-gray-800' : 'text-white'}`}></i>
+                              <i className={`ri-check-line text-sm font-bold ${colorImage ? 'text-white drop-shadow-md' : isLightColor(colorHex) ? 'text-gray-800' : 'text-white'}`}></i>
                             </span>
                           )}
                         </button>
-                      ))}
+                      );})}
                     </div>
                   </div>
                 )}

@@ -22,14 +22,8 @@ export default function InventoryManagementPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from('products')
-        .select(`
-          id,
-          name,
-          sku, // Verify if exists
-          price,
-          quantity,
-          categories(name)
-        `)
+        .select('id, name, sku, price, quantity, categories(name)')
+        .eq('status', 'active')
         .order('name');
 
       if (error) throw error;

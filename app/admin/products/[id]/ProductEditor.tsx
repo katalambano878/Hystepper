@@ -92,10 +92,12 @@ export default function ProductEditor({ productId }: { productId: string }) {
 
         // New Fields
         setProductCode(product.product_code || '');
+        setSku(product.sku || product.product_code || '');
         setStyleName(product.style_name || '');
         setMaterial(product.material || '');
         setHeelHeight(product.heel_height || '');
         setSizingNotes(product.sizing_notes || '');
+        setDeliveryNotice(product.metadata?.delivery_notice || 'none');
 
         // SEO
         setSeoTitle(product.seo_title || '');
@@ -167,6 +169,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
         seo_title: seoTitle,
         seo_description: seoDescription,
         tags: keywords.split(',').map(tag => tag.trim()).filter(tag => tag),
+        metadata: { delivery_notice: deliveryNotice },
         updated_at: new Date().toISOString()
       };
 
@@ -196,6 +199,8 @@ export default function ProductEditor({ productId }: { productId: string }) {
             product_id: targetId,
             name: v.name,
             option2: v.option2,
+            option3: v.option3 || null,
+            image_url: v.image_url || null,
             price: v.price || 0,
             quantity: parseInt(v.quantity?.toString() || '0') || 0
           };
@@ -271,47 +276,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
     }
   }
 
-  // Delivery notice toggles
-  const [deliverySettings, setDeliverySettings] = useState({
-    same_day_delivery_enabled: false,
-    next_day_delivery_enabled: false,
-    delivery_unavailable: false
-  });
-
-  useEffect(() => {
-    async function fetchDeliverySettings() {
-      const { data } = await supabase
-        .from('store_settings')
-        .select('key, value')
-        .in('key', ['same_day_delivery_enabled', 'next_day_delivery_enabled', 'delivery_unavailable']);
-      if (data) {
-        const map: any = {};
-        data.forEach(s => { map[s.key] = s.value === true || s.value === 'true'; });
-        setDeliverySettings(prev => ({ ...prev, ...map }));
-      }
-    }
-    fetchDeliverySettings();
-  }, []);
-
-  async function toggleDeliverySetting(key: string, value: boolean) {
-    setDeliverySettings(prev => {
-      const updated = { ...prev, [key]: value };
-      if (key === 'same_day_delivery_enabled' && value) updated.next_day_delivery_enabled = false;
-      if (key === 'next_day_delivery_enabled' && value) updated.same_day_delivery_enabled = false;
-      return updated;
-    });
-
-    const updates: any[] = [{ key, value, updated_at: new Date().toISOString() }];
-    if (key === 'same_day_delivery_enabled' && value) {
-      updates.push({ key: 'next_day_delivery_enabled', value: false, updated_at: new Date().toISOString() });
-    }
-    if (key === 'next_day_delivery_enabled' && value) {
-      updates.push({ key: 'same_day_delivery_enabled', value: false, updated_at: new Date().toISOString() });
-    }
-
-    await supabase.from('store_settings').upsert(updates);
-    toast.success('Delivery setting updated');
-  }
+  const [deliveryNotice, setDeliveryNotice] = useState('none');
 
   const tabs = [
     { id: 'general', label: 'General', icon: 'ri-information-line' },
@@ -361,45 +326,32 @@ export default function ProductEditor({ productId }: { productId: string }) {
         </div>
       </div>
 
-      {/* Delivery Notice Quick Toggles */}
+      {/* Product Delivery Notice */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <div className="flex items-center gap-2 mb-3">
           <i className="ri-truck-line text-lg text-gray-600"></i>
-          <h3 className="font-semibold text-gray-900 text-sm">Delivery Notice</h3>
+          <h3 className="font-semibold text-gray-900 text-sm">Delivery Notice <span className="text-gray-500 font-normal">(for this product)</span></h3>
         </div>
-        <div className="flex flex-wrap gap-4">
-          <button
-            type="button"
-            onClick={() => toggleDeliverySetting('same_day_delivery_enabled', !deliverySettings.same_day_delivery_enabled)}
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-colors ${deliverySettings.same_day_delivery_enabled ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}
-          >
-            <span className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${deliverySettings.same_day_delivery_enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${deliverySettings.same_day_delivery_enabled ? 'translate-x-5' : 'translate-x-0'}`}></span>
-            </span>
-            <span className="text-sm font-medium text-gray-700">Same Day</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => toggleDeliverySetting('next_day_delivery_enabled', !deliverySettings.next_day_delivery_enabled)}
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-colors ${deliverySettings.next_day_delivery_enabled ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
-          >
-            <span className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${deliverySettings.next_day_delivery_enabled ? 'bg-blue-500' : 'bg-gray-300'}`}>
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${deliverySettings.next_day_delivery_enabled ? 'translate-x-5' : 'translate-x-0'}`}></span>
-            </span>
-            <span className="text-sm font-medium text-gray-700">Next Day</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => toggleDeliverySetting('delivery_unavailable', !deliverySettings.delivery_unavailable)}
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-colors ${deliverySettings.delivery_unavailable ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'}`}
-          >
-            <span className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${deliverySettings.delivery_unavailable ? 'bg-red-500' : 'bg-gray-300'}`}>
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${deliverySettings.delivery_unavailable ? 'translate-x-5' : 'translate-x-0'}`}></span>
-            </span>
-            <span className="text-sm font-medium text-gray-700">Stop Deliveries</span>
-          </button>
+        <div className="flex flex-wrap gap-3">
+          {[
+            { value: 'none', label: 'Standard', icon: 'ri-truck-line', color: 'gray' },
+            { value: 'same_day', label: 'Same Day', icon: 'ri-flashlight-line', color: 'emerald' },
+            { value: 'next_day', label: 'Next Day', icon: 'ri-time-line', color: 'blue' },
+            { value: 'unavailable', label: 'Not Available', icon: 'ri-forbid-line', color: 'red' },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setDeliveryNotice(opt.value)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${deliveryNotice === opt.value
+                ? `border-${opt.color}-400 bg-${opt.color}-50 text-${opt.color}-700`
+                : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <i className={`${opt.icon}`}></i>
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -506,14 +458,14 @@ export default function ProductEditor({ productId }: { productId: string }) {
 
                 <div className="mb-6">
                   <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Product Code <span className="text-gray-500 font-normal">(Unique identifier for this product)</span>
+                    Product Code / SKU <span className="text-gray-500 font-normal">(Unique identifier — synced with SKU)</span>
                   </label>
                   <input
                     type="text"
                     value={productCode}
-                    onChange={(e) => setProductCode(e.target.value)}
+                    onChange={(e) => { setProductCode(e.target.value); setSku(e.target.value); }}
                     placeholder="e.g., HYS-001"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono"
                   />
                 </div>
 
@@ -634,19 +586,6 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      SKU (Product Code) *
-                    </label>
-                    <input
-                      type="text"
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono"
-                      placeholder="PROD-SKU-001"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
                       Stock Quantity *
                     </label>
                     <input
@@ -655,6 +594,20 @@ export default function ProductEditor({ productId }: { productId: string }) {
                       onChange={(e) => setStock(e.target.value)}
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      SKU
+                    </label>
+                    <input
+                      type="text"
+                      value={sku}
+                      disabled
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-500 font-mono cursor-not-allowed"
+                      placeholder="Set via Product Code above"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">Auto-synced with Product Code</p>
                   </div>
                 </div>
 
@@ -695,7 +648,8 @@ export default function ProductEditor({ productId }: { productId: string }) {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Size (e.g. 42)</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Color (e.g. Red)</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Colour</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Variant Image</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Price Override</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Stock</th>
                       <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
@@ -703,7 +657,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {variants.length === 0 && (
-                      <tr><td colSpan={5} className="p-8 text-center text-gray-500">No variants added yet. Click "Add Variant" to start.</td></tr>
+                      <tr><td colSpan={6} className="p-8 text-center text-gray-500">No variants added yet. Click &ldquo;Add Variant&rdquo; to start.</td></tr>
                     )}
                     {variants.map((variant, index) => (
                       <tr key={variant.id || index} className="group hover:bg-gray-50 transition-colors">
@@ -721,17 +675,81 @@ export default function ProductEditor({ productId }: { productId: string }) {
                           />
                         </td>
                         <td className="p-3">
-                          <input
-                            type="text"
-                            value={variant.option2 || ''}
-                            onChange={(e) => {
-                              const newVariants = [...variants];
-                              newVariants[index].option2 = e.target.value;
-                              setVariants(newVariants);
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            placeholder="Red"
-                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={variant.option3 || '#000000'}
+                              onChange={(e) => {
+                                const newVariants = [...variants];
+                                newVariants[index].option3 = e.target.value;
+                                setVariants(newVariants);
+                              }}
+                              className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
+                            />
+                            <input
+                              type="text"
+                              value={variant.option2 || ''}
+                              onChange={(e) => {
+                                const newVariants = [...variants];
+                                newVariants[index].option2 = e.target.value;
+                                setVariants(newVariants);
+                              }}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                              placeholder="e.g. Red"
+                            />
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            {variant.image_url ? (
+                              <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 group/img">
+                                <img src={variant.image_url} alt="Variant" className="w-full h-full object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newVariants = [...variants];
+                                    newVariants[index].image_url = null;
+                                    setVariants(newVariants);
+                                  }}
+                                  className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"
+                                >
+                                  <i className="ri-close-line text-white text-lg"></i>
+                                </button>
+                              </div>
+                            ) : (
+                              <label className="w-14 h-14 rounded-lg border-2 border-dashed border-gray-300 hover:border-emerald-400 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      const newVariants = [...variants];
+                                      newVariants[index].image_url = ev.target?.result as string;
+                                      setVariants(newVariants);
+                                    };
+                                    reader.readAsDataURL(file);
+                                    e.target.value = '';
+                                  }}
+                                />
+                                <i className="ri-image-add-line text-gray-400 text-lg"></i>
+                              </label>
+                            )}
+                            <input
+                              type="text"
+                              value={variant.image_url || ''}
+                              onChange={(e) => {
+                                const newVariants = [...variants];
+                                newVariants[index].image_url = e.target.value || null;
+                                setVariants(newVariants);
+                              }}
+                              className="flex-1 min-w-0 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs"
+                              placeholder="or paste URL"
+                            />
+                          </div>
                         </td>
                         <td className="p-3">
                           <input

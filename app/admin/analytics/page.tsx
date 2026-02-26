@@ -48,7 +48,7 @@ export default function AnalyticsPage() {
         .from('orders')
         .select('id, created_at, total')
         .gte('created_at', isoStart)
-        .neq('status', 'cancelled') // Exclude cancelled
+        .in('status', ['delivered', 'shipped', 'processing'])
         .order('created_at');
 
       if (orderError) throw orderError;

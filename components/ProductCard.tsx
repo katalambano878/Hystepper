@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import LazyImage from './LazyImage';
 import { useCart } from '@/context/CartContext';
@@ -14,6 +15,7 @@ interface ProductCardProps {
   reviewCount?: number;
   badge?: string;
   inStock?: boolean;
+  colors?: { name: string; hex: string | null; image?: string | null }[];
 }
 
 export default function ProductCard({
@@ -25,16 +27,22 @@ export default function ProductCard({
   rating = 5,
   reviewCount = 0,
   badge,
-  inStock = true
+  inStock = true,
+  colors
 }: ProductCardProps) {
   const { addToCart } = useCart();
   const discount = originalPrice ? Math.round((1 - price / originalPrice) * 100) : 0;
+  const [hoveredColor, setHoveredColor] = useState<string | null>(null);
+
+  const displayImage = hoveredColor
+    ? (colors?.find(c => c.name === hoveredColor)?.image || image)
+    : image;
 
   return (
     <div className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 border border-transparent hover:border-gold-500/30 h-full flex flex-col">
       <Link href={`/product/${id}`} className="relative block aspect-square overflow-hidden bg-gray-100 flex-shrink-0">
         <LazyImage
-          src={image}
+          src={displayImage}
           alt={name}
           className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500"
         />
@@ -61,6 +69,23 @@ export default function ProductCard({
             {name}
           </h3>
         </Link>
+
+        {colors && colors.length > 0 && (
+          <div className="flex items-center gap-1.5 mb-2" onMouseLeave={() => setHoveredColor(null)}>
+            {colors.slice(0, 5).map((color) => (
+              <span
+                key={color.name}
+                className={`w-4 h-4 rounded-full border transition-transform duration-200 cursor-pointer ${hoveredColor === color.name ? 'border-gold-500 scale-125 ring-1 ring-gold-300' : 'border-gray-300'}`}
+                style={{ backgroundColor: color.hex || '#ccc' }}
+                title={color.name}
+                onMouseEnter={() => color.image ? setHoveredColor(color.name) : undefined}
+              ></span>
+            ))}
+            {colors.length > 5 && (
+              <span className="text-xs text-gray-400">+{colors.length - 5}</span>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-between mt-auto mb-3">
           <div className="flex flex-wrap items-baseline gap-2">

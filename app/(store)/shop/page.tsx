@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import ProductCard from '@/components/ProductCard';
 import { supabase } from '@/lib/supabase';
 import PageHero from '@/components/PageHero';
 
 function ShopContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   // State
   const [products, setProducts] = useState<any[]>([]);
@@ -23,6 +24,23 @@ function ShopContent() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const productsPerPage = 9;
+
+  // Active URL-based filters
+  const activeHeelHeight = searchParams.get('heel_height');
+  const activeSize = searchParams.get('size');
+
+  const heelLabels: Record<string, string> = { flat: 'Flat (0–1")', low: 'Low (1–2")', mid: 'Mid (2–3")', high: 'High (4"+)' };
+
+  function removeFilter(key: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(key);
+    const qs = params.toString();
+    router.push(qs ? `/shop?${qs}` : '/shop');
+  }
+
+  function clearAllUrlFilters() {
+    router.push('/shop');
+  }
 
   // Initialize from URL params
   useEffect(() => {
@@ -60,7 +78,8 @@ function ShopContent() {
           .select(`
             *,
             categories!inner(name, slug),
-            product_images!product_id(url, position)
+            product_images!product_id(url, position),
+            product_variants(option2, option3, image_url)
           `, { count: 'exact' })
           .eq('status', 'active')
           .order('position', { foreignTable: 'product_images', ascending: true });
@@ -110,21 +129,32 @@ function ShopContent() {
         // Heel Height Filter (from URL params)
         const heelParam = searchParams.get('heel_height');
         if (heelParam) {
-          // Map filter values to heel_height column patterns
           const heelMap: Record<string, string> = {
-            'flat': '%flat%',
-            'low': '%low%',
-            'mid': '%mid%',
-            'high': '%high%'
+            'flat': 'Flat',
+            'low': 'Low',
+            'mid': 'Mid',
+            'high': 'High'
           };
           if (heelMap[heelParam]) {
             query = query.ilike('heel_height', heelMap[heelParam]);
           }
         }
 
-        // Size Filter (from URL params) - searches in product_variants option1 field
-        // This is a basic filter; for precise variant-level filtering we search the name field
+        // Size Filter — get product IDs that have variants with matching size
         const sizeParam = searchParams.get('size');
+        if (sizeParam) {
+          const { data: sizeVariants } = await supabase
+            .from('product_variants')
+            .select('product_id')
+            .eq('name', sizeParam);
+
+          if (sizeVariants && sizeVariants.length > 0) {
+            const productIds = [...new Set(sizeVariants.map(v => v.product_id))];
+            query = query.in('id', productIds);
+          } else {
+            query = query.in('id', ['00000000-0000-0000-0000-000000000000']);
+          }
+        }
 
         // Sorting
         switch (sortBy) {
@@ -157,18 +187,32 @@ function ShopContent() {
         if (error) throw error;
 
         if (data) {
-          const formattedProducts = data.map(p => ({
-            id: p.slug, // Use slug for navigation
-            name: p.name,
-            price: p.price,
-            originalPrice: p.compare_at_price,
-            image: p.product_images?.[0]?.url || 'https://via.placeholder.com/800x800?text=No+Image',
-            rating: p.rating_avg || 0,
-            reviewCount: 0, // Need to implement reviews relation
-            badge: p.compare_at_price > p.price ? 'Sale' : undefined, // Simple badge logic
-            inStock: p.quantity > 0,
-            category: p.categories?.name
-          }));
+          const formattedProducts = data.map(p => {
+            const seen = new Set();
+            const colors = (p.product_variants || [])
+              .filter((v: any) => v.option2)
+              .reduce((acc: any[], v: any) => {
+                if (!seen.has(v.option2)) {
+                  seen.add(v.option2);
+                  acc.push({ name: v.option2, hex: v.option3 || null, image: v.image_url || null });
+                }
+                return acc;
+              }, []);
+
+            return {
+              id: p.slug,
+              name: p.name,
+              price: p.price,
+              originalPrice: p.compare_at_price,
+              image: p.product_images?.[0]?.url || 'https://via.placeholder.com/800x800?text=No+Image',
+              rating: p.rating_avg || 0,
+              reviewCount: 0,
+              badge: p.compare_at_price > p.price ? 'Sale' : undefined,
+              inStock: p.quantity > 0,
+              category: p.categories?.name,
+              colors: colors.length > 0 ? colors : undefined
+            };
+          });
           setProducts(formattedProducts);
           setTotalProducts(count || 0);
         }
@@ -187,9 +231,46 @@ function ShopContent() {
   return (
     <main className="min-h-screen bg-white">
       <PageHero
-        title="Shop All Products"
-        subtitle="Discover our curated collection of premium goods"
+        title={activeHeelHeight ? `${heelLabels[activeHeelHeight] || activeHeelHeight} Heels` : activeSize ? `Size ${activeSize}` : 'Shop All Products'}
+        subtitle={activeHeelHeight || activeSize ? 'Filtered results from our collection' : 'Discover our curated collection of premium goods'}
       />
+
+      {/* Active Filter Badges */}
+      {(activeHeelHeight || activeSize) && (
+        <div className="bg-gold-50 border-b border-gold-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-gray-500 font-medium">Active filters:</span>
+              {activeHeelHeight && (
+                <button
+                  onClick={() => removeFilter('heel_height')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gold-200 rounded-full text-sm font-medium text-gold-700 hover:bg-gold-100 transition-colors group"
+                >
+                  <i className="ri-footprint-line text-xs"></i>
+                  Heel: {heelLabels[activeHeelHeight] || activeHeelHeight}
+                  <i className="ri-close-line text-gray-400 group-hover:text-gold-700 transition-colors"></i>
+                </button>
+              )}
+              {activeSize && (
+                <button
+                  onClick={() => removeFilter('size')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gold-200 rounded-full text-sm font-medium text-gold-700 hover:bg-gold-100 transition-colors group"
+                >
+                  <i className="ri-ruler-line text-xs"></i>
+                  Size: {activeSize}
+                  <i className="ri-close-line text-gray-400 group-hover:text-gold-700 transition-colors"></i>
+                </button>
+              )}
+              <button
+                onClick={clearAllUrlFilters}
+                className="text-sm text-gray-500 hover:text-red-600 underline underline-offset-2 transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Filter Toggle */}
       <div className="lg:hidden bg-white border-b border-gray-200 py-4 px-4 sticky top-[72px] z-20">

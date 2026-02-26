@@ -172,13 +172,18 @@ export default function POSPage() {
             const { data: order, error: orderError } = await supabase
                 .from('orders')
                 .insert({
+                    order_number: `POS-${Date.now()}`,
                     user_id: selectedCustomer?.id || null,
+                    email: selectedCustomer?.email || guestDetails.email || 'pos@store.local',
+                    phone: selectedCustomer?.phone || guestDetails.phone || null,
                     total: grandTotal,
-                    status: 'completed',
-                    payment_intent: `POS-${Date.now()}`,
-                    shipping_status: 'delivered',
+                    subtotal: grandTotal,
+                    status: 'delivered',
+                    payment_status: 'paid',
+                    payment_method: paymentMethod,
+                    payment_provider: 'pos',
                     shipping_address: shippingAddr,
-                    metadata: orderMeta
+                    metadata: { ...orderMeta, pos_sale: true }
                 })
                 .select()
                 .single();

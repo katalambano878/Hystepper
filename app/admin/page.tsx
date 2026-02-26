@@ -53,10 +53,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        // 1. Fetch Orders Count & Revenue
+        // 1. Fetch confirmed orders for revenue/counts (delivered or completed only)
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
-          .select('total, status, created_at, email');
+          .select('total, status, created_at, email')
+          .in('status', ['delivered', 'shipped', 'processing']);
 
         if (ordersError) throw ordersError;
 

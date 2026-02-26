@@ -41,7 +41,8 @@ export default function HomePage() {
           .from('products')
           .select(`
             *,
-            product_images!product_id(url, position, alt_text)
+            product_images!product_id(url, position, alt_text),
+            product_variants(option2, option3, image_url)
           `)
           .eq('status', 'active')
           .order('featured', { ascending: false })
@@ -52,19 +53,29 @@ export default function HomePage() {
         if (productsError) console.error('Error fetching home products:', productsError);
 
         if (productsData) {
-          const formatted = productsData.map(p => ({
-            id: p.slug,
-            name: p.name,
-            price: p.price,
-            originalPrice: p.compare_at_price,
-            image: p.product_images?.find((img: any) => img.position === 0)?.url
-              || p.product_images?.[0]?.url
-              || 'https://via.placeholder.com/800x800?text=No+Image',
-            rating: p.rating_avg || 0,
-            reviewCount: p.review_count || 0,
-            slug: p.slug,
-            inStock: p.quantity > 0
-          }));
+          const formatted = productsData.map(p => {
+            const seen = new Set();
+            const colors = (p.product_variants || [])
+              .filter((v: any) => v.option2)
+              .reduce((acc: any[], v: any) => {
+                if (!seen.has(v.option2)) { seen.add(v.option2); acc.push({ name: v.option2, hex: v.option3 || null, image: v.image_url || null }); }
+                return acc;
+              }, []);
+            return {
+              id: p.slug,
+              name: p.name,
+              price: p.price,
+              originalPrice: p.compare_at_price,
+              image: p.product_images?.find((img: any) => img.position === 0)?.url
+                || p.product_images?.[0]?.url
+                || 'https://via.placeholder.com/800x800?text=No+Image',
+              rating: p.rating_avg || 0,
+              reviewCount: p.review_count || 0,
+              slug: p.slug,
+              inStock: p.quantity > 0,
+              colors: colors.length > 0 ? colors : undefined
+            };
+          });
           setFeaturedProducts(formatted);
         }
 
@@ -73,7 +84,8 @@ export default function HomePage() {
           .from('products')
           .select(`
             *,
-            product_images!product_id(url, position, alt_text)
+            product_images!product_id(url, position, alt_text),
+            product_variants(option2, option3, image_url)
           `)
           .eq('status', 'active')
           .not('compare_at_price', 'is', null)
@@ -87,20 +99,30 @@ export default function HomePage() {
         if (discountData) {
           const discounted = discountData
             .filter(p => p.compare_at_price > p.price)
-            .map(p => ({
-              id: p.slug,
-              name: p.name,
-              price: p.price,
-              originalPrice: p.compare_at_price,
-              image: p.product_images?.find((img: any) => img.position === 0)?.url
-                || p.product_images?.[0]?.url
-                || 'https://via.placeholder.com/800x800?text=No+Image',
-              rating: p.rating_avg || 0,
-              reviewCount: p.review_count || 0,
-              slug: p.slug,
-              badge: 'Sale',
-              inStock: p.quantity > 0
-            }));
+            .map(p => {
+              const seen = new Set();
+              const colors = (p.product_variants || [])
+                .filter((v: any) => v.option2)
+                .reduce((acc: any[], v: any) => {
+                  if (!seen.has(v.option2)) { seen.add(v.option2); acc.push({ name: v.option2, hex: v.option3 || null, image: v.image_url || null }); }
+                  return acc;
+                }, []);
+              return {
+                id: p.slug,
+                name: p.name,
+                price: p.price,
+                originalPrice: p.compare_at_price,
+                image: p.product_images?.find((img: any) => img.position === 0)?.url
+                  || p.product_images?.[0]?.url
+                  || 'https://via.placeholder.com/800x800?text=No+Image',
+                rating: p.rating_avg || 0,
+                reviewCount: p.review_count || 0,
+                slug: p.slug,
+                badge: 'Sale',
+                inStock: p.quantity > 0,
+                colors: colors.length > 0 ? colors : undefined
+              };
+            });
           setDiscountedProducts(discounted);
         }
 

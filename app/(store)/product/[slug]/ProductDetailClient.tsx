@@ -9,12 +9,22 @@ import { StructuredData, generateProductSchema, generateBreadcrumbSchema } from 
 import { notFound } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 
+function isLightColor(hex: string | null): boolean {
+  if (!hex) return false;
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 160;
+}
+
 export default function ProductDetailClient({ slug }: { slug: string }) {
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
+  const [colorOverrideImage, setColorOverrideImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -77,8 +87,21 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           rating: productData.rating_avg || 0,
           reviewCount: 0, // Placeholder
           stockCount: productData.quantity,
-          // Extract colors from variants option2, sizes from variant names (option1)
-          colors: [...new Set(productData.product_variants?.map((v: any) => v.option2).filter(Boolean))] || [],
+          colors: (() => {
+            const seen = new Set();
+            return (productData.product_variants || [])
+              .filter((v: any) => v.option2)
+              .reduce((acc: any[], v: any) => {
+                if (!seen.has(v.option2)) {
+                  seen.add(v.option2);
+                  acc.push({ name: v.option2, hex: v.option3 || null, image: v.image_url || null });
+                } else if (v.image_url && !acc.find((c: any) => c.name === v.option2)?.image) {
+                  const existing = acc.find((c: any) => c.name === v.option2);
+                  if (existing) existing.image = v.image_url;
+                }
+                return acc;
+              }, []);
+          })(),
           sizes: [...new Set(productData.product_variants?.map((v: any) => v.name || v.option1).filter(Boolean))] || [],
           variants: productData.product_variants || [],
           features: features,
@@ -244,9 +267,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             <div className="grid lg:grid-cols-2 gap-12">
               <div className="animate-fade-in-up">
                 <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 mb-4 shadow-lg border border-gray-100">
-                  {/* Main Media Display */}
+                  {/* Main Media Display — color override takes priority */}
                   {(() => {
-                    const currentMedia = product.images[selectedImage];
+                    const currentMedia = colorOverrideImage || product.images[selectedImage];
                     const isVideo = currentMedia?.startsWith('data:video') || currentMedia?.match(/\.(mp4|webm|ogg)$/i);
 
                     return isVideo ? (
@@ -263,7 +286,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       <img
                         src={currentMedia}
                         alt={product.name}
-                        className="w-full h-full object-cover object-center"
+                        className="w-full h-full object-cover object-center transition-opacity duration-300"
                       />
                     );
                   })()}
@@ -282,8 +305,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       return (
                         <button
                           key={index}
-                          onClick={() => setSelectedImage(index)}
-                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImage === index ? 'border-gold-600 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                          onClick={() => { setSelectedImage(index); setColorOverrideImage(null); }}
+                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${!colorOverrideImage && selectedImage === index ? 'border-gold-600 shadow-md' : 'border-gray-200 hover:border-gray-300'
                             }`}
                         >
                           {isVideo ? (
@@ -347,16 +370,36 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       Colour: {selectedColor && <span className="text-gray-600 font-normal">{selectedColor}</span>}
                     </label>
                     <div className="flex flex-wrap gap-3">
-                      {product.colors.map((color: string) => (
+                      {product.colors.map((color: any) => (
                         <button
-                          key={color}
-                          onClick={() => setSelectedColor(color)}
-                          className={`px-5 py-2.5 rounded-lg border-2 font-medium transition-all whitespace-nowrap cursor-pointer ${selectedColor === color
-                            ? 'border-gold-600 bg-gold-50 text-gold-700'
-                            : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                          key={color.name}
+                          onClick={() => {
+                            setSelectedColor(color.name);
+                            if (color.image) {
+                              setColorOverrideImage(color.image);
+                            } else {
+                              setColorOverrideImage(null);
+                            }
+                          }}
+                          className={`group relative w-10 h-10 rounded-full border-2 transition-all cursor-pointer ${selectedColor === color.name
+                            ? 'border-gold-600 ring-2 ring-gold-300 scale-110'
+                            : 'border-gray-300 hover:border-gray-400 hover:scale-105'
                             }`}
+                          title={color.name}
                         >
-                          {color}
+                          {color.image ? (
+                            <img src={color.image} alt={color.name} className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            <span
+                              className="block w-full h-full rounded-full"
+                              style={{ backgroundColor: color.hex || '#ccc' }}
+                            ></span>
+                          )}
+                          {selectedColor === color.name && (
+                            <span className="absolute inset-0 flex items-center justify-center">
+                              <i className={`ri-check-line text-sm font-bold ${color.image ? 'text-white drop-shadow-md' : isLightColor(color.hex) ? 'text-gray-800' : 'text-white'}`}></i>
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>

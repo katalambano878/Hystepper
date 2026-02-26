@@ -19,7 +19,6 @@ export default function AdminCustomersPage() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      // Fetch profiles
       const { data: profiles, error: pError } = await supabase
         .from('profiles')
         .select('*')
@@ -27,48 +26,88 @@ export default function AdminCustomersPage() {
 
       if (pError) throw pError;
 
-      // Fetch all orders to aggregate stats
-      // Note: In a large system, this should be paginated or done via SQL View/RPC
       const { data: orders, error: oError } = await supabase
         .from('orders')
-        .select('id, user_id, total, created_at, status');
+        .select('id, user_id, email, phone, total, created_at, status, metadata, shipping_address');
 
       if (oError) throw oError;
 
-      if (profiles) {
-        const processed = profiles.map(profile => {
-          const userOrders = orders?.filter(o => o.user_id === profile.id && o.status !== 'cancelled') || [];
-          const totalSpent = userOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+      const registeredIds = new Set((profiles || []).map(p => p.id));
+      const allCustomers: any[] = [];
 
-          let lastOrderDate: Date | null = null;
-          if (userOrders.length > 0) {
-            const dates = userOrders.map(o => new Date(o.created_at).getTime());
-            lastOrderDate = new Date(Math.max(...dates));
-          }
+      // 1. Registered users from profiles
+      (profiles || []).forEach(profile => {
+        const userOrders = orders?.filter(o => o.user_id === profile.id && o.status !== 'cancelled') || [];
+        const totalSpent = userOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+        let lastOrderDate: Date | null = null;
+        if (userOrders.length > 0) {
+          lastOrderDate = new Date(Math.max(...userOrders.map(o => new Date(o.created_at).getTime())));
+        }
+        let status = 'New';
+        if (totalSpent > 1000) status = 'VIP';
+        else if (userOrders.length > 0) status = 'Active';
+        else if (new Date(profile.created_at).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000) status = 'Inactive';
 
-          // Determine status dynamically
-          let status = 'New';
-          if (totalSpent > 1000) status = 'VIP'; // Example threshold
-          else if (userOrders.length > 0) status = 'Active';
-          else if (new Date(profile.created_at).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000) status = 'Inactive';
-
-          return {
-            id: profile.id,
-            name: profile.full_name || 'No Name',
-            email: profile.email,
-            phone: profile.phone || 'N/A',
-            avatar: getInitials(profile.full_name || profile.email),
-            orders: userOrders.length,
-            totalSpent: totalSpent,
-            joined: new Date(profile.created_at).toLocaleDateString(),
-            lastOrder: lastOrderDate ? timeAgo(lastOrderDate) : 'Never',
-            status: status,
-            rawJoined: new Date(profile.created_at),
-            rawLastOrder: lastOrderDate
-          };
+        allCustomers.push({
+          id: profile.id,
+          name: profile.full_name || 'No Name',
+          email: profile.email,
+          phone: profile.phone || 'N/A',
+          avatar: getInitials(profile.full_name || profile.email),
+          orders: userOrders.length,
+          totalSpent,
+          joined: new Date(profile.created_at).toLocaleDateString(),
+          lastOrder: lastOrderDate ? timeAgo(lastOrderDate) : 'Never',
+          status,
+          type: 'Registered',
+          rawJoined: new Date(profile.created_at),
+          rawLastOrder: lastOrderDate
         });
-        setCustomers(processed);
-      }
+      });
+
+      // 2. Guest customers (orders without a registered user_id)
+      const guestOrders = (orders || []).filter(o => !o.user_id || !registeredIds.has(o.user_id));
+      const guestMap = new Map<string, any[]>();
+      guestOrders.forEach(o => {
+        const key = (o.email || '').toLowerCase();
+        if (!key || key === 'pos@store.local') return;
+        if (!guestMap.has(key)) guestMap.set(key, []);
+        guestMap.get(key)!.push(o);
+      });
+
+      guestMap.forEach((gOrders, email) => {
+        const nonCancelled = gOrders.filter(o => o.status !== 'cancelled');
+        const totalSpent = nonCancelled.reduce((sum, o) => sum + Number(o.total || 0), 0);
+        const allDates = gOrders.map(o => new Date(o.created_at).getTime());
+        const firstSeen = new Date(Math.min(...allDates));
+        const lastSeen = new Date(Math.max(...allDates));
+
+        const guestName = gOrders[0]?.metadata?.first_name
+          ? `${gOrders[0].metadata.first_name} ${gOrders[0].metadata.last_name || ''}`.trim()
+          : gOrders[0]?.shipping_address?.name || email.split('@')[0];
+        const guestPhone = gOrders[0]?.phone || gOrders[0]?.metadata?.phone || 'N/A';
+
+        const hasPending = gOrders.some(o => o.status === 'pending');
+        const hasCompleted = nonCancelled.some(o => ['delivered', 'completed'].includes(o.status));
+
+        allCustomers.push({
+          id: `guest-${email}`,
+          name: guestName,
+          email,
+          phone: guestPhone,
+          avatar: getInitials(guestName),
+          orders: nonCancelled.length,
+          totalSpent,
+          joined: firstSeen.toLocaleDateString(),
+          lastOrder: timeAgo(lastSeen),
+          status: hasCompleted ? 'Active' : hasPending ? 'Pending' : 'Abandoned',
+          type: 'Guest',
+          rawJoined: firstSeen,
+          rawLastOrder: lastSeen
+        });
+      });
+
+      setCustomers(allCustomers);
     } catch (error) {
       console.error('Error fetching customers:', error);
     } finally {
@@ -103,7 +142,9 @@ export default function AdminCustomersPage() {
     'New': 'bg-blue-100 text-blue-700',
     'Active': 'bg-emerald-100 text-emerald-700',
     'VIP': 'bg-purple-100 text-purple-700',
-    'Inactive': 'bg-gray-100 text-gray-700'
+    'Inactive': 'bg-gray-100 text-gray-700',
+    'Pending': 'bg-amber-100 text-amber-700',
+    'Abandoned': 'bg-red-100 text-red-700'
   };
 
   const handleSelectAll = () => {
@@ -224,6 +265,8 @@ export default function AdminCustomersPage() {
                 <option>Active</option>
                 <option>VIP</option>
                 <option>Inactive</option>
+                <option>Pending</option>
+                <option>Abandoned</option>
               </select>
               <select
                 value={sortOption}
@@ -300,14 +343,23 @@ export default function AdminCustomersPage() {
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-full font-semibold">
+                        <div className={`w-10 h-10 flex items-center justify-center rounded-full font-semibold ${customer.type === 'Guest' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
                           {customer.avatar}
                         </div>
                         <div>
-                          <Link href={`/admin/customers/${customer.id}`} className="font-semibold text-gray-900 hover:text-emerald-700 whitespace-nowrap">
-                            {customer.name}
-                          </Link>
-                          <p className="text-sm text-gray-500">Joined {customer.joined}</p>
+                          <div className="flex items-center gap-2">
+                            {customer.type === 'Guest' ? (
+                              <span className="font-semibold text-gray-900 whitespace-nowrap">{customer.name}</span>
+                            ) : (
+                              <Link href={`/admin/customers/${customer.id}`} className="font-semibold text-gray-900 hover:text-emerald-700 whitespace-nowrap">
+                                {customer.name}
+                              </Link>
+                            )}
+                            {customer.type === 'Guest' && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-600 rounded">GUEST</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500">{customer.type === 'Guest' ? 'First seen' : 'Joined'} {customer.joined}</p>
                         </div>
                       </div>
                     </td>
@@ -325,18 +377,21 @@ export default function AdminCustomersPage() {
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center space-x-2">
-                        <Link
-                          href={`/admin/customers/${customer.id}`}
-                          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                        >
-                          <i className="ri-eye-line text-lg"></i>
-                        </Link>
-                        <button className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer">
-                          <i className="ri-mail-line text-lg"></i>
-                        </button>
-                        <button className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
-                          <i className="ri-delete-bin-line text-lg"></i>
-                        </button>
+                        {customer.type !== 'Guest' && (
+                          <Link href={`/admin/customers/${customer.id}`} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+                            <i className="ri-eye-line text-lg"></i>
+                          </Link>
+                        )}
+                        {customer.phone && customer.phone !== 'N/A' && (
+                          <a href={`tel:${customer.phone}`} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Call">
+                            <i className="ri-phone-line text-lg"></i>
+                          </a>
+                        )}
+                        {customer.email && (
+                          <a href={`mailto:${customer.email}`} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Email">
+                            <i className="ri-mail-line text-lg"></i>
+                          </a>
+                        )}
                       </div>
                     </td>
                   </tr>

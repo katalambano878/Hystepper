@@ -32,12 +32,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
 
-    // Load cart from localStorage on mount
+    // Load cart from localStorage on mount (sanitize so no invalid data causes crashes)
     useEffect(() => {
         const savedCart = localStorage.getItem('cart');
         if (savedCart) {
             try {
-                setCart(JSON.parse(savedCart));
+                const parsed = JSON.parse(savedCart);
+                if (Array.isArray(parsed)) {
+                    const safe = parsed.map((item: any) => ({
+                        id: item?.id ?? '',
+                        name: item?.name ?? 'Product',
+                        price: Number(item?.price) || 0,
+                        image: typeof item?.image === 'string' ? item.image : 'https://via.placeholder.com/400x400?text=Product',
+                        quantity: Math.max(1, Math.min(Number(item?.quantity) || 1, 999)),
+                        variant: item?.variant,
+                        slug: item?.slug ?? item?.id ?? '',
+                        maxStock: Number(item?.maxStock) > 0 ? Number(item.maxStock) : 999,
+                    })).filter((item: any) => item.id);
+                    setCart(safe);
+                }
             } catch (e) {
                 console.error('Failed to parse cart:', e);
             }
@@ -111,8 +124,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setCart([]);
     };
 
-    const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const cartCount = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const subtotal = cart.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
 
     return (
         <CartContext.Provider value={{

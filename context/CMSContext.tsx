@@ -117,7 +117,8 @@ export function CMSProvider({ children }: { children: ReactNode }) {
             if (data) {
                 const newSettings: any = { ...defaultSettings };
                 data.forEach((item: any) => {
-                    newSettings[item.key] = item.value;
+                    const v = item.value;
+                    if (v !== undefined && v !== null) newSettings[item.key] = v;
                 });
                 setSettings(newSettings);
             }
@@ -138,7 +139,11 @@ export function CMSProvider({ children }: { children: ReactNode }) {
     };
 
     const getSetting = (key: string): string => {
-        return settings[key] || defaultSettings[key] || '';
+        const raw = settings[key] ?? defaultSettings[key];
+        if (raw === undefined || raw === null) return '';
+        if (typeof raw === 'string') return raw;
+        if (typeof raw === 'number' || typeof raw === 'boolean') return String(raw);
+        try { return typeof raw === 'object' ? JSON.stringify(raw) : String(raw); } catch { return ''; }
     };
 
     const getActiveBanners = (position?: string): Banner[] => {

@@ -112,7 +112,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
             <div className="border-t border-gray-200 p-6 bg-gray-50">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-gray-700 font-medium">Subtotal</span>
-                <span className="text-2xl font-bold text-gray-900">GH₵{subtotal.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-gray-900">GH₵{(Number(subtotal) || 0).toFixed(2)}</span>
               </div>
 
               <p className="text-sm text-gray-600 mb-4 text-center">

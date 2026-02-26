@@ -94,7 +94,7 @@ export default function CartPage() {
                       {cartItems.map((item) => (
                         <div key={`${item.id}-${item.variant || ''}`} className="flex flex-col sm:flex-row gap-4 sm:gap-6 pb-6 border-b border-gray-200 last:border-0 last:pb-0">
                           <Link href={`/product/${item.slug || item.id}`} className="w-full sm:w-32 h-48 sm:h-32 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
-                            <img src={item.image} alt={item.name} className="w-full h-full object-cover object-top" />
+                            <img src={item.image || 'https://via.placeholder.com/400x400?text=Product'} alt={item.name || 'Product'} className="w-full h-full object-cover object-top" />
                           </Link>
 
                           <div className="flex-1">
@@ -118,7 +118,7 @@ export default function CartPage() {
 
                             <div className="flex items-center justify-between flex-wrap gap-4">
                               <div className="flex items-baseline space-x-3">
-                                <span className="text-xl font-bold text-gray-900">GH₵{item.price.toFixed(2)}</span>
+                                <span className="text-xl font-bold text-gray-900">GH₵{(Number(item.price) || 0).toFixed(2)}</span>
                               </div>
 
                               <div className="flex items-center space-x-4">
@@ -135,7 +135,7 @@ export default function CartPage() {
                                     onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1, item.variant)}
                                     className="w-12 h-10 text-center border-x-2 border-gray-300 focus:outline-none font-semibold"
                                     min="1"
-                                    max={item.maxStock}
+                                    max={item.maxStock ?? 999}
                                   />
                                   <button
                                     onClick={() => updateQuantity(item.id, item.quantity + 1, item.variant)}
@@ -169,7 +169,7 @@ export default function CartPage() {
                         {savedItems.map((item) => (
                           <div key={item.id} className="flex gap-4 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
                             <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
-                              <img src={item.image} alt={item.name} className="w-full h-full object-cover object-top" />
+                              <img src={item.image || 'https://via.placeholder.com/400x400?text=Product'} alt={item.name || 'Product'} className="w-full h-full object-cover object-top" />
                             </div>
                             <div className="flex-1">
                               <p className="font-semibold text-gray-900 mb-1">{item.name}</p>

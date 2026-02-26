@@ -158,15 +158,21 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const handleAddToCart = () => {
     if (!product) return;
 
+    const price = Number(product.price);
+    const maxStock = Number(product.stockCount) || 0;
+    const image = product.images?.[0] ?? 'https://via.placeholder.com/400x400?text=Product';
+
+    if (Number.isNaN(price) || price < 0) return;
+
     addToCart({
       id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.images[0],
-      quantity: quantity,
+      name: product.name ?? 'Product',
+      price,
+      image,
+      quantity: Math.max(1, Math.min(quantity, maxStock || 999)),
       variant: [selectedSize, selectedColor].filter(Boolean).join(' / ') || undefined,
-      slug: product.slug,
-      maxStock: product.stockCount
+      slug: product.slug ?? product.id,
+      maxStock: maxStock || 999
     });
   };
 

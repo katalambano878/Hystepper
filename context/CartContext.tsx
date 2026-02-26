@@ -62,15 +62,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
             if (existingItemIndex > -1) {
                 const newCart = [...prevCart];
                 const existingItem = newCart[existingItemIndex];
-                // Ensure we don't exceed max stock
+                const maxStock = Number(existingItem.maxStock);
+                const cap = Number.isNaN(maxStock) || maxStock <= 0 ? 999 : maxStock;
                 const newQuantity = Math.min(
                     existingItem.quantity + newItem.quantity,
-                    existingItem.maxStock
+                    cap
                 );
                 newCart[existingItemIndex] = { ...existingItem, quantity: newQuantity };
                 return newCart;
             } else {
-                return [...prevCart, newItem];
+                const safeItem = {
+                    ...newItem,
+                    maxStock: (Number(newItem.maxStock) > 0 ? Number(newItem.maxStock) : 999),
+                    price: Number(newItem.price) || 0,
+                    quantity: Math.max(1, Number(newItem.quantity) || 1),
+                    image: newItem.image ?? 'https://via.placeholder.com/400x400?text=Product'
+                };
+                return [...prevCart, safeItem];
             }
         });
 
@@ -89,10 +97,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
             return;
         }
 
+        const cap = (item: CartItem) => (Number(item.maxStock) > 0 ? Number(item.maxStock) : 999);
         setCart((prevCart) =>
             prevCart.map((item) =>
                 item.id === itemId && item.variant === variant
-                    ? { ...item, quantity: Math.min(quantity, item.maxStock) }
+                    ? { ...item, quantity: Math.min(quantity, cap(item)) }
                     : item
             )
         );

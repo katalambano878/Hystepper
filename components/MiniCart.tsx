@@ -56,8 +56,8 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
                   <div key={`${item.id}-${item.variant}`} className="flex space-x-4 bg-gray-50 rounded-lg p-4">
                     <div className="w-20 h-20 bg-white rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                       <img
-                        src={item.image}
-                        alt={item.name}
+                        src={item.image || 'https://via.placeholder.com/400x400?text=Product'}
+                        alt={item.name || 'Product'}
                         className="w-full h-full object-cover object-center"
                       />
                     </div>
@@ -72,7 +72,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
 
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-lg font-bold text-gold-700">
-                          GH₵{item.price.toFixed(2)}
+                          GH₵{(Number(item.price) || 0).toFixed(2)}
                         </span>
 
                         <div className="flex items-center border border-gray-300 rounded bg-white">
@@ -87,13 +87,13 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
                           <button
                             onClick={() => updateQuantity(item.id, item.quantity + 1, item.variant)}
                             className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
-                            disabled={item.quantity >= item.maxStock}
+                            disabled={item.quantity >= (item.maxStock ?? 999)}
                           >
                             <i className="ri-add-line text-gray-700"></i>
                           </button>
                         </div>
                       </div>
-                      {item.quantity >= item.maxStock && (
+                      {item.quantity >= (item.maxStock ?? 999) && (
                         <p className="text-xs text-amber-600 mt-1">Max stock reached</p>
                       )}
                     </div>

@@ -28,8 +28,8 @@ export default function OrderSummary({ items, subtotal, shipping, tax, total, pa
           <div key={`${item.id}-${item.variant || 'novar'}`} className="flex space-x-4">
             <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
               <img
-                src={item.image}
-                alt={item.name}
+                src={item.image || 'https://via.placeholder.com/400x400?text=Product'}
+                alt={item.name || 'Product'}
                 className="w-full h-full object-cover"
               />
               <div className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-gold-600 text-white text-xs font-bold rounded-full">
@@ -39,7 +39,7 @@ export default function OrderSummary({ items, subtotal, shipping, tax, total, pa
             <div className="flex-1">
               <h3 className="font-semibold text-gray-900 text-sm line-clamp-2">{item.name}</h3>
               {item.variant && <p className="text-xs text-gray-500 mt-0.5">{item.variant}</p>}
-              <p className="text-gold-700 font-bold mt-1">GH₵ {item.price.toFixed(2)}</p>
+              <p className="text-gold-700 font-bold mt-1">GH₵ {(Number(item.price) || 0).toFixed(2)}</p>
             </div>
           </div>
         ))}

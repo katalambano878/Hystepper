@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 
@@ -11,17 +12,26 @@ interface MiniCartProps {
 export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
   const { cart, removeFromCart, updateQuantity, subtotal } = useCart();
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <>
       <div
-        className="fixed inset-0 bg-gray-900 bg-opacity-50 z-40 transition-opacity"
+        className="fixed inset-0 bg-gray-900/50 z-40"
         onClick={onClose}
       ></div>
 
-      <div className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col slide-in-right">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <div className="fixed top-0 bottom-0 right-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col animate-[slideIn_0.25s_ease-out]"
+        style={{ height: '100dvh' }}
+      >
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-bold text-gray-900">
             Shopping Cart ({cart.reduce((sum, i) => sum + i.quantity, 0)})
           </h2>
@@ -109,7 +119,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
               </div>
             </div>
 
-            <div className="border-t border-gray-200 p-6 bg-gray-50">
+            <div className="border-t border-gray-200 p-6 bg-gray-50 flex-shrink-0">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-gray-700 font-medium">Subtotal</span>
                 <span className="text-2xl font-bold text-gray-900">GH₵{(Number(subtotal) || 0).toFixed(2)}</span>

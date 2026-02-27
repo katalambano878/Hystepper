@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function BlogPage() {
   const featuredPost = {
@@ -72,10 +73,13 @@ export default function BlogPage() {
           <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-shadow">
             <div className="grid md:grid-cols-2 gap-0">
               <div className="relative h-96 md:h-auto">
-                <img
+                <Image
                   src={featuredPost.image}
                   alt={featuredPost.title}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover"
+                  priority
                 />
                 <div className="absolute top-6 left-6">
                   <span className="bg-emerald-700 text-white px-4 py-2 rounded-full text-sm font-medium">
@@ -122,10 +126,12 @@ export default function BlogPage() {
                   className="bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-all cursor-pointer"
                 >
                   <div className="relative h-64">
-                    <img
+                    <Image
                       src={post.image}
                       alt={post.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      className="object-cover"
                     />
                   </div>
                   <div className="p-6">

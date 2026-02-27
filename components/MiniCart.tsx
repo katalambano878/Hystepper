@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 
 interface MiniCartProps {
@@ -64,11 +65,13 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
               <div className="space-y-4">
                 {cart.map((item) => (
                   <div key={`${item.id}-${item.variant}`} className="flex space-x-4 bg-gray-50 rounded-lg p-4">
-                    <div className="w-20 h-20 bg-white rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
-                      <img
+                    <div className="relative w-20 h-20 bg-white rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                      <Image
                         src={item.image || 'https://via.placeholder.com/400x400?text=Product'}
                         alt={item.name || 'Product'}
-                        className="w-full h-full object-cover object-center"
+                        fill
+                        sizes="80px"
+                        className="object-cover object-center"
                       />
                     </div>
 

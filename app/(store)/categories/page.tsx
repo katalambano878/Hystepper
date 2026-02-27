@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import PageHero from '@/components/PageHero';
 
-export const revalidate = 0; // Ensure fresh data on every visit
+export const revalidate = 300; // Revalidate every 5 minutes
 
 export default async function CategoriesPage() {
   const { data: categoriesData } = await supabase
@@ -58,10 +59,12 @@ export default async function CategoriesPage() {
                 style={{ animationDelay: `${idx * 100}ms` }}
               >
                 <div className="relative h-48 overflow-hidden">
-                  <img
-                    src={category.image}
+                  <Image
+                    src={category.image || 'https://via.placeholder.com/400x300?text=Category'}
                     alt={category.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover group-hover:scale-110 transition-transform duration-500"
                   />
                   <div className={`absolute inset-0 bg-gradient-to-t ${category.color} opacity-0 group-hover:opacity-20 transition-opacity`}></div>
                 </div>

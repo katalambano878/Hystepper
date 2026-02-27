@@ -33,13 +33,27 @@ export default function AnnouncementBar() {
         }
     }, [banners.length]);
 
+    const BANNER_CACHE_KEY = 'hy_banners';
+    const BANNER_CACHE_TTL = 5 * 60 * 1000;
+
     const fetchBanners = async () => {
+        try {
+            const cached = sessionStorage.getItem(BANNER_CACHE_KEY);
+            if (cached) {
+                const { data: cachedData, ts } = JSON.parse(cached);
+                if (Date.now() - ts < BANNER_CACHE_TTL) {
+                    setBanners(cachedData);
+                    return;
+                }
+            }
+        } catch {}
+
         try {
             const now = new Date().toISOString();
 
             const { data, error } = await supabase
                 .from('banners')
-                .select('*')
+                .select('id, title, subtitle, background_color, text_color, button_text, button_url')
                 .eq('is_active', true)
                 .eq('position', 'top')
                 .or(`start_date.is.null,start_date.lte.${now}`)
@@ -52,6 +66,9 @@ export default function AnnouncementBar() {
             }
 
             setBanners(data || []);
+            try {
+                sessionStorage.setItem(BANNER_CACHE_KEY, JSON.stringify({ data: data || [], ts: Date.now() }));
+            } catch {}
         } catch (error) {
             console.error('Error fetching banners:', error);
         }

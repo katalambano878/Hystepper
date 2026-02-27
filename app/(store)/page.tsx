@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import ProductCard from '@/components/ProductCard';
@@ -40,8 +41,8 @@ export default function HomePage() {
         const { data: productsData, error: productsError } = await supabase
           .from('products')
           .select(`
-            *,
-            product_images!product_id(url, position, alt_text),
+            id, name, slug, price, compare_at_price, quantity, rating_avg, review_count, featured,
+            product_images!product_id(url, position),
             product_variants(option2, option3, image_url)
           `)
           .eq('status', 'active')
@@ -83,8 +84,8 @@ export default function HomePage() {
         const { data: discountData, error: discountError } = await supabase
           .from('products')
           .select(`
-            *,
-            product_images!product_id(url, position, alt_text),
+            id, name, slug, price, compare_at_price, quantity, rating_avg, review_count,
+            product_images!product_id(url, position),
             product_variants(option2, option3, image_url)
           `)
           .eq('status', 'active')
@@ -142,10 +143,13 @@ export default function HomePage() {
       <section className="relative h-[70vh] lg:h-[85vh] overflow-hidden group">
         {/* Full Background Image */}
         <div className="absolute inset-0 overflow-hidden">
-          <img
+          <Image
             src={config.hero.backgroundImage}
             alt="Hy_stepper Collection"
-            className="w-full h-full object-cover object-top animate-zoom-in"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-top"
           />
           {/* Gradient overlay for readability */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60"></div>

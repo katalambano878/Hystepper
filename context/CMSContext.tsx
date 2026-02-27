@@ -107,12 +107,28 @@ export function CMSProvider({ children }: { children: ReactNode }) {
     const [banners, setBanners] = useState<Banner[]>([]);
     const [loading, setLoading] = useState(false);
 
-    const fetchCMSData = async () => {
+    const CACHE_KEY = 'hy_cms_settings';
+    const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+    const fetchCMSData = async (force = false) => {
+        if (!force) {
+            try {
+                const cached = sessionStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    const { data: cachedData, ts } = JSON.parse(cached);
+                    if (Date.now() - ts < CACHE_TTL) {
+                        setSettings(cachedData);
+                        return;
+                    }
+                }
+            } catch {}
+        }
+
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('store_settings')
-                .select('*');
+                .select('key, value');
 
             if (data) {
                 const newSettings: any = { ...defaultSettings };
@@ -121,6 +137,9 @@ export function CMSProvider({ children }: { children: ReactNode }) {
                     if (v !== undefined && v !== null) newSettings[item.key] = v;
                 });
                 setSettings(newSettings);
+                try {
+                    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: newSettings, ts: Date.now() }));
+                } catch {}
             }
         } catch (err) {
             console.error('Error loading CMS data:', err);
@@ -129,7 +148,6 @@ export function CMSProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    // Initial load
     useEffect(() => {
         fetchCMSData();
     }, []);
@@ -166,7 +184,7 @@ export function CMSProvider({ children }: { children: ReactNode }) {
                 getContent,
                 getSetting,
                 getActiveBanners,
-                refreshCMS: fetchCMSData,
+                refreshCMS: () => fetchCMSData(true),
             }}
         >
             {children}

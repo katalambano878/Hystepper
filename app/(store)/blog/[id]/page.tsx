@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export async function generateStaticParams() {
   return [
@@ -283,10 +284,13 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
   return (
     <div className="min-h-screen bg-white">
       <div className="relative h-96 bg-gray-900">
-        <img
+        <Image
           src={post.image}
           alt={post.title}
-          className="w-full h-full object-cover opacity-50"
+          fill
+          sizes="100vw"
+          className="object-cover opacity-50"
+          priority
         />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -368,10 +372,12 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
                 className="bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-all cursor-pointer"
               >
                 <div className="relative h-48">
-                  <img
+                  <Image
                     src={relatedPost.image}
                     alt={relatedPost.title}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover"
                   />
                   <span className="absolute top-4 left-4 bg-emerald-700 text-white px-3 py-1 rounded-full text-xs font-medium">
                     {relatedPost.category}

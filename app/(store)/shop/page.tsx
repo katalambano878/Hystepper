@@ -58,7 +58,7 @@ function ShopContent() {
     async function fetchCategories() {
       const { data, error } = await supabase
         .from('categories')
-        .select('*');
+        .select('id, name, slug, parent_id');
 
       if (data) {
         // Store raw data for hierarchy logic
@@ -76,7 +76,7 @@ function ShopContent() {
         let query = supabase
           .from('products')
           .select(`
-            *,
+            id, name, slug, price, compare_at_price, quantity, rating_avg, review_count, heel_height, product_code, style_name,
             categories!inner(name, slug),
             product_images!product_id(url, position),
             product_variants(option2, option3, image_url)

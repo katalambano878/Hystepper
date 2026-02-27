@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import dynamic from 'next/dynamic';
 import ProductCard from '@/components/ProductCard';
-import ProductReviews from '@/components/ProductReviews';
+const ProductReviews = dynamic(() => import('@/components/ProductReviews'), { ssr: false });
 import { StructuredData, generateProductSchema, generateBreadcrumbSchema } from '@/components/SEOHead';
 import { notFound } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
@@ -41,20 +43,15 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     async function fetchProduct() {
       try {
         setLoading(true);
-        // Fetch main product
-        // Fetch main product
         let query = supabase
           .from('products')
           .select(`
-            *,
+            id, name, slug, description, price, compare_at_price, quantity, sku,
+            category_id, rating_avg, product_code, material, heel_height, style_name,
+            sizing_notes, metadata,
             categories(name),
-            product_variants(*),
-            product_images(url, position, alt_text),
-            product_code,
-            material,
-            heel_height,
-            style_name,
-            sizing_notes
+            product_variants(id, name, option1, option2, option3, quantity, image_url),
+            product_images(url, position)
           `);
 
         // Check if slug looks like a UUID
@@ -135,9 +132,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         if (productData.category_id) {
           const { data: related } = await supabase
             .from('products')
-            .select('*, product_images(url, position)')
+            .select('slug, name, price, quantity, rating_avg, product_images(url, position)')
             .eq('category_id', productData.category_id)
+            .eq('status', 'active')
             .neq('id', productData.id)
+            .order('position', { foreignTable: 'product_images', ascending: true })
             .limit(4);
 
           if (related) {
@@ -299,15 +298,18 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         className="w-full h-full object-cover"
                         controls
                         playsInline
-                        autoPlay
                         muted
-                        loop
+                        preload="metadata"
+                        poster={images[0] !== safeSrc ? images[0] : undefined}
                       />
                     ) : (
-                      <img
+                      <Image
                         src={safeSrc}
                         alt={product.name || 'Product'}
-                        className="w-full h-full object-cover object-center transition-opacity duration-300"
+                        fill
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                        className="object-cover object-center"
+                        priority={selectedImage === 0 && !colorOverrideImage}
                       />
                     );
                   })()}
@@ -336,10 +338,12 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                               <i className="ri-play-circle-fill text-white text-3xl absolute z-10 drop-shadow-md"></i>
                             </div>
                           ) : (
-                            <img
-                              src={typeof image === 'string' ? image : ''}
+                            <Image
+                              src={typeof image === 'string' && image ? image : 'https://via.placeholder.com/200x200?text=No+Image'}
                               alt={`${product.name || 'Product'} view ${index + 1}`}
-                              className="w-full h-full object-cover object-center"
+                              fill
+                              sizes="120px"
+                              className="object-cover object-center"
                             />
                           )}
                         </button>

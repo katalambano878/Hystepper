@@ -197,8 +197,10 @@ export default function POSPage() {
             const orderItems = cart.map(item => ({
                 order_id: order.id,
                 product_id: item.id,
+                product_name: item.name,
                 quantity: item.cartQuantity,
-                price: item.price
+                unit_price: item.price,
+                total_price: item.price * item.cartQuantity
             }));
 
             const { error: itemsError } = await supabase

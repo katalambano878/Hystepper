@@ -169,6 +169,8 @@ export default function POSPage() {
                 email: guestDetails.email
             };
 
+            const addressData = Object.keys(shippingAddr).length > 0 ? shippingAddr : { note: 'POS in-store sale' };
+
             const { data: order, error: orderError } = await supabase
                 .from('orders')
                 .insert({
@@ -182,7 +184,8 @@ export default function POSPage() {
                     payment_status: 'paid',
                     payment_method: paymentMethod,
                     payment_provider: 'pos',
-                    shipping_address: shippingAddr,
+                    shipping_address: addressData,
+                    billing_address: addressData,
                     metadata: { ...orderMeta, pos_sale: true }
                 })
                 .select()

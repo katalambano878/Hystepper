@@ -143,14 +143,23 @@ export default function HomePage() {
       <section className="relative h-[70vh] lg:h-[85vh] overflow-hidden group">
         {/* Full Background Image */}
         <div className="absolute inset-0 overflow-hidden">
-          <Image
-            src={config.hero.backgroundImage}
-            alt="Hy_stepper Collection"
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover object-top"
-          />
+          {config.hero.backgroundImage.startsWith('data:') ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={config.hero.backgroundImage}
+              alt="Hy_stepper Collection"
+              className="w-full h-full object-cover object-top"
+            />
+          ) : (
+            <Image
+              src={config.hero.backgroundImage}
+              alt="Hy_stepper Collection"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-top"
+            />
+          )}
           {/* Gradient overlay for readability */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60"></div>
         </div>

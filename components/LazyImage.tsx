@@ -31,6 +31,7 @@ export default function LazyImage({
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const safeSrc = typeof src === 'string' && src.trim() ? src : FALLBACK_SRC;
+  const isDataUrl = safeSrc.startsWith('data:');
 
   const handleLoad = () => {
     setIsLoaded(true);
@@ -43,19 +44,36 @@ export default function LazyImage({
     onLoad?.();
   };
 
-  // Determine if we should use fill mode or explicit dimensions
   const useFill = fill || (!width && !height);
+
+  if (isDataUrl || hasError) {
+    return (
+      <div className={`relative overflow-hidden ${className}`} style={!useFill ? { width, height } : undefined}>
+        {hasError ? (
+          <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
+            <i className="ri-image-line text-2xl text-gray-400"></i>
+          </div>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={safeSrc}
+            alt={alt || 'Product'}
+            className={`w-full h-full object-cover object-top`}
+            onLoad={handleLoad}
+            onError={handleError}
+            loading="lazy"
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`relative overflow-hidden ${className}`} style={!useFill ? { width, height } : undefined}>
       {!isLoaded && (
         <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
       )}
-      {hasError ? (
-        <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
-          <i className="ri-image-line text-2xl text-gray-400"></i>
-        </div>
-      ) : useFill ? (
+      {useFill ? (
         <Image
           src={safeSrc}
           alt={alt || 'Product'}

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { toast } from 'sonner';
@@ -261,13 +260,13 @@ export default function OrderHistory() {
               <div className="space-y-4 mb-4">
                 {order.items.map((item) => (
                   <div key={item.id} className="flex space-x-4">
-                    <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
-                      <Image
+                    <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
                         src={item.image || 'https://via.placeholder.com/150'}
                         alt={item.name}
-                        fill
-                        sizes="80px"
-                        className="object-cover object-center"
+                        className="w-full h-full object-cover object-center"
+                        loading="lazy"
                       />
                     </div>
                     <div className="flex-1 min-w-0">

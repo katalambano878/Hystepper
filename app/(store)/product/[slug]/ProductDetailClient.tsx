@@ -36,6 +36,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [notifyEmail, setNotifyEmail] = useState('');
   const [notifySubmitted, setNotifySubmitted] = useState(false);
   const [notifyLoading, setNotifyLoading] = useState(false);
+  const [mainImageError, setMainImageError] = useState(false);
 
   const { addToCart } = useCart();
 
@@ -286,30 +287,47 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   {(() => {
                     const images = Array.isArray(product.images) ? product.images : [];
                     const fallback = images[0] || 'https://via.placeholder.com/800x800?text=No+Image';
-                    const currentMedia = (colorOverrideImage && typeof colorOverrideImage === 'string')
-                      ? colorOverrideImage
+                    const currentMedia = (colorOverrideImage && typeof colorOverrideImage === 'string' && colorOverrideImage.trim())
+                      ? colorOverrideImage.trim()
                       : (images[selectedImage] ?? fallback);
-                    const safeSrc = typeof currentMedia === 'string' && currentMedia ? currentMedia : fallback;
+                    const safeSrc = typeof currentMedia === 'string' && currentMedia.trim() ? currentMedia.trim() : fallback;
                     const isVideo = safeSrc.startsWith('data:video') || /\.(mp4|webm|ogg)$/i.test(safeSrc);
 
-                    return isVideo ? (
-                      <video
-                        src={safeSrc}
-                        className="w-full h-full object-cover"
-                        controls
-                        playsInline
-                        muted
-                        preload="metadata"
-                        poster={images[0] !== safeSrc ? images[0] : undefined}
-                      />
-                    ) : (
+                    if (isVideo) {
+                      return (
+                        <video
+                          src={safeSrc}
+                          className="w-full h-full object-cover"
+                          controls
+                          playsInline
+                          muted
+                          preload="metadata"
+                          poster={images[0] !== safeSrc ? images[0] : undefined}
+                        />
+                      );
+                    }
+
+                    if (mainImageError || safeSrc.startsWith('data:')) {
+                      return (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={safeSrc}
+                          alt={product.name || 'Product'}
+                          className="w-full h-full object-cover object-center"
+                        />
+                      );
+                    }
+
+                    return (
                       <Image
+                        key={safeSrc}
                         src={safeSrc}
                         alt={product.name || 'Product'}
                         fill
                         sizes="(max-width: 768px) 100vw, 50vw"
                         className="object-cover object-center"
-                        priority={selectedImage === 0 && !colorOverrideImage}
+                        unoptimized={!!colorOverrideImage}
+                        onError={() => setMainImageError(true)}
                       />
                     );
                   })()}
@@ -328,7 +346,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       return (
                         <button
                           key={index}
-                          onClick={() => { setSelectedImage(index); setColorOverrideImage(null); }}
+                          onClick={() => { setSelectedImage(index); setColorOverrideImage(null); setMainImageError(false); }}
                           className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${!colorOverrideImage && selectedImage === index ? 'border-gold-600 shadow-md' : 'border-gray-200 hover:border-gray-300'
                             }`}
                         >
@@ -338,12 +356,12 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                               <i className="ri-play-circle-fill text-white text-3xl absolute z-10 drop-shadow-md"></i>
                             </div>
                           ) : (
-                            <Image
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
                               src={typeof image === 'string' && image ? image : 'https://via.placeholder.com/200x200?text=No+Image'}
                               alt={`${product.name || 'Product'} view ${index + 1}`}
-                              fill
-                              sizes="120px"
-                              className="object-cover object-center"
+                              className="w-full h-full object-cover object-center"
+                              loading="lazy"
                             />
                           )}
                         </button>
@@ -405,6 +423,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                           onClick={() => {
                             setSelectedColor(colorName);
                             setColorOverrideImage(colorImage);
+                            setMainImageError(false);
                           }}
                           className={`group relative w-10 h-10 rounded-full border-2 transition-all cursor-pointer ${selectedColor === colorName
                             ? 'border-gold-600 ring-2 ring-gold-300 scale-110'

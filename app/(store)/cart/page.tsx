@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useState } from 'react';
 import CartCountdown from '@/components/CartCountdown';
 // import CartSuggestions from '@/components/CartSuggestions'; // Removed demo suggestions
@@ -94,8 +93,9 @@ export default function CartPage() {
                     <div className="space-y-6">
                       {cartItems.map((item) => (
                         <div key={`${item.id}-${item.variant || ''}`} className="flex flex-col sm:flex-row gap-4 sm:gap-6 pb-6 border-b border-gray-200 last:border-0 last:pb-0">
-                          <Link href={`/product/${item.slug || item.id}`} className="relative w-full sm:w-32 h-48 sm:h-32 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
-                            <Image src={item.image || 'https://via.placeholder.com/400x400?text=Product'} alt={item.name || 'Product'} fill sizes="(max-width: 640px) 100vw, 128px" className="object-cover object-top" />
+                          <Link href={`/product/${item.slug || item.id}`} className="w-full sm:w-32 h-48 sm:h-32 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={item.image || 'https://via.placeholder.com/400x400?text=Product'} alt={item.name || 'Product'} className="w-full h-full object-cover object-top" loading="lazy" />
                           </Link>
 
                           <div className="flex-1">
@@ -169,8 +169,9 @@ export default function CartPage() {
                       <div className="space-y-4">
                         {savedItems.map((item) => (
                           <div key={item.id} className="flex gap-4 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
-                            <div className="relative w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
-                              <Image src={item.image || 'https://via.placeholder.com/400x400?text=Product'} alt={item.name || 'Product'} fill sizes="80px" className="object-cover object-top" />
+                            <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={item.image || 'https://via.placeholder.com/400x400?text=Product'} alt={item.name || 'Product'} className="w-full h-full object-cover object-top" loading="lazy" />
                             </div>
                             <div className="flex-1">
                               <p className="font-semibold text-gray-900 mb-1">{item.name}</p>

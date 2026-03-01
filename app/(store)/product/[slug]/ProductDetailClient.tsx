@@ -168,17 +168,28 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     }
   }, [slug]);
 
+  const [showSizeError, setShowSizeError] = useState(false);
+  const [showColorError, setShowColorError] = useState(false);
+
   const handleAddToCart = () => {
     if (!product) return;
 
+    let hasError = false;
+
     // Validation: Ensure required variants are selected before adding to cart
     if (product.colors && product.colors.length > 0 && !selectedColor) {
-      alert(`Please select a ${product.colors.some((c: any) => c.image) ? 'style' : 'color'} before adding to cart.`);
-      return;
+      setShowColorError(true);
+      hasError = true;
     }
 
     if (product.sizes && product.sizes.length > 0 && !selectedSize) {
-      alert('Please select a size before adding to cart.');
+      setShowSizeError(true);
+      hasError = true;
+    }
+
+    if (hasError) {
+      // Scroll up slightly to show the error if needed
+      window.scrollBy({ top: -100, behavior: 'smooth' });
       return;
     }
 
@@ -207,14 +218,21 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const handleBuyNow = () => {
     if (!product) return;
 
+    let hasError = false;
+
     // Validation: Ensure required variants are selected before buying
     if (product.colors && product.colors.length > 0 && !selectedColor) {
-      alert(`Please select a ${product.colors.some((c: any) => c.image) ? 'style' : 'color'} before buying.`);
-      return;
+      setShowColorError(true);
+      hasError = true;
     }
 
     if (product.sizes && product.sizes.length > 0 && !selectedSize) {
-      alert('Please select a size before buying.');
+      setShowSizeError(true);
+      hasError = true;
+    }
+
+    if (hasError) {
+      window.scrollBy({ top: -100, behavior: 'smooth' });
       return;
     }
 
@@ -446,7 +464,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     )}
                   </div>
 
-                  <p className="text-gray-600 leading-relaxed mb-8 text-base">{product.description}</p>
+                  <p className="text-gray-600 leading-relaxed mb-8 text-base whitespace-pre-line">{product.description}</p>
 
                 {/* Variant Selection — color swatches or image thumbnails */}
                 {product.colors && product.colors.length > 0 && (
@@ -454,10 +472,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     <div className="flex items-center justify-between mb-3">
                       <label className="font-semibold text-gray-900">
                         {product.colors.some((c: any) => c.image) ? 'Style' : 'Colour'}
+                        {showColorError && !selectedColor && (
+                          <span className="text-red-500 text-sm font-normal ml-2 animate-pulse">* Required</span>
+                        )}
                       </label>
                       {selectedColor && <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedColor}</span>}
                     </div>
-                    <div className="flex flex-wrap gap-3">
+                    <div className={`flex flex-wrap gap-3 ${showColorError && !selectedColor ? 'p-2 -m-2 border border-red-200 rounded-2xl bg-red-50/50' : ''}`}>
                       {product.colors.map((color: any) => {
                         const colorName = color?.name ?? '';
                         const colorImage = typeof color?.image === 'string' && color.image ? color.image : null;
@@ -470,6 +491,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                               key={colorName}
                               onClick={() => {
                                 setSelectedColor(colorName);
+                                setShowColorError(false);
                                 setColorOverrideImage(colorImage);
                                 setMainImageError(false);
                               }}
@@ -494,6 +516,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             key={colorName || colorHex}
                             onClick={() => {
                               setSelectedColor(colorName);
+                              setShowColorError(false);
                               setColorOverrideImage(null);
                               setMainImageError(false);
                             }}
@@ -519,14 +542,22 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 {product.sizes && product.sizes.length > 0 && (
                   <div className="mb-8">
                     <div className="flex items-center justify-between mb-3">
-                      <label className="font-semibold text-gray-900">Size</label>
+                      <label className="font-semibold text-gray-900">
+                        Size
+                        {showSizeError && !selectedSize && (
+                          <span className="text-red-500 text-sm font-normal ml-2 animate-pulse">* Required</span>
+                        )}
+                      </label>
                       {selectedSize && <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedSize}</span>}
                     </div>
-                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                    <div className={`grid grid-cols-4 sm:grid-cols-5 gap-3 ${showSizeError && !selectedSize ? 'p-2 -m-2 border border-red-200 rounded-2xl bg-red-50/50' : ''}`}>
                       {product.sizes.map((size: string) => (
                         <button
                           key={size}
-                          onClick={() => setSelectedSize(size)}
+                          onClick={() => {
+                            setSelectedSize(size);
+                            setShowSizeError(false);
+                          }}
                           className={`py-3 rounded-xl border-2 font-semibold transition-all text-center cursor-pointer ${selectedSize === size
                             ? 'border-gold-600 bg-gold-600 text-white shadow-md shadow-gold-600/20 scale-[1.02]'
                             : 'border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50'

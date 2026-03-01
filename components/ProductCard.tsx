@@ -121,22 +121,14 @@ export default function ProductCard({
         <button
           onClick={(e) => {
             e.preventDefault();
-            // Assuming default maxStock of 10 if not provided, since inStock is true
-            addToCart({
-              id,
-              name: name || 'Product',
-              price: Number(price) || 0,
-              image: fallbackImage,
-              quantity: 1,
-              slug: id,
-              maxStock: 50
-            });
+            // Redirect to product page to select variants before adding to cart
+            window.location.href = `/product/${id}`;
           }}
           className="w-full bg-gray-900 hover:bg-gold-600 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 whitespace-nowrap text-sm lg:text-base cursor-pointer"
           disabled={!inStock}
         >
           <i className="ri-shopping-cart-line text-lg"></i>
-          <span>{inStock ? 'Add to Cart' : 'Out of Stock'}</span>
+          <span>{inStock ? 'Select Options' : 'Out of Stock'}</span>
         </button>
       </div>
     </div>

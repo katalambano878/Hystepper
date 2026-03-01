@@ -126,7 +126,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
         // Default select first size if available
         if (transformedProduct.sizes.length > 0) {
-          setSelectedSize(transformedProduct.sizes[0]);
+          // Do not auto-select size so validation triggers
+          // setSelectedSize(transformedProduct.sizes[0]);
         }
 
         // Fetch related products (e.g., same category)
@@ -170,6 +171,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const handleAddToCart = () => {
     if (!product) return;
 
+    // Validation: Ensure required variants are selected before adding to cart
+    if (product.colors && product.colors.length > 0 && !selectedColor) {
+      alert(`Please select a ${product.colors.some((c: any) => c.image) ? 'style' : 'color'} before adding to cart.`);
+      return;
+    }
+
+    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+      alert('Please select a size before adding to cart.');
+      return;
+    }
+
     const price = Number(product.price);
     const maxStock = Number(product.stockCount) || 0;
 
@@ -193,6 +205,19 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   };
 
   const handleBuyNow = () => {
+    if (!product) return;
+
+    // Validation: Ensure required variants are selected before buying
+    if (product.colors && product.colors.length > 0 && !selectedColor) {
+      alert(`Please select a ${product.colors.some((c: any) => c.image) ? 'style' : 'color'} before buying.`);
+      return;
+    }
+
+    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+      alert('Please select a size before buying.');
+      return;
+    }
+
     handleAddToCart();
     window.location.href = '/checkout';
   };

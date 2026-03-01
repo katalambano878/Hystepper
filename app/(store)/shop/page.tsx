@@ -82,7 +82,9 @@ function ShopContent() {
             product_variants(option2, option3, image_url)
           `, { count: 'exact' })
           .eq('status', 'active')
-          .order('position', { foreignTable: 'product_images', ascending: true });
+          .not('product_images.url', 'ilike', 'data:video%')
+          .order('position', { foreignTable: 'product_images', ascending: true })
+          .limit(1, { foreignTable: 'product_images' });
 
         const search = searchParams.get('search');
 

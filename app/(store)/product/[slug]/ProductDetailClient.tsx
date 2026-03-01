@@ -137,8 +137,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             .eq('category_id', productData.category_id)
             .eq('status', 'active')
             .neq('id', productData.id)
+            .not('product_images.url', 'ilike', 'data:video%')
             .order('position', { foreignTable: 'product_images', ascending: true })
-            .limit(4);
+            .limit(4)
+            .limit(1, { foreignTable: 'product_images' });
 
           if (related) {
             setRelatedProducts(related.map(p => ({

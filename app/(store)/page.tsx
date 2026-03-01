@@ -46,10 +46,12 @@ export default function HomePage() {
             product_variants(option2, option3, image_url)
           `)
           .eq('status', 'active')
+          .not('product_images.url', 'ilike', 'data:video%')
           .order('featured', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(limit)
-          .order('position', { foreignTable: 'product_images', ascending: true });
+          .order('position', { foreignTable: 'product_images', ascending: true })
+          .limit(1, { foreignTable: 'product_images' });
 
         if (productsError) console.error('Error fetching home products:', productsError);
 
@@ -91,9 +93,11 @@ export default function HomePage() {
           .eq('status', 'active')
           .not('compare_at_price', 'is', null)
           .gt('compare_at_price', 0)
+          .not('product_images.url', 'ilike', 'data:video%')
           .order('created_at', { ascending: false })
           .limit(8)
-          .order('position', { foreignTable: 'product_images', ascending: true });
+          .order('position', { foreignTable: 'product_images', ascending: true })
+          .limit(1, { foreignTable: 'product_images' });
 
         if (discountError) console.error('Error fetching discounted products:', discountError);
 

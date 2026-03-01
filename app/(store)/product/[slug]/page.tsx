@@ -11,6 +11,8 @@ async function getProduct(slug: string) {
     .from('products')
     .select('name, description, price, compare_at_price, product_images(url, position), categories(name)')
     .eq('slug', slug)
+    .order('position', { foreignTable: 'product_images', ascending: true })
+    .limit(1, { foreignTable: 'product_images' })
     .single();
   return data;
 }

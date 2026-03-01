@@ -48,7 +48,9 @@ export default function ProductsPage() {
           categories(name),
           product_variants(count),
           product_images(url, position)
-        `);
+        `)
+        .not('product_images.url', 'ilike', 'data:video%')
+        .limit(1, { foreignTable: 'product_images' });
 
       // Apply sorting
       if (sortBy === 'newest') query = query.order('created_at', { ascending: false });

@@ -170,7 +170,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
     const price = Number(product.price);
     const maxStock = Number(product.stockCount) || 0;
-    const image = product.images?.[0] ?? 'https://via.placeholder.com/400x400?text=Product';
+
+    const firstImage = (product.images || []).find(
+      (img: string) => typeof img === 'string' && !img.startsWith('data:video')
+    );
+    const image = firstImage ?? 'https://via.placeholder.com/400x400?text=Product';
 
     if (Number.isNaN(price) || price < 0) return;
 
@@ -406,46 +410,67 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 <p className="text-gray-700 leading-relaxed mb-8 text-lg">{product.description}</p>
 
-                {/* Color Selection */}
+                {/* Variant Selection — color swatches or image thumbnails */}
                 {product.colors && product.colors.length > 0 && (
                   <div className="mb-6">
                     <label className="block font-semibold text-gray-900 mb-3">
-                      Colour: {selectedColor && <span className="text-gray-600 font-normal">{selectedColor}</span>}
+                      {product.colors.some((c: any) => c.image) ? 'Style' : 'Colour'}:
+                      {selectedColor && <span className="text-gray-600 font-normal ml-1">{selectedColor}</span>}
                     </label>
                     <div className="flex flex-wrap gap-3">
                       {product.colors.map((color: any) => {
                         const colorName = color?.name ?? '';
                         const colorImage = typeof color?.image === 'string' && color.image ? color.image : null;
-                        const colorHex = color?.hex ?? '#ccc';
+                        const colorHex = color?.hex ?? null;
+                        const isSelected = selectedColor === colorName;
+
+                        if (colorImage) {
+                          return (
+                            <button
+                              key={colorName}
+                              onClick={() => {
+                                setSelectedColor(colorName);
+                                setColorOverrideImage(colorImage);
+                                setMainImageError(false);
+                              }}
+                              className={`relative w-16 h-16 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${isSelected
+                                ? 'border-gold-600 ring-2 ring-gold-300 scale-105'
+                                : 'border-gray-200 hover:border-gray-400 hover:scale-105'}`}
+                              title={colorName}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={colorImage} alt={colorName} className="w-full h-full object-cover" />
+                              {isSelected && (
+                                <span className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                  <i className="ri-check-line text-white text-lg font-bold drop-shadow-md"></i>
+                                </span>
+                              )}
+                            </button>
+                          );
+                        }
+
                         return (
-                        <button
-                          key={colorName || colorHex}
-                          onClick={() => {
-                            setSelectedColor(colorName);
-                            setColorOverrideImage(colorImage);
-                            setMainImageError(false);
-                          }}
-                          className={`group relative w-10 h-10 rounded-full border-2 transition-all cursor-pointer ${selectedColor === colorName
-                            ? 'border-gold-600 ring-2 ring-gold-300 scale-110'
-                            : 'border-gray-300 hover:border-gray-400 hover:scale-105'
-                            }`}
-                          title={colorName}
-                        >
-                          {colorImage ? (
-                            <img src={colorImage} alt={colorName} className="w-full h-full rounded-full object-cover" />
-                          ) : (
-                            <span
-                              className="block w-full h-full rounded-full"
-                              style={{ backgroundColor: colorHex }}
-                            ></span>
-                          )}
-                          {selectedColor === colorName && (
-                            <span className="absolute inset-0 flex items-center justify-center">
-                              <i className={`ri-check-line text-sm font-bold ${colorImage ? 'text-white drop-shadow-md' : isLightColor(colorHex) ? 'text-gray-800' : 'text-white'}`}></i>
-                            </span>
-                          )}
-                        </button>
-                      );})}
+                          <button
+                            key={colorName || colorHex}
+                            onClick={() => {
+                              setSelectedColor(colorName);
+                              setColorOverrideImage(null);
+                              setMainImageError(false);
+                            }}
+                            className={`group relative w-10 h-10 rounded-full border-2 transition-all cursor-pointer ${isSelected
+                              ? 'border-gold-600 ring-2 ring-gold-300 scale-110'
+                              : 'border-gray-300 hover:border-gray-400 hover:scale-105'}`}
+                            title={colorName}
+                          >
+                            <span className="block w-full h-full rounded-full" style={{ backgroundColor: colorHex || '#ccc' }}></span>
+                            {isSelected && (
+                              <span className="absolute inset-0 flex items-center justify-center">
+                                <i className={`ri-check-line text-sm font-bold ${isLightColor(colorHex) ? 'text-gray-800' : 'text-white'}`}></i>
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

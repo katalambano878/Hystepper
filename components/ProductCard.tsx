@@ -77,16 +77,32 @@ export default function ProductCard({
           <div className="flex items-center gap-1.5 mb-2" onMouseLeave={() => setHoveredColor(null)}>
             {colors.slice(0, 5).map((color) => {
               const cName = color?.name ?? '';
-              const cHex = color?.hex ?? '#ccc';
+              const cHex = color?.hex ?? null;
+              const cImage = typeof color?.image === 'string' && color.image ? color.image : null;
+
+              if (cImage) {
+                return (
+                  <span
+                    key={cName}
+                    className={`w-7 h-7 rounded-md overflow-hidden border transition-transform duration-200 cursor-pointer ${hoveredColor === cName ? 'border-gold-500 scale-110 ring-1 ring-gold-300' : 'border-gray-200'}`}
+                    title={cName}
+                    onMouseEnter={() => setHoveredColor(cName)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={cImage} alt={cName} className="w-full h-full object-cover" />
+                  </span>
+                );
+              }
+
               return (
-              <span
-                key={cName || cHex}
-                className={`w-4 h-4 rounded-full border transition-transform duration-200 cursor-pointer ${hoveredColor === cName ? 'border-gold-500 scale-125 ring-1 ring-gold-300' : 'border-gray-300'}`}
-                style={{ backgroundColor: typeof cHex === 'string' ? cHex : '#ccc' }}
-                title={cName}
-                onMouseEnter={() => (typeof color?.image === 'string' && color.image) ? setHoveredColor(cName) : undefined}
-              ></span>
-            );})}
+                <span
+                  key={cName || cHex}
+                  className={`w-4 h-4 rounded-full border transition-transform duration-200 cursor-pointer ${hoveredColor === cName ? 'border-gold-500 scale-125 ring-1 ring-gold-300' : 'border-gray-300'}`}
+                  style={{ backgroundColor: typeof cHex === 'string' ? cHex : '#ccc' }}
+                  title={cName}
+                ></span>
+              );
+            })}
             {colors.length > 5 && (
               <span className="text-xs text-gray-400">+{colors.length - 5}</span>
             )}

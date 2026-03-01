@@ -110,9 +110,11 @@ export default function ProductEditor({ productId }: { productId: string }) {
           setImages(product.product_images.sort((a: any, b: any) => a.position - b.position));
         }
 
-        // Variants
         if (product.product_variants) {
-          setVariants(product.product_variants);
+          setVariants(product.product_variants.map((v: any) => ({
+            ...v,
+            _appearanceMode: v.image_url ? 'image' : 'color'
+          })));
         }
       }
 
@@ -635,7 +637,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
                   <p className="text-gray-600 mt-1">Manage sizes, colors, or other versions</p>
                 </div>
                 <button
-                  onClick={() => setVariants([...variants, { id: `temp-${Date.now()}`, name: '', option2: '', price: price, quantity: 0 }])}
+                  onClick={() => setVariants([...variants, { id: `temp-${Date.now()}`, name: '', option2: '', option3: '#000000', image_url: null, _appearanceMode: 'color', price: price, quantity: 0 }])}
                   className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 font-semibold transition-colors flex items-center"
                 >
                   <i className="ri-add-line mr-2"></i>
@@ -647,17 +649,16 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Size (e.g. 42)</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Colour</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Variant Image</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Price Override</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Size</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Appearance</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Price</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Stock</th>
                       <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {variants.length === 0 && (
-                      <tr><td colSpan={6} className="p-8 text-center text-gray-500">No variants added yet. Click &ldquo;Add Variant&rdquo; to start.</td></tr>
+                      <tr><td colSpan={5} className="p-8 text-center text-gray-500">No variants added yet. Click &ldquo;Add Variant&rdquo; to start.</td></tr>
                     )}
                     {variants.map((variant, index) => (
                       <tr key={variant.id || index} className="group hover:bg-gray-50 transition-colors">
@@ -675,80 +676,62 @@ export default function ProductEditor({ productId }: { productId: string }) {
                           />
                         </td>
                         <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={variant.option3 || '#000000'}
-                              onChange={(e) => {
-                                const newVariants = [...variants];
-                                newVariants[index].option3 = e.target.value;
-                                setVariants(newVariants);
-                              }}
-                              className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
-                            />
-                            <input
-                              type="text"
-                              value={variant.option2 || ''}
-                              onChange={(e) => {
-                                const newVariants = [...variants];
-                                newVariants[index].option2 = e.target.value;
-                                setVariants(newVariants);
-                              }}
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                              placeholder="e.g. Red"
-                            />
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            {variant.image_url ? (
-                              <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 group/img">
-                                <img src={variant.image_url} alt="Variant" className="w-full h-full object-cover" />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newVariants = [...variants];
-                                    newVariants[index].image_url = null;
-                                    setVariants(newVariants);
-                                  }}
-                                  className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"
-                                >
-                                  <i className="ri-close-line text-white text-lg"></i>
-                                </button>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 w-fit">
+                              <button type="button" onClick={() => { const nv = [...variants]; nv[index]._appearanceMode = 'color'; nv[index].image_url = null; setVariants(nv); }}
+                                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${(variant._appearanceMode || (variant.image_url ? 'image' : 'color')) === 'color' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <i className="ri-palette-line mr-1"></i>Color
+                              </button>
+                              <button type="button" onClick={() => { const nv = [...variants]; nv[index]._appearanceMode = 'image'; nv[index].option3 = null; setVariants(nv); }}
+                                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${(variant._appearanceMode || (variant.image_url ? 'image' : 'color')) === 'image' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <i className="ri-image-line mr-1"></i>Image
+                              </button>
+                            </div>
+
+                            {(variant._appearanceMode || (variant.image_url ? 'image' : 'color')) === 'color' ? (
+                              <div className="flex items-center gap-2">
+                                <input type="color" value={variant.option3 || '#000000'}
+                                  onChange={(e) => { const nv = [...variants]; nv[index].option3 = e.target.value; setVariants(nv); }}
+                                  className="w-9 h-9 rounded-lg border border-gray-300 cursor-pointer p-0.5" />
+                                <input type="text" value={variant.option2 || ''} placeholder="e.g. Red"
+                                  onChange={(e) => { const nv = [...variants]; nv[index].option2 = e.target.value; setVariants(nv); }}
+                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm" />
                               </div>
                             ) : (
-                              <label className="w-14 h-14 rounded-lg border-2 border-dashed border-gray-300 hover:border-emerald-400 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    const reader = new FileReader();
-                                    reader.onload = (ev) => {
-                                      const newVariants = [...variants];
-                                      newVariants[index].image_url = ev.target?.result as string;
-                                      setVariants(newVariants);
-                                    };
-                                    reader.readAsDataURL(file);
-                                    e.target.value = '';
-                                  }}
-                                />
-                                <i className="ri-image-add-line text-gray-400 text-lg"></i>
-                              </label>
+                              <div className="space-y-2">
+                                <input type="text" value={variant.option2 || ''} placeholder="Label (e.g. Blue Edition)"
+                                  onChange={(e) => { const nv = [...variants]; nv[index].option2 = e.target.value; setVariants(nv); }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm" />
+                                <div className="flex items-center gap-2">
+                                  {variant.image_url ? (
+                                    <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 group/img">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={variant.image_url} alt="Variant" className="w-full h-full object-cover" />
+                                      <button type="button" onClick={() => { const nv = [...variants]; nv[index].image_url = null; setVariants(nv); }}
+                                        className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                                        <i className="ri-close-line text-white text-lg"></i>
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label className="w-12 h-12 rounded-lg border-2 border-dashed border-gray-300 hover:border-emerald-400 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0">
+                                      <input type="file" accept="image/*" className="hidden"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (!file) return;
+                                          const reader = new FileReader();
+                                          reader.onload = (ev) => { const nv = [...variants]; nv[index].image_url = ev.target?.result as string; setVariants(nv); };
+                                          reader.readAsDataURL(file);
+                                          e.target.value = '';
+                                        }} />
+                                      <i className="ri-image-add-line text-gray-400 text-lg"></i>
+                                    </label>
+                                  )}
+                                  <input type="text" value={variant.image_url || ''} placeholder="or paste image URL"
+                                    onChange={(e) => { const nv = [...variants]; nv[index].image_url = e.target.value || null; setVariants(nv); }}
+                                    className="flex-1 min-w-0 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs" />
+                                </div>
+                              </div>
                             )}
-                            <input
-                              type="text"
-                              value={variant.image_url || ''}
-                              onChange={(e) => {
-                                const newVariants = [...variants];
-                                newVariants[index].image_url = e.target.value || null;
-                                setVariants(newVariants);
-                              }}
-                              className="flex-1 min-w-0 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs"
-                              placeholder="or paste URL"
-                            />
                           </div>
                         </td>
                         <td className="p-3">

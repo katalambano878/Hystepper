@@ -715,12 +715,23 @@ export default function ProductEditor({ productId }: { productId: string }) {
                                   ) : (
                                     <label className="w-12 h-12 rounded-lg border-2 border-dashed border-gray-300 hover:border-emerald-400 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0">
                                       <input type="file" accept="image/*" className="hidden"
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                           const file = e.target.files?.[0];
                                           if (!file) return;
-                                          const reader = new FileReader();
-                                          reader.onload = (ev) => { const nv = [...variants]; nv[index].image_url = ev.target?.result as string; setVariants(nv); };
-                                          reader.readAsDataURL(file);
+                                          try {
+                                            const fileExt = file.name.split('.').pop() || 'jpg';
+                                            const filePath = `variants/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+                                            const { error: uploadError } = await supabase.storage
+                                              .from('products')
+                                              .upload(filePath, file, { upsert: true });
+                                            if (uploadError) throw uploadError;
+                                            const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(filePath);
+                                            const nv = [...variants];
+                                            nv[index].image_url = publicUrl;
+                                            setVariants(nv);
+                                          } catch (err: any) {
+                                            toast.error('Image upload failed: ' + err.message);
+                                          }
                                           e.target.value = '';
                                         }} />
                                       <i className="ri-image-add-line text-gray-400 text-lg"></i>
@@ -873,41 +884,48 @@ export default function ProductEditor({ productId }: { productId: string }) {
                         const files = Array.from(e.target.files || []);
                         if (files.length === 0) return;
 
-                        toast.info('Uploading media...');
+                        toast.info(`Uploading ${files.length} file(s) to storage...`);
 
                         for (const file of files) {
                           try {
-                            // Create a data URL for immediate preview
-                            const reader = new FileReader();
-                            reader.onload = async (event) => {
-                              const dataUrl = event.target?.result as string;
+                            // Upload directly to Supabase Storage
+                            const fileExt = file.name.split('.').pop() || 'jpg';
+                            const filePath = `products/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
-                              if (productId === 'new') {
-                                setImages(prev => [...prev, { url: dataUrl, position: prev.length }]);
-                                return;
-                              }
+                            const { error: uploadError } = await supabase.storage
+                              .from('products')
+                              .upload(filePath, file, { upsert: true });
 
-                              // Insert to database
-                              const { error } = await supabase.from('product_images').insert({
+                            if (uploadError) {
+                              console.error('Storage upload error:', uploadError);
+                              toast.error(`Failed to upload ${file.name}: ${uploadError.message}`);
+                              continue;
+                            }
+
+                            // Get the public CDN URL
+                            const { data: { publicUrl } } = supabase.storage
+                              .from('products')
+                              .getPublicUrl(filePath);
+
+                            if (productId === 'new') {
+                              // For new products, just stage it — will be saved on form submit
+                              setImages(prev => [...prev, { url: publicUrl, position: prev.length }]);
+                            } else {
+                              // For existing products, save directly to DB
+                              const { error: dbError } = await supabase.from('product_images').insert({
                                 product_id: productId,
-                                url: dataUrl,
+                                url: publicUrl,
                                 position: images.length,
                                 alt_text: productName
                               });
+                              if (dbError) throw dbError;
+                              setImages(prev => [...prev, { url: publicUrl, position: prev.length }]);
+                            }
 
-                              if (error) throw error;
-                              setImages(prev => [...prev, { url: dataUrl, position: prev.length }]);
-                            };
-                            reader.readAsDataURL(file);
-                          } catch (err) {
-                            toast.error(`Failed to upload ${file.name}`);
+                            toast.success(`${file.name} uploaded!`);
+                          } catch (err: any) {
+                            toast.error(`Failed to upload ${file.name}: ${err.message}`);
                           }
-                        }
-
-                        if (productId === 'new') {
-                          toast.success('Media prepared (Save to upload)');
-                        } else {
-                          toast.success('Media uploaded');
                         }
 
                         e.target.value = '';

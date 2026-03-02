@@ -53,7 +53,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             categories(name),
             product_variants(id, name, option1, option2, option3, quantity, image_url),
             product_images(url, position)
-          `);
+          `)
+          .not('product_images.url', 'ilike', 'data:video%');
 
         // Check if slug looks like a UUID
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
@@ -79,9 +80,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         if (productData.sizing_notes) features.push(`Sizing: ${productData.sizing_notes}`);
         if (features.length === 0) features.push('Premium Quality', 'Authentic Design');
 
-        // Transform product data (safe sort and filter invalid urls)
+        // Transform product data (safe sort and filter out large base64 data URLs — they crash the browser)
         const rawImages = (productData.product_images || [])
-          .filter((img: any) => img && img.url)
+          .filter((img: any) => img && img.url && typeof img.url === 'string')
+          .filter((img: any) => !img.url.startsWith('data:video') && img.url.length < 500_000)
           .sort((a: any, b: any) => (Number(a?.position) ?? 0) - (Number(b?.position) ?? 0))
           .map((img: any) => img.url);
         const transformedProduct = {

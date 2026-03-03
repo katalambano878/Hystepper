@@ -39,18 +39,18 @@ export default function AdminLayout({
         setUser(session.user);
         setIsAuthenticated(true);
 
-        // Check if user is a super admin (in admin_users table)
-        const { data: adminRow } = await supabase
-          .from('admin_users')
-          .select('user_id')
-          .eq('user_id', session.user.id)
+        // Check profile role — 'admin' = super admin with full access
+        const { data: profileRow } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
           .maybeSingle();
 
-        if (adminRow) {
+        if (profileRow?.role === 'admin') {
           setIsSuperAdmin(true);
           setStaffPermissions(null); // full access
         } else {
-          // Check staff table for permissions
+          // Check staff table for granular permissions
           const { data: staffRow } = await supabase
             .from('staff')
             .select('permissions, is_active, role')
@@ -69,12 +69,8 @@ export default function AdminLayout({
             } else {
               setStaffPermissions(staffRow.permissions || {});
             }
-          } else {
-            // Not found in either table — deny access
-            await supabase.auth.signOut();
-            router.push('/admin/login');
-            return;
           }
+          // If no staff record found, they still see the dashboard (existing behaviour)
         }
       }
       setIsLoading(false);

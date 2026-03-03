@@ -46,11 +46,11 @@ CREATE TRIGGER staff_updated_at
 -- RLS policies
 ALTER TABLE staff ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Super admins can manage staff" ON staff;
-CREATE POLICY "Super admins can manage staff" ON staff
+DROP POLICY IF EXISTS "Admins can manage staff" ON staff;
+CREATE POLICY "Admins can manage staff" ON staff
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM admin_users au WHERE au.user_id = auth.uid()
+      SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'
     )
   );
 

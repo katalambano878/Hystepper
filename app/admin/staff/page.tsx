@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 const PERMISSION_LABELS: Record<string, { label: string; icon: string; description: string }> = {
   dashboard:     { label: 'Dashboard',        icon: 'ri-dashboard-line',       description: 'View overview stats' },
   orders:        { label: 'Orders',           icon: 'ri-shopping-bag-line',    description: 'View & manage orders' },
+  order_status:  { label: 'Update Delivery',  icon: 'ri-truck-line',           description: 'Mark orders as delivered/completed only' },
   pos:           { label: 'POS System',       icon: 'ri-store-3-line',         description: 'Use point of sale' },
   products:      { label: 'Products',         icon: 'ri-box-3-line',           description: 'Add & edit products' },
   categories:    { label: 'Categories',       icon: 'ri-folder-line',          description: 'Manage categories' },
@@ -24,12 +25,17 @@ const PERMISSION_LABELS: Record<string, { label: string; icon: string; descripti
 const ROLE_PRESETS: Record<string, Record<string, boolean>> = {
   admin: Object.fromEntries(Object.keys(PERMISSION_LABELS).map(k => [k, true])),
   manager: {
-    dashboard: true, orders: true, pos: true, products: true, categories: true,
+    dashboard: true, orders: true, order_status: true, pos: true, products: true, categories: true,
     customers: true, reviews: true, inventory: true, analytics: true,
     coupons: true, notifications: false, blog: false, modules: false, settings: false, staff: false,
   },
   staff: {
-    dashboard: true, orders: true, pos: true, products: false, categories: false,
+    dashboard: true, orders: true, order_status: true, pos: true, products: false, categories: false,
+    customers: false, reviews: false, inventory: false, analytics: false,
+    coupons: false, notifications: false, blog: false, modules: false, settings: false, staff: false,
+  },
+  rider: {
+    dashboard: false, orders: true, order_status: true, pos: false, products: false, categories: false,
     customers: false, reviews: false, inventory: false, analytics: false,
     coupons: false, notifications: false, blog: false, modules: false, settings: false, staff: false,
   },
@@ -39,7 +45,7 @@ type StaffMember = {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'manager' | 'staff';
+  role: 'admin' | 'manager' | 'staff' | 'rider';
   permissions: Record<string, boolean>;
   is_active: boolean;
   last_login: string | null;
@@ -62,7 +68,7 @@ export default function StaffPage() {
     full_name: '',
     password: '',
     showPassword: false,
-    role: 'staff' as 'admin' | 'manager' | 'staff',
+    role: 'staff' as 'admin' | 'manager' | 'staff' | 'rider',
     permissions: { ...ROLE_PRESETS.staff },
   });
 
@@ -111,7 +117,7 @@ export default function StaffPage() {
       } else {
         showToast('success', `${inviteForm.full_name} added successfully. They can log in at /admin/login.`);
         setShowInviteModal(false);
-        setInviteForm({ email: '', full_name: '', password: '', showPassword: false, role: 'staff', permissions: { ...ROLE_PRESETS.staff } });
+        setInviteForm({ email: '', full_name: '', password: '', showPassword: false, role: 'staff' as 'admin' | 'manager' | 'staff' | 'rider', permissions: { ...ROLE_PRESETS.staff } });
         fetchStaff();
       }
     } catch {
@@ -161,7 +167,7 @@ export default function StaffPage() {
     }
   }
 
-  function applyRolePreset(role: 'admin' | 'manager' | 'staff', target: 'invite' | 'edit') {
+  function applyRolePreset(role: 'admin' | 'manager' | 'staff' | 'rider', target: 'invite' | 'edit') {
     const preset = { ...ROLE_PRESETS[role] };
     if (target === 'invite') {
       setInviteForm(f => ({ ...f, role, permissions: preset }));
@@ -182,6 +188,7 @@ export default function StaffPage() {
     admin:   'bg-purple-100 text-purple-700',
     manager: 'bg-blue-100 text-blue-700',
     staff:   'bg-gray-100 text-gray-700',
+    rider:   'bg-sky-100 text-sky-700',
   };
 
   const permissionsForModal = (target: 'invite' | 'edit') =>
@@ -257,18 +264,19 @@ export default function StaffPage() {
       </div>
 
       {/* Role Legend */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {(['admin', 'manager', 'staff'] as const).map(role => (
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {(['admin', 'manager', 'staff', 'rider'] as const).map(role => (
           <div key={role} className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${roleColors[role]}`}>
-                {role.charAt(0).toUpperCase() + role.slice(1)}
+                {role === 'rider' ? '🛵 Rider' : role.charAt(0).toUpperCase() + role.slice(1)}
               </span>
             </div>
             <p className="text-xs text-gray-500">
               {role === 'admin' && 'Full access to all features and settings.'}
               {role === 'manager' && 'Access to orders, products, customers and analytics.'}
               {role === 'staff' && 'Basic access: dashboard, orders and POS only.'}
+              {role === 'rider' && 'Orders view only. Can mark orders as delivered or completed.'}
             </p>
           </div>
         ))}
@@ -440,19 +448,21 @@ export default function StaffPage() {
               {/* Role selector */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Role Preset</label>
-                <div className="flex gap-2">
-                  {(['admin', 'manager', 'staff'] as const).map(r => (
+                <div className="flex gap-2 flex-wrap">
+                  {(['admin', 'manager', 'staff', 'rider'] as const).map(r => (
                     <button
                       key={r}
                       type="button"
                       onClick={() => applyRolePreset(r, 'invite')}
-                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
+                      className={`flex-1 min-w-[80px] py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
                         inviteForm.role === r
-                          ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                          ? r === 'rider'
+                            ? 'border-blue-400 bg-blue-50 text-blue-700'
+                            : 'border-emerald-400 bg-emerald-50 text-emerald-700'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300'
                       }`}
                     >
-                      {r.charAt(0).toUpperCase() + r.slice(1)}
+                      {r === 'rider' ? '🛵 Rider' : r.charAt(0).toUpperCase() + r.slice(1)}
                     </button>
                   ))}
                 </div>
@@ -529,19 +539,21 @@ export default function StaffPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Role Preset</label>
-                <div className="flex gap-2">
-                  {(['admin', 'manager', 'staff'] as const).map(r => (
+                <div className="flex gap-2 flex-wrap">
+                  {(['admin', 'manager', 'staff', 'rider'] as const).map(r => (
                     <button
                       key={r}
                       type="button"
                       onClick={() => applyRolePreset(r, 'edit')}
-                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
+                      className={`flex-1 min-w-[80px] py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
                         editingStaff.role === r
-                          ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                          ? r === 'rider'
+                            ? 'border-blue-400 bg-blue-50 text-blue-700'
+                            : 'border-emerald-400 bg-emerald-50 text-emerald-700'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300'
                       }`}
                     >
-                      {r.charAt(0).toUpperCase() + r.slice(1)}
+                      {r === 'rider' ? '🛵 Rider' : r.charAt(0).toUpperCase() + r.slice(1)}
                     </button>
                   ))}
                 </div>

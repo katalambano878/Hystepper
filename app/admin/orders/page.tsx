@@ -48,8 +48,22 @@ export default function AdminOrdersPage() {
     { label: 'Cancelled', count: 0, status: 'cancelled' }
   ]);
   const [showProductStats, setShowProductStats] = useState(false);
+  const [isRider, setIsRider] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
   useEffect(() => {
+    async function checkRole() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: staffRow } = await supabase
+          .from('staff')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        if (staffRow?.role === 'rider') setIsRider(true);
+      }
+    }
+    checkRole();
     fetchOrders();
   }, []);
 
@@ -96,6 +110,22 @@ export default function AdminOrdersPage() {
       console.error('Error fetching orders:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRiderStatusUpdate = async (orderId: string, newStatus: 'delivered' | 'completed') => {
+    setUpdatingStatus(orderId);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+      if (error) throw error;
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    } catch (err) {
+      console.error('Failed to update order status:', err);
+    } finally {
+      setUpdatingStatus(null);
     }
   };
 
@@ -247,6 +277,102 @@ export default function AdminOrdersPage() {
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  // Rider-only view: simplified delivery update panel
+  if (isRider) {
+    const activeOrders = orders.filter(o => !['delivered', 'completed', 'cancelled'].includes(o.status));
+    const doneOrders = orders.filter(o => ['delivered', 'completed'].includes(o.status));
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 flex items-center justify-center bg-sky-100 rounded-xl text-sky-600 text-xl">🛵</div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Deliveries</h1>
+            <p className="text-sm text-gray-500">Mark orders as delivered or completed when you hand them over</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-gray-400">
+            <i className="ri-loader-4-line animate-spin text-2xl mr-2"></i> Loading orders...
+          </div>
+        ) : (
+          <>
+            {/* Active / In-transit orders */}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="font-semibold text-gray-800">Active Orders</h2>
+                <span className="text-xs bg-sky-100 text-sky-700 font-semibold px-2.5 py-1 rounded-full">{activeOrders.length}</span>
+              </div>
+              {activeOrders.length === 0 ? (
+                <div className="py-12 text-center text-gray-400">
+                  <i className="ri-check-double-line text-4xl mb-2 block text-emerald-400"></i>
+                  All orders have been delivered!
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {activeOrders.map(order => (
+                    <div key={order.id} className="flex items-center justify-between px-5 py-4 gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900">{order.order_number || order.id.substring(0, 8)}</p>
+                        <p className="text-sm text-gray-500 truncate">{getCustomerName(order)}</p>
+                        {order.shipping_address?.address && (
+                          <p className="text-xs text-gray-400 truncate mt-0.5">{order.shipping_address.address}</p>
+                        )}
+                      </div>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0 ${statusColors[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                        {formatStatus(order.status)}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => handleRiderStatusUpdate(order.id, 'delivered')}
+                          disabled={updatingStatus === order.id}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {updatingStatus === order.id ? '...' : 'Delivered'}
+                        </button>
+                        <button
+                          onClick={() => handleRiderStatusUpdate(order.id, 'completed')}
+                          disabled={updatingStatus === order.id}
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {updatingStatus === order.id ? '...' : 'Completed'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Done orders */}
+            {doneOrders.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <h2 className="font-semibold text-gray-800">Completed / Delivered</h2>
+                  <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full">{doneOrders.length}</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {doneOrders.map(order => (
+                    <div key={order.id} className="flex items-center justify-between px-5 py-4 gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900">{order.order_number || order.id.substring(0, 8)}</p>
+                        <p className="text-sm text-gray-500 truncate">{getCustomerName(order)}</p>
+                      </div>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0 ${statusColors[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                        {formatStatus(order.status)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

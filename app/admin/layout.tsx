@@ -23,6 +23,7 @@ export default function AdminLayout({
   // Staff permissions (null = super admin, has full access)
   const [staffPermissions, setStaffPermissions] = useState<Record<string, boolean> | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [staffRole, setStaffRole] = useState<string | null>(null);
 
   useEffect(() => {
     async function checkAuth() {
@@ -63,11 +64,16 @@ export default function AdminLayout({
               router.push('/admin/login');
               return;
             }
+            setStaffRole(staffRow.role);
             if (staffRow.role === 'admin') {
               setIsSuperAdmin(true);
               setStaffPermissions(null);
             } else {
               setStaffPermissions(staffRow.permissions || {});
+              // Redirect riders straight to orders if they land on dashboard
+              if (staffRow.role === 'rider' && pathname === '/admin') {
+                router.push('/admin/orders');
+              }
             }
           }
           // If no staff record found, they still see the dashboard (existing behaviour)
@@ -161,6 +167,8 @@ export default function AdminLayout({
     if ((item as any).moduleId && !enabledModules.includes((item as any).moduleId)) return false;
     // Super admins see everything
     if (isSuperAdmin || staffPermissions === null) return true;
+    // Riders only ever see Orders
+    if (staffRole === 'rider') return (item as any).permKey === 'orders';
     // If no permKey, always show (e.g. SMS Debugger — utility item)
     if (!(item as any).permKey) return true;
     return !!staffPermissions[(item as any).permKey];

@@ -60,6 +60,8 @@ export default function StaffPage() {
   const [inviteForm, setInviteForm] = useState({
     email: '',
     full_name: '',
+    password: '',
+    showPassword: false,
     role: 'staff' as 'admin' | 'manager' | 'staff',
     permissions: { ...ROLE_PRESETS.staff },
   });
@@ -86,22 +88,36 @@ export default function StaffPage() {
       showToast('error', 'Name and email are required.');
       return;
     }
-    setSaving(true);
-    const { error } = await supabase.from('staff').insert({
-      email: inviteForm.email.trim().toLowerCase(),
-      full_name: inviteForm.full_name.trim(),
-      role: inviteForm.role,
-      permissions: inviteForm.permissions,
-    });
-    setSaving(false);
-    if (error) {
-      showToast('error', error.message.includes('unique') ? 'A staff member with that email already exists.' : error.message);
-    } else {
-      showToast('success', `${inviteForm.full_name} added successfully.`);
-      setShowInviteModal(false);
-      setInviteForm({ email: '', full_name: '', role: 'staff', permissions: { ...ROLE_PRESETS.staff } });
-      fetchStaff();
+    if (!inviteForm.password || inviteForm.password.length < 8) {
+      showToast('error', 'Password must be at least 8 characters.');
+      return;
     }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/create-staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteForm.email.trim().toLowerCase(),
+          full_name: inviteForm.full_name.trim(),
+          password: inviteForm.password,
+          role: inviteForm.role,
+          permissions: inviteForm.permissions,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        showToast('error', result.error || 'Failed to create staff account.');
+      } else {
+        showToast('success', `${inviteForm.full_name} added successfully. They can log in at /admin/login.`);
+        setShowInviteModal(false);
+        setInviteForm({ email: '', full_name: '', password: '', showPassword: false, role: 'staff', permissions: { ...ROLE_PRESETS.staff } });
+        fetchStaff();
+      }
+    } catch {
+      showToast('error', 'Network error. Please try again.');
+    }
+    setSaving(false);
   }
 
   async function handleUpdateStaff() {
@@ -395,6 +411,30 @@ export default function StaffPage() {
                     className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                   />
                 </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Temporary Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={inviteForm.showPassword ? 'text' : 'password'}
+                    value={inviteForm.password}
+                    onChange={e => setInviteForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Min. 8 characters"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setInviteForm(f => ({ ...f, showPassword: !f.showPassword }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    <i className={inviteForm.showPassword ? 'ri-eye-off-line' : 'ri-eye-line'}></i>
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Staff will use this password to log in at <span className="font-medium">/admin/login</span>. They can change it later.</p>
               </div>
 
               {/* Role selector */}

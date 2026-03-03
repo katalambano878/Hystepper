@@ -20,6 +20,9 @@ export default function AdminLayout({
 
   // Module Filtering State
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  // Staff permissions (null = super admin, has full access)
+  const [staffPermissions, setStaffPermissions] = useState<Record<string, boolean> | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     async function checkAuth() {
@@ -35,6 +38,44 @@ export default function AdminLayout({
       } else {
         setUser(session.user);
         setIsAuthenticated(true);
+
+        // Check if user is a super admin (in admin_users table)
+        const { data: adminRow } = await supabase
+          .from('admin_users')
+          .select('user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (adminRow) {
+          setIsSuperAdmin(true);
+          setStaffPermissions(null); // full access
+        } else {
+          // Check staff table for permissions
+          const { data: staffRow } = await supabase
+            .from('staff')
+            .select('permissions, is_active, role')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          if (staffRow) {
+            if (!staffRow.is_active) {
+              await supabase.auth.signOut();
+              router.push('/admin/login');
+              return;
+            }
+            if (staffRow.role === 'admin') {
+              setIsSuperAdmin(true);
+              setStaffPermissions(null);
+            } else {
+              setStaffPermissions(staffRow.permissions || {});
+            }
+          } else {
+            // Not found in either table — deny access
+            await supabase.auth.signOut();
+            router.push('/admin/login');
+            return;
+          }
+        }
       }
       setIsLoading(false);
     }
@@ -100,99 +141,33 @@ export default function AdminLayout({
   }
 
   const menuItems = [
-    {
-      title: 'Dashboard',
-      icon: 'ri-dashboard-line',
-      path: '/admin',
-      exact: true
-    },
-    {
-      title: 'Orders',
-      icon: 'ri-shopping-bag-line',
-      path: '/admin/orders',
-      badge: ''
-    },
-    {
-      title: 'POS System',
-      icon: 'ri-store-3-line',
-      path: '/admin/pos'
-    },
-    {
-      title: 'Products',
-      icon: 'ri-box-3-line',
-      path: '/admin/products'
-    },
-    {
-      title: 'Categories',
-      icon: 'ri-folder-line',
-      path: '/admin/categories'
-    },
-    {
-      title: 'Customers',
-      icon: 'ri-group-line',
-      path: '/admin/customers'
-    },
-    {
-      title: 'Reviews',
-      icon: 'ri-chat-smile-2-line',
-      path: '/admin/reviews'
-    },
-    {
-      title: 'Inventory',
-      icon: 'ri-stack-line',
-      path: '/admin/inventory'
-    },
-    {
-      title: 'Analytics',
-      icon: 'ri-bar-chart-line',
-      path: '/admin/analytics'
-    },
-    {
-      title: 'Coupons',
-      icon: 'ri-coupon-2-line',
-      path: '/admin/coupons'
-    },
-    {
-      title: 'Customer Insights',
-      icon: 'ri-user-search-line',
-      path: '/admin/customer-insights',
-      moduleId: 'customer-insights'
-    },
-    {
-      title: 'Notifications',
-      icon: 'ri-notification-3-line',
-      path: '/admin/notifications',
-      moduleId: 'notifications'
-    },
-    {
-      title: 'SMS Debugger',
-      icon: 'ri-message-2-line',
-      path: '/admin/test-sms'
-    },
-
-    {
-      title: 'Blog',
-      icon: 'ri-article-line',
-      path: '/admin/blog',
-      moduleId: 'blog'
-    },
-    {
-      title: 'Modules',
-      icon: 'ri-puzzle-line',
-      path: '/admin/modules'
-    },
-    {
-      title: 'Settings',
-      icon: 'ri-settings-3-line',
-      path: '/admin/settings'
-    },
+    { title: 'Dashboard',        icon: 'ri-dashboard-line',      path: '/admin',                  exact: true,  permKey: 'dashboard' },
+    { title: 'Orders',           icon: 'ri-shopping-bag-line',   path: '/admin/orders',            badge: '',    permKey: 'orders' },
+    { title: 'POS System',       icon: 'ri-store-3-line',        path: '/admin/pos',                             permKey: 'pos' },
+    { title: 'Products',         icon: 'ri-box-3-line',          path: '/admin/products',                        permKey: 'products' },
+    { title: 'Categories',       icon: 'ri-folder-line',         path: '/admin/categories',                      permKey: 'categories' },
+    { title: 'Customers',        icon: 'ri-group-line',          path: '/admin/customers',                       permKey: 'customers' },
+    { title: 'Reviews',          icon: 'ri-chat-smile-2-line',   path: '/admin/reviews',                         permKey: 'reviews' },
+    { title: 'Inventory',        icon: 'ri-stack-line',          path: '/admin/inventory',                       permKey: 'inventory' },
+    { title: 'Analytics',        icon: 'ri-bar-chart-line',      path: '/admin/analytics',                       permKey: 'analytics' },
+    { title: 'Coupons',          icon: 'ri-coupon-2-line',       path: '/admin/coupons',                         permKey: 'coupons' },
+    { title: 'Customer Insights',icon: 'ri-user-search-line',    path: '/admin/customer-insights', moduleId: 'customer-insights' },
+    { title: 'Notifications',    icon: 'ri-notification-3-line', path: '/admin/notifications',     moduleId: 'notifications', permKey: 'notifications' },
+    { title: 'SMS Debugger',     icon: 'ri-message-2-line',      path: '/admin/test-sms' },
+    { title: 'Blog',             icon: 'ri-article-line',        path: '/admin/blog',              moduleId: 'blog', permKey: 'blog' },
+    { title: 'Modules',          icon: 'ri-puzzle-line',         path: '/admin/modules',                         permKey: 'modules' },
+    { title: 'Staff',            icon: 'ri-user-settings-line',  path: '/admin/staff',                           permKey: 'staff' },
+    { title: 'Settings',         icon: 'ri-settings-3-line',     path: '/admin/settings',                        permKey: 'settings' },
   ];
 
   const visibleMenuItems = menuItems.filter(item => {
-    // @ts-ignore
-    if (!item.moduleId) return true;
-    // @ts-ignore
-    return enabledModules.includes(item.moduleId);
+    // Filter by module toggle first
+    if ((item as any).moduleId && !enabledModules.includes((item as any).moduleId)) return false;
+    // Super admins see everything
+    if (isSuperAdmin || staffPermissions === null) return true;
+    // If no permKey, always show (e.g. SMS Debugger — utility item)
+    if (!(item as any).permKey) return true;
+    return !!staffPermissions[(item as any).permKey];
   });
 
   // Special layout for Login Page
@@ -293,7 +268,9 @@ export default function AdminLayout({
                     {user?.email?.charAt(0).toUpperCase() || 'A'}
                   </div>
                   <div className="text-left hidden md:block">
-                    <p className="text-sm font-semibold text-gray-900">Admin</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {isSuperAdmin ? 'Super Admin' : 'Staff'}
+                    </p>
                     <p className="text-xs text-gray-500 max-w-[100px] truncate">{user?.email}</p>
                   </div>
                   <i className="ri-arrow-down-s-line text-gray-600"></i>

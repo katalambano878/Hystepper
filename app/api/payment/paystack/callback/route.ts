@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
 export async function GET(req: Request) {
@@ -32,11 +33,14 @@ export async function GET(req: Request) {
         const result = await response.json();
         console.log('Paystack Verification Result:', result);
 
+        // Always redirect back to the same origin the callback arrived on
+        const baseUrl = url.origin;
+
         if (result.status && result.data?.status === 'success') {
             const orderRef = orderId || result.data.metadata?.order_id;
 
             if (orderRef) {
-                await supabase
+                const { error: updateError } = await supabase
                     .from('orders')
                     .update({
                         payment_status: 'paid',
@@ -48,12 +52,15 @@ export async function GET(req: Request) {
                         }
                     })
                     .eq('order_number', orderRef);
+
+                if (updateError) {
+                    console.error('Failed to update order after payment:', updateError);
+                }
             }
 
-            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || url.origin;
             return NextResponse.redirect(new URL(`/order-success?order=${orderRef}&payment_success=true`, baseUrl));
         } else {
-            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || url.origin;
+            console.warn('Paystack payment not successful:', result.data?.status, result.message);
             return NextResponse.redirect(new URL(`/order-failed?order=${orderId}&reason=payment_failed`, baseUrl));
         }
 

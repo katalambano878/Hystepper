@@ -16,11 +16,19 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, message: 'Payment gateway configuration error' }, { status: 500 });
         }
 
+        // Always derive the base URL from the actual incoming request so the
+        // callback works on every domain (local, staging, production) without
+        // needing to update NEXT_PUBLIC_APP_URL.
         const requestUrl = new URL(req.url);
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin;
+        const baseUrl = requestUrl.origin;
+
+        // Paystack requires a valid email address
+        const email = customerEmail && customerEmail.includes('@')
+            ? customerEmail
+            : `guest-${customerPhone || 'unknown'}@hystepper.com`;
 
         const payload: any = {
-            email: customerEmail || `${customerPhone}@checkout.local`,
+            email,
             amount: Math.round(amount * 100), // Paystack expects amount in pesewas (kobo)
             currency: 'GHS',
             reference: `PAY-${orderId}-${Date.now()}`,

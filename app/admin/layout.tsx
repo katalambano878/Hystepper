@@ -145,6 +145,7 @@ export default function AdminLayout({
   const menuItems = [
     { title: 'Dashboard',        icon: 'ri-dashboard-line',      path: '/admin',                  exact: true,  permKey: 'dashboard' },
     { title: 'Orders',           icon: 'ri-shopping-bag-line',   path: '/admin/orders',            badge: '',    permKey: 'orders' },
+    { title: 'Delivery',         icon: 'ri-truck-line',          path: '/admin/delivery',                        permKey: 'delivery' },
     { title: 'POS System',       icon: 'ri-store-3-line',        path: '/admin/pos',                             permKey: 'pos' },
     { title: 'Products',         icon: 'ri-box-3-line',          path: '/admin/products',                        permKey: 'products' },
     { title: 'Categories',       icon: 'ri-folder-line',         path: '/admin/categories',                      permKey: 'categories' },
@@ -167,7 +168,7 @@ export default function AdminLayout({
     if ((item as any).moduleId && !enabledModules.includes((item as any).moduleId)) return false;
     // Super admins see everything
     if (isSuperAdmin || staffPermissions === null) return true;
-    // Riders only ever see Orders
+    // Riders only ever see their delivery queue
     if (staffRole === 'rider') return (item as any).permKey === 'orders';
     // If no permKey, always show (e.g. SMS Debugger — utility item)
     if (!(item as any).permKey) return true;

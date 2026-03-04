@@ -51,6 +51,8 @@ export default function AdminOrdersPage() {
   const [isRider, setIsRider] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
+  const [riderUserId, setRiderUserId] = useState<string | null>(null);
+
   useEffect(() => {
     async function checkRole() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -60,19 +62,25 @@ export default function AdminOrdersPage() {
           .select('role')
           .eq('user_id', session.user.id)
           .maybeSingle();
-        if (staffRow?.role === 'rider') setIsRider(true);
+        if (staffRow?.role === 'rider') {
+          setIsRider(true);
+          setRiderUserId(session.user.id);
+        }
       }
     }
     checkRole();
-    fetchOrders();
   }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRider, riderUserId]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
 
-      // Fetch orders with related data
-      const { data: ordersData, error } = await supabase
+      let query = supabase
         .from('orders')
         .select(`
           id,
@@ -85,11 +93,19 @@ export default function AdminOrdersPage() {
           created_at,
           phone,
           shipping_address,
-          order_items (
-            quantity
-          )
+          rider_id,
+          rider_notes,
+          assigned_at,
+          order_items (quantity)
         `)
         .order('created_at', { ascending: false });
+
+      // Riders only see their own assigned orders
+      if (isRider && riderUserId) {
+        query = query.eq('rider_id', riderUserId);
+      }
+
+      const { data: ordersData, error } = await query;
 
       if (error) throw error;
 
@@ -285,11 +301,23 @@ export default function AdminOrdersPage() {
 
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 flex items-center justify-center bg-sky-100 rounded-xl text-sky-600 text-xl">🛵</div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">My Deliveries</h1>
-            <p className="text-sm text-gray-500">Mark orders as delivered or completed when you hand them over</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 flex items-center justify-center bg-sky-100 rounded-xl text-sky-600 text-xl">🛵</div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">My Deliveries</h1>
+              <p className="text-sm text-gray-500">Orders assigned to you — mark them when delivered</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="text-center px-4 py-2 bg-sky-50 rounded-xl border border-sky-200">
+              <p className="text-xl font-bold text-sky-700">{activeOrders.length}</p>
+              <p className="text-xs text-sky-600">Active</p>
+            </div>
+            <div className="text-center px-4 py-2 bg-emerald-50 rounded-xl border border-emerald-200">
+              <p className="text-xl font-bold text-emerald-700">{doneOrders.length}</p>
+              <p className="text-xs text-emerald-600">Done</p>
+            </div>
           </div>
         </div>
 
@@ -308,37 +336,57 @@ export default function AdminOrdersPage() {
               {activeOrders.length === 0 ? (
                 <div className="py-12 text-center text-gray-400">
                   <i className="ri-check-double-line text-4xl mb-2 block text-emerald-400"></i>
-                  All orders have been delivered!
+                  <p className="font-medium">No active deliveries</p>
+                  <p className="text-sm mt-1">Your next orders will appear here once assigned</p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
                   {activeOrders.map(order => (
-                    <div key={order.id} className="flex items-center justify-between px-5 py-4 gap-4">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900">{order.order_number || order.id.substring(0, 8)}</p>
-                        <p className="text-sm text-gray-500 truncate">{getCustomerName(order)}</p>
-                        {order.shipping_address?.address && (
-                          <p className="text-xs text-gray-400 truncate mt-0.5">{order.shipping_address.address}</p>
-                        )}
-                      </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0 ${statusColors[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
-                        {formatStatus(order.status)}
-                      </span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => handleRiderStatusUpdate(order.id, 'delivered')}
-                          disabled={updatingStatus === order.id}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                        >
-                          {updatingStatus === order.id ? '...' : 'Delivered'}
-                        </button>
-                        <button
-                          onClick={() => handleRiderStatusUpdate(order.id, 'completed')}
-                          disabled={updatingStatus === order.id}
-                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                        >
-                          {updatingStatus === order.id ? '...' : 'Completed'}
-                        </button>
+                    <div key={order.id} className="px-5 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-gray-900">{order.order_number || order.id.substring(0, 8)}</p>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${statusColors[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                              {formatStatus(order.status)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700 font-medium">{getCustomerName(order)}</p>
+                          {order.phone && (
+                            <p className="text-sm text-gray-500 mt-0.5">
+                              <i className="ri-phone-line mr-1"></i>{order.phone}
+                            </p>
+                          )}
+                          {(order.shipping_address?.address || order.shipping_address?.deliveryArea) && (
+                            <p className="text-sm text-gray-500 mt-0.5">
+                              <i className="ri-map-pin-line mr-1"></i>
+                              {order.shipping_address.address || order.shipping_address.deliveryArea}
+                              {order.shipping_address.region ? `, ${order.shipping_address.region}` : ''}
+                            </p>
+                          )}
+                          {(order as any).rider_notes && (
+                            <div className="mt-2 flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                              <i className="ri-sticky-note-line text-amber-500 mt-0.5 shrink-0"></i>
+                              <p className="text-xs text-amber-700">{(order as any).rider_notes}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <button
+                            onClick={() => handleRiderStatusUpdate(order.id, 'delivered')}
+                            disabled={updatingStatus === order.id}
+                            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                          >
+                            {updatingStatus === order.id ? <i className="ri-loader-4-line animate-spin"></i> : '✓ Delivered'}
+                          </button>
+                          <button
+                            onClick={() => handleRiderStatusUpdate(order.id, 'completed')}
+                            disabled={updatingStatus === order.id}
+                            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                          >
+                            {updatingStatus === order.id ? <i className="ri-loader-4-line animate-spin"></i> : '✓ Completed'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -359,6 +407,7 @@ export default function AdminOrdersPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900">{order.order_number || order.id.substring(0, 8)}</p>
                         <p className="text-sm text-gray-500 truncate">{getCustomerName(order)}</p>
+                        {order.phone && <p className="text-xs text-gray-400">{order.phone}</p>}
                       </div>
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0 ${statusColors[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
                         {formatStatus(order.status)}

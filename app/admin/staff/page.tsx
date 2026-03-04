@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase';
 const PERMISSION_LABELS: Record<string, { label: string; icon: string; description: string }> = {
   dashboard:     { label: 'Dashboard',        icon: 'ri-dashboard-line',       description: 'View overview stats' },
   orders:        { label: 'Orders',           icon: 'ri-shopping-bag-line',    description: 'View & manage orders' },
-  order_status:  { label: 'Update Delivery',  icon: 'ri-truck-line',           description: 'Mark orders as delivered/completed only' },
+  delivery:      { label: 'Delivery',         icon: 'ri-truck-line',           description: 'Assign orders to riders & track deliveries' },
+  order_status:  { label: 'Update Delivery',  icon: 'ri-checkbox-circle-line', description: 'Mark orders as delivered/completed only' },
   pos:           { label: 'POS System',       icon: 'ri-store-3-line',         description: 'Use point of sale' },
   products:      { label: 'Products',         icon: 'ri-box-3-line',           description: 'Add & edit products' },
   categories:    { label: 'Categories',       icon: 'ri-folder-line',          description: 'Manage categories' },
@@ -25,19 +26,22 @@ const PERMISSION_LABELS: Record<string, { label: string; icon: string; descripti
 const ROLE_PRESETS: Record<string, Record<string, boolean>> = {
   admin: Object.fromEntries(Object.keys(PERMISSION_LABELS).map(k => [k, true])),
   manager: {
-    dashboard: true, orders: true, order_status: true, pos: true, products: true, categories: true,
-    customers: true, reviews: true, inventory: true, analytics: true,
-    coupons: true, notifications: false, blog: false, modules: false, settings: false, staff: false,
+    dashboard: true, orders: true, delivery: true, order_status: true, pos: true,
+    products: true, categories: true, customers: true, reviews: true, inventory: true,
+    analytics: true, coupons: true, notifications: false, blog: false, modules: false,
+    settings: false, staff: false,
   },
   staff: {
-    dashboard: true, orders: true, order_status: true, pos: true, products: false, categories: false,
-    customers: false, reviews: false, inventory: false, analytics: false,
-    coupons: false, notifications: false, blog: false, modules: false, settings: false, staff: false,
+    dashboard: true, orders: true, delivery: false, order_status: true, pos: true,
+    products: false, categories: false, customers: false, reviews: false, inventory: false,
+    analytics: false, coupons: false, notifications: false, blog: false, modules: false,
+    settings: false, staff: false,
   },
   rider: {
-    dashboard: false, orders: true, order_status: true, pos: false, products: false, categories: false,
-    customers: false, reviews: false, inventory: false, analytics: false,
-    coupons: false, notifications: false, blog: false, modules: false, settings: false, staff: false,
+    dashboard: false, orders: true, delivery: false, order_status: true, pos: false,
+    products: false, categories: false, customers: false, reviews: false, inventory: false,
+    analytics: false, coupons: false, notifications: false, blog: false, modules: false,
+    settings: false, staff: false,
   },
 };
 

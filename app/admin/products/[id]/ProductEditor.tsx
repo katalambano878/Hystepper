@@ -42,9 +42,12 @@ export default function ProductEditor({ productId }: { productId: string }) {
   // Collections Data (for dropdown)
   const [categories, setCategories] = useState<any[]>([]);
 
-  // Images & Variants (Read-only / Partial Implementation for now)
+  // Images & Variants
   const [images, setImages] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
+
+  // Delivery notice must be declared at top level (used in fetchInitialData + handleSave)
+  const [deliveryNotice, setDeliveryNotice] = useState('none');
 
   // Initialize
   useEffect(() => {
@@ -88,11 +91,9 @@ export default function ProductEditor({ productId }: { productId: string }) {
         setComparePrice(product.compare_at_price?.toString() || '');
         setSku(product.sku || '');
         setStock(product.quantity?.toString() || '0');
-        // lowStockThreshold not in DB schema provided, assuming it might be in metadata or skip
 
         // New Fields
         setProductCode(product.product_code || '');
-        setSku(product.sku || product.product_code || '');
         setStyleName(product.style_name || '');
         setMaterial(product.material || '');
         setHeelHeight(product.heel_height || '');
@@ -130,23 +131,20 @@ export default function ProductEditor({ productId }: { productId: string }) {
     try {
       setSaving(true);
 
-      // Validation
+      // Validation — early returns inside try still hit finally, so no need to call setSaving(false)
       if (!productName.trim()) {
         toast.error('Product Name is required');
         setActiveTab('general');
-        setSaving(false);
         return;
       }
       if (!category) {
         toast.error('Category is required');
         setActiveTab('general');
-        setSaving(false);
         return;
       }
       if (!price || parseFloat(price) <= 0) {
         toast.error('Valid Price is required');
         setActiveTab('pricing');
-        setSaving(false);
         return;
       }
 
@@ -175,97 +173,89 @@ export default function ProductEditor({ productId }: { productId: string }) {
         updated_at: new Date().toISOString()
       };
 
-      let targetId = productId;
-      let error;
+      let targetId: string = productId;
 
       if (productId === 'new') {
-        const { data, error: insertError } = await supabase.from('products').insert(productData).select().single();
-        error = insertError;
-        if (data) {
-          targetId = data.id;
-          toast.success('Product created!');
-        }
-      } else {
-        const { error: updateError } = await supabase.from('products').update(productData).eq('id', productId);
-        error = updateError;
-        if (!error) toast.success('Product updated successfully');
-      }
+        const { data, error: insertError } = await supabase
+          .from('products')
+          .insert(productData)
+          .select('id')
+          .single();
 
-      if (error) throw error;
+        if (insertError) throw insertError;
+        if (!data?.id) throw new Error('Product was not created — no ID returned. Please try again.');
+        targetId = data.id;
+      } else {
+        const { error: updateError } = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', productId);
+        if (updateError) throw updateError;
+      }
 
       // --- SAVE VARIANTS ---
-      if (targetId) {
-        // 1. Prepare data (remove temp IDs)
-        const variantsToUpsert = variants.map(v => {
-          const payload: any = {
-            product_id: targetId,
-            name: v.name,
-            option2: v.option2,
-            option3: v.option3 || null,
-            image_url: v.image_url || null,
-            price: v.price || 0,
-            quantity: parseInt(v.quantity?.toString() || '0') || 0
-          };
-          // Keep existing UUIDs, drop temp IDs
-          if (v.id && !v.id.toString().startsWith('temp-')) {
-            payload.id = v.id;
-          }
-          return payload;
-        });
-
-        // 2. Delete variants that were removed from UI
-        // (Only if not a new product, or if we want to be safe)
-        if (productId !== 'new') {
-          const keptIds = variantsToUpsert
-            .filter(v => v.id) // Only those with real IDs
-            .map(v => v.id);
-
-          if (keptIds.length > 0) {
-            await supabase
-              .from('product_variants')
-              .delete()
-              .eq('product_id', targetId)
-              .not('id', 'in', keptIds);
-          } else {
-            // Check if we should delete all (i.e., user deleted all variants)
-            // But verify we actually have variants in the UI before deciding to delete all??
-            // If variants.length === 0, then we delete all.
-            if (variants.length === 0) {
-              await supabase.from('product_variants').delete().eq('product_id', targetId);
-            } else {
-              // If variants exist but all are new (temp IDs), we basically just insert them later.
-              // But we still need to delete old ones from DB? Yes.
-              // So if keptIds is empty, we delete all previously existing variants.
-              await supabase.from('product_variants').delete().eq('product_id', targetId);
-            }
-          }
+      // 1. Build upsert payload — strip temp IDs so DB generates real UUIDs
+      const variantsToUpsert = variants.map(v => {
+        const payload: any = {
+          product_id: targetId,
+          name: v.name,
+          option2: v.option2,
+          option3: v.option3 || null,
+          image_url: v.image_url || null,
+          price: v.price || 0,
+          quantity: parseInt(v.quantity?.toString() || '0') || 0,
+        };
+        if (v.id && !v.id.toString().startsWith('temp-')) {
+          payload.id = v.id;
         }
+        return payload;
+      });
 
-        // 3. Upsert (Insert new + Update existing)
-        if (variantsToUpsert.length > 0) {
-          const { error: variantError } = await supabase.from('product_variants').upsert(variantsToUpsert);
-          if (variantError) {
-            console.error('Variant save error:', variantError);
-            toast.error('Product saved, but variants failed to update');
-          }
-        }
+      // 2. Delete variants that were removed — use correct Supabase v2 IN format
+      if (productId !== 'new') {
+        const keptIds = variantsToUpsert.filter(v => v.id).map(v => v.id as string);
 
-        // 4. Save Images (If New Product)
-        if (productId === 'new' && images.length > 0) {
-          const imagesToInsert = images.map((img, idx) => ({
-            product_id: targetId,
-            url: img.url,
-            position: idx,
-            alt_text: productName
-          }));
-
-          const { error: imgError } = await supabase.from('product_images').insert(imagesToInsert);
-          if (imgError) {
-            console.error('Image save error:', imgError);
-            toast.error('Product saved but images failed to upload');
-          }
+        if (keptIds.length > 0) {
+          // Supabase v2 requires the IN list as a comma-separated string wrapped in parens
+          await supabase
+            .from('product_variants')
+            .delete()
+            .eq('product_id', targetId)
+            .not('id', 'in', `(${keptIds.join(',')})`);
+        } else if (variants.length === 0) {
+          // User deleted every variant
+          await supabase.from('product_variants').delete().eq('product_id', targetId);
+        } else {
+          // All variants are new (temp IDs) — delete old DB rows first
+          await supabase.from('product_variants').delete().eq('product_id', targetId);
         }
       }
+
+      // 3. Upsert variants
+      if (variantsToUpsert.length > 0) {
+        const { error: variantError } = await supabase.from('product_variants').upsert(variantsToUpsert);
+        if (variantError) {
+          console.error('Variant save error:', variantError);
+          toast.error('Product saved, but variants failed to update');
+        }
+      }
+
+      // 4. Save staged images for newly created products
+      if (productId === 'new' && images.length > 0) {
+        const imagesToInsert = images.map((img, idx) => ({
+          product_id: targetId,
+          url: img.url,
+          position: idx,
+          alt_text: productName,
+        }));
+        const { error: imgError } = await supabase.from('product_images').insert(imagesToInsert);
+        if (imgError) {
+          console.error('Image save error:', imgError);
+          toast.error('Product saved but images failed to link');
+        }
+      }
+
+      toast.success(productId === 'new' ? 'Product created!' : 'Product updated successfully');
 
       // Redirect to products list
       router.push('/admin/products');
@@ -277,8 +267,6 @@ export default function ProductEditor({ productId }: { productId: string }) {
       setSaving(false);
     }
   }
-
-  const [deliveryNotice, setDeliveryNotice] = useState('none');
 
   const tabs = [
     { id: 'general', label: 'General', icon: 'ri-information-line' },
@@ -908,18 +896,26 @@ export default function ProductEditor({ productId }: { productId: string }) {
                               .getPublicUrl(filePath);
 
                             if (productId === 'new') {
-                              // For new products, just stage it — will be saved on form submit
+                              // Stage for new products — saved on form submit
                               setImages(prev => [...prev, { url: publicUrl, position: prev.length }]);
                             } else {
-                              // For existing products, save directly to DB
-                              const { error: dbError } = await supabase.from('product_images').insert({
-                                product_id: productId,
-                                url: publicUrl,
-                                position: images.length,
-                                alt_text: productName
+                              // Save directly to DB for existing products
+                              // Use setImages functional updater to get fresh length, avoiding stale closure
+                              await new Promise<void>((resolve, reject) => {
+                                setImages(prev => {
+                                  const position = prev.length;
+                                  supabase.from('product_images').insert({
+                                    product_id: productId,
+                                    url: publicUrl,
+                                    position,
+                                    alt_text: productName,
+                                  }).then(({ error: dbError }) => {
+                                    if (dbError) reject(dbError);
+                                    else resolve();
+                                  });
+                                  return [...prev, { url: publicUrl, position }];
+                                });
                               });
-                              if (dbError) throw dbError;
-                              setImages(prev => [...prev, { url: publicUrl, position: prev.length }]);
                             }
 
                             toast.success(`${file.name} uploaded!`);
@@ -942,7 +938,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
 
               {/* Image Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {images.map((image, index) => {
+                {images.filter(img => img?.url).map((image, index) => {
                   const isVideo = image.url.startsWith('data:video') || image.url.match(/\.(mp4|webm|ogg)$/i);
                   return (
                     <div key={index} className="relative group">

@@ -46,6 +46,12 @@ export default function ProductEditor({ productId }: { productId: string }) {
   const [images, setImages] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
 
+  // Variant Builder
+  const [builderSizes, setBuilderSizes] = useState('');
+  const [builderColors, setBuilderColors] = useState<{ id: string; name: string; hex: string; image_url: string | null }[]>([]);
+  const [bulkPrice, setBulkPrice] = useState('');
+  const [bulkStock, setBulkStock] = useState('');
+
   // Delivery notice must be declared at top level (used in fetchInitialData + handleSave)
   const [deliveryNotice, setDeliveryNotice] = useState('none');
 
@@ -111,11 +117,41 @@ export default function ProductEditor({ productId }: { productId: string }) {
           setImages(product.product_images.sort((a: any, b: any) => a.position - b.position));
         }
 
-        if (product.product_variants) {
-          setVariants(product.product_variants.map((v: any) => ({
+        if (product.product_variants && product.product_variants.length > 0) {
+          const pvs = product.product_variants;
+          setVariants(pvs.map((v: any) => ({
             ...v,
-            _appearanceMode: v.image_url ? 'image' : 'color'
+            _appearanceMode: v.image_url ? 'image' : 'color',
+            _size: v.name?.includes(' / ') ? v.name.split(' / ')[0] : (v.option2 ? null : v.name),
+            _color: v.option2 || null,
           })));
+
+          // Reconstruct builder state from existing variants
+          const hasCombo = pvs.some((v: any) => v.name?.includes(' / '));
+          const hasColors = pvs.some((v: any) => v.option2);
+
+          if (hasCombo) {
+            const sizes = [...new Set(pvs.map((v: any) => v.name?.split(' / ')[0]).filter(Boolean))] as string[];
+            setBuilderSizes(sizes.join(', '));
+            const colorMap = new Map<string, { id: string; name: string; hex: string; image_url: string | null }>();
+            pvs.forEach((v: any) => {
+              if (v.option2 && !colorMap.has(v.option2)) {
+                colorMap.set(v.option2, { id: `c-${Math.random()}`, name: v.option2, hex: v.option3 || '#000000', image_url: v.image_url || null });
+              }
+            });
+            setBuilderColors([...colorMap.values()]);
+          } else if (hasColors) {
+            const colorMap = new Map<string, { id: string; name: string; hex: string; image_url: string | null }>();
+            pvs.forEach((v: any) => {
+              if (v.option2 && !colorMap.has(v.option2)) {
+                colorMap.set(v.option2, { id: `c-${Math.random()}`, name: v.option2, hex: v.option3 || '#000000', image_url: v.image_url || null });
+              }
+            });
+            setBuilderColors([...colorMap.values()]);
+          } else {
+            const sizes = pvs.map((v: any) => v.name).filter(Boolean) as string[];
+            setBuilderSizes(sizes.join(', '));
+          }
         }
       }
 
@@ -125,6 +161,71 @@ export default function ProductEditor({ productId }: { productId: string }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  function generateVariants() {
+    const sizes = builderSizes.split(',').map(s => s.trim()).filter(Boolean);
+    const colors = builderColors.filter(c => c.name.trim());
+
+    if (sizes.length === 0 && colors.length === 0) {
+      toast.error('Add at least one size or color to generate variants');
+      return;
+    }
+
+    const basePrice = parseFloat(price) || 0;
+    const combinations: any[] = [];
+
+    if (sizes.length > 0 && colors.length > 0) {
+      for (const size of sizes) {
+        for (const color of colors) {
+          combinations.push({
+            id: `temp-${Date.now()}-${Math.random()}`,
+            name: `${size} / ${color.name}`,
+            option2: color.name,
+            option3: color.image_url ? null : (color.hex || null),
+            image_url: color.image_url || null,
+            price: basePrice,
+            quantity: 0,
+            _size: size,
+            _color: color.name,
+            _appearanceMode: color.image_url ? 'image' : 'color',
+          });
+        }
+      }
+    } else if (sizes.length > 0) {
+      for (const size of sizes) {
+        combinations.push({
+          id: `temp-${Date.now()}-${Math.random()}`,
+          name: size,
+          option2: null,
+          option3: null,
+          image_url: null,
+          price: basePrice,
+          quantity: 0,
+          _size: size,
+          _appearanceMode: 'color',
+        });
+      }
+    } else {
+      for (const color of colors) {
+        combinations.push({
+          id: `temp-${Date.now()}-${Math.random()}`,
+          name: color.name,
+          option2: color.name,
+          option3: color.image_url ? null : (color.hex || null),
+          image_url: color.image_url || null,
+          price: basePrice,
+          quantity: 0,
+          _color: color.name,
+          _appearanceMode: color.image_url ? 'image' : 'color',
+        });
+      }
+    }
+
+    setVariants(combinations);
+    setBulkPrice('');
+    setBulkStock('');
+    toast.success(`Generated ${combinations.length} variant${combinations.length !== 1 ? 's' : ''}!`);
   }
 
   async function handleSave() {
@@ -619,161 +720,229 @@ export default function ProductEditor({ productId }: { productId: string }) {
 
           {activeTab === 'variants' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Product Variants</h3>
-                  <p className="text-gray-600 mt-1">Manage sizes, colors, or other versions</p>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Product Variants</h3>
+                <p className="text-gray-500 mt-1 text-sm">Define your options below — all combinations are auto-generated for you.</p>
+              </div>
+
+              {/* Option Builder */}
+              <div className="grid md:grid-cols-2 gap-5">
+                {/* Sizes */}
+                <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-ruler-line text-emerald-600"></i>
+                    </div>
+                    <h4 className="font-semibold text-gray-900">Sizes</h4>
+                    <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">optional</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={builderSizes}
+                    onChange={e => setBuilderSizes(e.target.value)}
+                    placeholder="e.g. 36, 37, 38, 39, 40  or  S, M, L, XL"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-white text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-2">Separate values with commas</p>
+                  {builderSizes.trim() && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {builderSizes.split(',').map(s => s.trim()).filter(Boolean).map((s, i) => (
+                        <span key={i} className="px-2.5 py-1 bg-white border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium">{s}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={() => setVariants([...variants, { id: `temp-${Date.now()}`, name: '', option2: '', option3: '#000000', image_url: null, _appearanceMode: 'color', price: price, quantity: 0 }])}
-                  className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 font-semibold transition-colors flex items-center"
-                >
-                  <i className="ri-add-line mr-2"></i>
-                  Add Variant
-                </button>
-              </div>
 
-              <div className="overflow-x-auto border border-gray-200 rounded-xl">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Size</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Appearance</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Price</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Stock</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {variants.length === 0 && (
-                      <tr><td colSpan={5} className="p-8 text-center text-gray-500">No variants added yet. Click &ldquo;Add Variant&rdquo; to start.</td></tr>
-                    )}
-                    {variants.map((variant, index) => (
-                      <tr key={variant.id || index} className="group hover:bg-gray-50 transition-colors">
-                        <td className="p-3">
-                          <input
-                            type="text"
-                            value={variant.name}
-                            onChange={(e) => {
-                              const newVariants = [...variants];
-                              newVariants[index].name = e.target.value;
-                              setVariants(newVariants);
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            placeholder="Size 42"
-                          />
-                        </td>
-                        <td className="p-3">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 w-fit">
-                              <button type="button" onClick={() => { const nv = [...variants]; nv[index]._appearanceMode = 'color'; nv[index].image_url = null; setVariants(nv); }}
-                                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${(variant._appearanceMode || (variant.image_url ? 'image' : 'color')) === 'color' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-                                <i className="ri-palette-line mr-1"></i>Color
-                              </button>
-                              <button type="button" onClick={() => { const nv = [...variants]; nv[index]._appearanceMode = 'image'; nv[index].option3 = null; setVariants(nv); }}
-                                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${(variant._appearanceMode || (variant.image_url ? 'image' : 'color')) === 'image' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-                                <i className="ri-image-line mr-1"></i>Image
-                              </button>
-                            </div>
-
-                            {(variant._appearanceMode || (variant.image_url ? 'image' : 'color')) === 'color' ? (
-                              <div className="flex items-center gap-2">
-                                <input type="color" value={variant.option3 || '#000000'}
-                                  onChange={(e) => { const nv = [...variants]; nv[index].option3 = e.target.value; setVariants(nv); }}
-                                  className="w-9 h-9 rounded-lg border border-gray-300 cursor-pointer p-0.5" />
-                                <input type="text" value={variant.option2 || ''} placeholder="e.g. Red"
-                                  onChange={(e) => { const nv = [...variants]; nv[index].option2 = e.target.value; setVariants(nv); }}
-                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm" />
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <input type="text" value={variant.option2 || ''} placeholder="Label (e.g. Blue Edition)"
-                                  onChange={(e) => { const nv = [...variants]; nv[index].option2 = e.target.value; setVariants(nv); }}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm" />
-                                <div className="flex items-center gap-2">
-                                  {variant.image_url ? (
-                                    <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 group/img">
-                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img src={variant.image_url} alt="Variant" className="w-full h-full object-cover" />
-                                      <button type="button" onClick={() => { const nv = [...variants]; nv[index].image_url = null; setVariants(nv); }}
-                                        className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                                        <i className="ri-close-line text-white text-lg"></i>
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <label className="w-12 h-12 rounded-lg border-2 border-dashed border-gray-300 hover:border-emerald-400 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0">
-                                      <input type="file" accept="image/*" className="hidden"
-                                        onChange={async (e) => {
-                                          const file = e.target.files?.[0];
-                                          if (!file) return;
-                                          try {
-                                            const fileExt = file.name.split('.').pop() || 'jpg';
-                                            const filePath = `variants/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-                                            const { error: uploadError } = await supabase.storage
-                                              .from('products')
-                                              .upload(filePath, file, { upsert: true });
-                                            if (uploadError) throw uploadError;
-                                            const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(filePath);
-                                            const nv = [...variants];
-                                            nv[index].image_url = publicUrl;
-                                            setVariants(nv);
-                                          } catch (err: any) {
-                                            toast.error('Image upload failed: ' + err.message);
-                                          }
-                                          e.target.value = '';
-                                        }} />
-                                      <i className="ri-image-add-line text-gray-400 text-lg"></i>
-                                    </label>
-                                  )}
-                                  <input type="text" value={variant.image_url || ''} placeholder="or paste image URL"
-                                    onChange={(e) => { const nv = [...variants]; nv[index].image_url = e.target.value || null; setVariants(nv); }}
-                                    className="flex-1 min-w-0 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs" />
-                                </div>
-                              </div>
-                            )}
+                {/* Colors / Images */}
+                <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-palette-line text-purple-600"></i>
+                    </div>
+                    <h4 className="font-semibold text-gray-900">Colors / Appearance</h4>
+                    <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">optional</span>
+                  </div>
+                  <div className="space-y-2">
+                    {builderColors.map((color, ci) => (
+                      <div key={color.id} className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 p-2">
+                        {color.image_url ? (
+                          <div className="relative w-9 h-9 rounded-lg overflow-hidden border border-gray-200 shrink-0 group/img">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={color.image_url} alt="" className="w-full h-full object-cover" />
+                            <button type="button"
+                              onClick={() => { const nc = [...builderColors]; nc[ci].image_url = null; setBuilderColors(nc); }}
+                              className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                              <i className="ri-close-line text-white text-sm"></i>
+                            </button>
                           </div>
-                        </td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            value={variant.price}
-                            onChange={(e) => {
-                              const newVariants = [...variants];
-                              newVariants[index].price = parseFloat(e.target.value);
-                              setVariants(newVariants);
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            placeholder={price}
-                          />
-                        </td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            value={variant.quantity}
-                            onChange={(e) => {
-                              const newVariants = [...variants];
-                              newVariants[index].quantity = parseInt(e.target.value);
-                              setVariants(newVariants);
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                          />
-                        </td>
-                        <td className="p-3 text-right">
-                          <button
-                            onClick={() => {
-                              if (!confirm('Remove this variant?')) return;
-                              setVariants(variants.filter((_, i) => i !== index));
-                            }}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <i className="ri-delete-bin-line text-lg"></i>
-                          </button>
-                        </td>
-                      </tr>
+                        ) : (
+                          <input type="color" value={color.hex || '#000000'}
+                            onChange={e => { const nc = [...builderColors]; nc[ci].hex = e.target.value; setBuilderColors(nc); }}
+                            className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5 shrink-0" />
+                        )}
+                        <input type="text" value={color.name}
+                          onChange={e => { const nc = [...builderColors]; nc[ci].name = e.target.value; setBuilderColors(nc); }}
+                          placeholder="Color name (e.g. Black)"
+                          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400" />
+                        <label className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 cursor-pointer hover:bg-purple-50 hover:border-purple-300 transition-colors shrink-0" title="Upload image instead of color">
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const filePath = `variants/${Date.now()}-${Math.random().toString(36).substring(2)}.${file.name.split('.').pop()}`;
+                                const { error } = await supabase.storage.from('products').upload(filePath, file, { upsert: true });
+                                if (error) throw error;
+                                const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(filePath);
+                                const nc = [...builderColors]; nc[ci].image_url = publicUrl; setBuilderColors(nc);
+                              } catch (err: any) { toast.error('Upload failed: ' + err.message); }
+                              e.target.value = '';
+                            }} />
+                          <i className="ri-image-add-line text-gray-400 text-sm"></i>
+                        </label>
+                        <button type="button" onClick={() => setBuilderColors(builderColors.filter((_, i) => i !== ci))}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors shrink-0">
+                          <i className="ri-close-line"></i>
+                        </button>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                    <button type="button"
+                      onClick={() => setBuilderColors([...builderColors, { id: `c-${Date.now()}`, name: '', hex: '#000000', image_url: null }])}
+                      className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-purple-400 hover:text-purple-600 transition-colors text-sm flex items-center justify-center gap-1.5">
+                      <i className="ri-add-line"></i> Add Color
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              {/* Generate button */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <button type="button" onClick={generateVariants}
+                  disabled={!builderSizes.trim() && builderColors.length === 0}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+                  <i className="ri-magic-line"></i>
+                  Generate Variants
+                </button>
+                {builderSizes.trim() || builderColors.length > 0 ? (
+                  <p className="text-sm text-gray-500">
+                    {(() => {
+                      const s = builderSizes.split(',').map(x => x.trim()).filter(Boolean).length;
+                      const c = builderColors.filter(x => x.name.trim()).length;
+                      if (s > 0 && c > 0) return `${s} sizes × ${c} colors = ${s * c} variants`;
+                      if (s > 0) return `${s} size variant${s !== 1 ? 's' : ''}`;
+                      if (c > 0) return `${c} color variant${c !== 1 ? 's' : ''}`;
+                      return '';
+                    })()}
+                  </p>
+                ) : null}
+                {variants.length > 0 && (
+                  <span className="text-sm text-amber-600 flex items-center gap-1">
+                    <i className="ri-alert-line"></i>
+                    Regenerating will replace {variants.length} existing variant{variants.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+
+              {/* Variants table */}
+              {variants.length > 0 && (
+                <div className="space-y-3">
+                  {/* Bulk apply bar */}
+                  <div className="flex items-center gap-3 flex-wrap bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <i className="ri-flashlight-line text-blue-600"></i>
+                      <span className="text-sm font-semibold text-blue-900">Bulk apply:</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-blue-700 font-medium">Price GH₵</span>
+                      <input type="number" value={bulkPrice} onChange={e => setBulkPrice(e.target.value)}
+                        placeholder={price || '0'}
+                        className="w-24 px-2 py-1.5 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 bg-white" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-blue-700 font-medium">Stock</span>
+                      <input type="number" value={bulkStock} onChange={e => setBulkStock(e.target.value)}
+                        placeholder="0"
+                        className="w-20 px-2 py-1.5 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 bg-white" />
+                    </div>
+                    <button type="button"
+                      onClick={() => {
+                        setVariants(prev => prev.map(v => ({
+                          ...v,
+                          ...(bulkPrice !== '' ? { price: parseFloat(bulkPrice) || 0 } : {}),
+                          ...(bulkStock !== '' ? { quantity: parseInt(bulkStock) || 0 } : {}),
+                        })));
+                        toast.success('Applied to all variants');
+                      }}
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+                      Apply to All
+                    </button>
+                    <span className="ml-auto text-xs text-blue-600">{variants.length} variant{variants.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Variant</th>
+                          {variants.some(v => v._color || v.option2) && (
+                            <th className="text-left py-3 px-4 font-semibold text-gray-700">Color</th>
+                          )}
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Price (GH₵)</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Stock</th>
+                          <th className="text-right py-3 px-4 font-semibold text-gray-700"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {variants.map((v, index) => (
+                          <tr key={v.id || index} className="hover:bg-gray-50 transition-colors">
+                            <td className="py-3 px-4 font-medium text-gray-900">{v.name}</td>
+                            {variants.some(vv => vv._color || vv.option2) && (
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  {v.image_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={v.image_url} alt="" className="w-7 h-7 rounded-md object-cover border border-gray-200" />
+                                  ) : v.option3 ? (
+                                    <div className="w-5 h-5 rounded-md border border-gray-300 shrink-0" style={{ background: v.option3 }} />
+                                  ) : null}
+                                  <span className="text-gray-600 text-xs">{v.option2 || v._color || '—'}</span>
+                                </div>
+                              </td>
+                            )}
+                            <td className="py-3 px-4">
+                              <input type="number" value={v.price ?? ''}
+                                onChange={e => { const nv = [...variants]; nv[index].price = parseFloat(e.target.value) || 0; setVariants(nv); }}
+                                placeholder={price || '0'}
+                                className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
+                            </td>
+                            <td className="py-3 px-4">
+                              <input type="number" value={v.quantity ?? 0}
+                                onChange={e => { const nv = [...variants]; nv[index].quantity = parseInt(e.target.value) || 0; setVariants(nv); }}
+                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button type="button"
+                                onClick={() => setVariants(variants.filter((_, i) => i !== index))}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                <i className="ri-close-line"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {variants.length === 0 && (
+                <div className="border-2 border-dashed border-gray-200 rounded-2xl py-14 text-center">
+                  <i className="ri-stack-line text-5xl text-gray-300 mb-3 block"></i>
+                  <p className="font-semibold text-gray-500">No variants generated yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Fill in sizes and/or colors above, then click <strong>Generate Variants</strong></p>
+                </div>
+              )}
             </div>
           )}
 

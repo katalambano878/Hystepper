@@ -124,6 +124,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
             _appearanceMode: v.image_url ? 'image' : 'color',
             _size: v.name?.includes(' / ') ? v.name.split(' / ')[0] : (v.option2 ? null : v.name),
             _color: v.option2 || null,
+            _disabled: false,
           })));
 
           // Reconstruct builder state from existing variants
@@ -188,6 +189,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
             quantity: 0,
             _size: size,
             _color: color.name,
+            _disabled: false,
             _appearanceMode: color.image_url ? 'image' : 'color',
           });
         }
@@ -203,6 +205,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
           price: basePrice,
           quantity: 0,
           _size: size,
+          _disabled: false,
           _appearanceMode: 'color',
         });
       }
@@ -217,6 +220,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
           price: basePrice,
           quantity: 0,
           _color: color.name,
+          _disabled: false,
           _appearanceMode: color.image_url ? 'image' : 'color',
         });
       }
@@ -295,8 +299,8 @@ export default function ProductEditor({ productId }: { productId: string }) {
       }
 
       // --- SAVE VARIANTS ---
-      // 1. Build upsert payload — strip temp IDs so DB generates real UUIDs
-      const variantsToUpsert = variants.map(v => {
+      // 1. Build upsert payload — strip temp IDs, exclude disabled combinations
+      const variantsToUpsert = variants.filter(v => !v._disabled).map(v => {
         const payload: any = {
           product_id: targetId,
           name: v.name,
@@ -828,7 +832,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     {(() => {
                       const s = builderSizes.split(',').map(x => x.trim()).filter(Boolean).length;
                       const c = builderColors.filter(x => x.name.trim()).length;
-                      if (s > 0 && c > 0) return `${s} sizes × ${c} colors = ${s * c} variants`;
+                      if (s > 0 && c > 0) return `${s} sizes × ${c} colors = ${s * c} combinations`;
                       if (s > 0) return `${s} size variant${s !== 1 ? 's' : ''}`;
                       if (c > 0) return `${c} color variant${c !== 1 ? 's' : ''}`;
                       return '';
@@ -838,13 +842,118 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 {variants.length > 0 && (
                   <span className="text-sm text-amber-600 flex items-center gap-1">
                     <i className="ri-alert-line"></i>
-                    Regenerating will replace {variants.length} existing variant{variants.length !== 1 ? 's' : ''}
+                    Regenerating resets prices &amp; stock
                   </span>
                 )}
               </div>
 
-              {/* Variants table */}
-              {variants.length > 0 && (
+              {/* ── Combination Matrix ── shown when both sizes AND colors are defined */}
+              {(() => {
+                const mSizes = builderSizes.split(',').map(s => s.trim()).filter(Boolean);
+                const mColors = builderColors.filter(c => c.name.trim());
+                if (mSizes.length === 0 || mColors.length === 0 || variants.length === 0) return null;
+                const activeCount = variants.filter(v => !v._disabled).length;
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center shrink-0">
+                        <i className="ri-grid-line text-indigo-600 text-sm"></i>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-900 text-sm">Availability Matrix</span>
+                        <span className="ml-2 text-xs text-gray-400">Click a cell to toggle that combination on/off</span>
+                      </div>
+                      <span className="ml-auto text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                        {activeCount} active
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                      <table className="text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="py-3 px-4 text-left text-xs font-semibold text-gray-500 bg-gray-50 min-w-[80px]">
+                              Size ↓ &nbsp; Color →
+                            </th>
+                            {mColors.map(color => (
+                              <th key={color.id} className="py-3 px-4 text-center bg-gray-50 min-w-[80px]">
+                                <div className="flex flex-col items-center gap-1.5">
+                                  {color.image_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={color.image_url} alt="" className="w-7 h-7 rounded-lg object-cover border border-gray-200" />
+                                  ) : (
+                                    <div className="w-6 h-6 rounded-md border border-gray-300" style={{ background: color.hex || '#000' }} />
+                                  )}
+                                  <span className="text-xs text-gray-600 font-medium leading-tight max-w-[70px] truncate">{color.name}</span>
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {mSizes.map((size, si) => (
+                            <tr key={size} className={`border-b border-gray-100 last:border-0 ${si % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                              <td className="py-3 px-4 font-semibold text-gray-800 bg-gray-50 text-sm">{size}</td>
+                              {mColors.map(color => {
+                                const variant = variants.find(v =>
+                                  v._size === size && (v._color || v.option2) === color.name
+                                );
+                                const isActive = variant ? !variant._disabled : false;
+                                return (
+                                  <td key={color.id} className="py-3 px-4 text-center">
+                                    <button
+                                      type="button"
+                                      title={isActive ? `${size} / ${color.name} — click to disable` : `${size} / ${color.name} — click to enable`}
+                                      onClick={() => {
+                                        if (variant) {
+                                          setVariants(prev => prev.map(v =>
+                                            v._size === size && (v._color || v.option2) === color.name
+                                              ? { ...v, _disabled: !v._disabled }
+                                              : v
+                                          ));
+                                        } else {
+                                          // Cell was never generated — add it now
+                                          setVariants(prev => [...prev, {
+                                            id: `temp-${Date.now()}-${Math.random()}`,
+                                            name: `${size} / ${color.name}`,
+                                            option2: color.name,
+                                            option3: color.image_url ? null : (color.hex || null),
+                                            image_url: color.image_url || null,
+                                            price: parseFloat(price) || 0,
+                                            quantity: 0,
+                                            _size: size,
+                                            _color: color.name,
+                                            _disabled: false,
+                                            _appearanceMode: color.image_url ? 'image' : 'color',
+                                          }]);
+                                        }
+                                      }}
+                                      className={`w-9 h-9 rounded-xl border-2 flex items-center justify-center mx-auto transition-all duration-150 ${
+                                        isActive
+                                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm hover:bg-emerald-600'
+                                          : 'bg-white border-gray-200 text-gray-300 hover:border-emerald-400 hover:text-emerald-400'
+                                      }`}
+                                    >
+                                      {isActive
+                                        ? <i className="ri-check-line text-sm font-bold"></i>
+                                        : <i className="ri-close-line text-sm"></i>
+                                      }
+                                    </button>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Variants price/stock table — only active (non-disabled) rows */}
+              {variants.filter(v => !v._disabled).length > 0 && (
                 <div className="space-y-3">
                   {/* Bulk apply bar */}
                   <div className="flex items-center gap-3 flex-wrap bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
@@ -866,17 +975,21 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     </div>
                     <button type="button"
                       onClick={() => {
-                        setVariants(prev => prev.map(v => ({
-                          ...v,
-                          ...(bulkPrice !== '' ? { price: parseFloat(bulkPrice) || 0 } : {}),
-                          ...(bulkStock !== '' ? { quantity: parseInt(bulkStock) || 0 } : {}),
-                        })));
-                        toast.success('Applied to all variants');
+                        setVariants(prev => prev.map(v =>
+                          v._disabled ? v : {
+                            ...v,
+                            ...(bulkPrice !== '' ? { price: parseFloat(bulkPrice) || 0 } : {}),
+                            ...(bulkStock !== '' ? { quantity: parseInt(bulkStock) || 0 } : {}),
+                          }
+                        ));
+                        toast.success('Applied to all active variants');
                       }}
                       className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
                       Apply to All
                     </button>
-                    <span className="ml-auto text-xs text-blue-600">{variants.length} variant{variants.length !== 1 ? 's' : ''}</span>
+                    <span className="ml-auto text-xs text-blue-600">
+                      {variants.filter(v => !v._disabled).length} variant{variants.filter(v => !v._disabled).length !== 1 ? 's' : ''} will be saved
+                    </span>
                   </div>
 
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -884,7 +997,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
                           <th className="text-left py-3 px-4 font-semibold text-gray-700">Variant</th>
-                          {variants.some(v => v._color || v.option2) && (
+                          {variants.some(v => !v._disabled && (v._color || v.option2)) && (
                             <th className="text-left py-3 px-4 font-semibold text-gray-700">Color</th>
                           )}
                           <th className="text-left py-3 px-4 font-semibold text-gray-700">Price (GH₵)</th>
@@ -893,42 +1006,52 @@ export default function ProductEditor({ productId }: { productId: string }) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {variants.map((v, index) => (
-                          <tr key={v.id || index} className="hover:bg-gray-50 transition-colors">
-                            <td className="py-3 px-4 font-medium text-gray-900">{v.name}</td>
-                            {variants.some(vv => vv._color || vv.option2) && (
+                        {variants.map((v, index) => {
+                          if (v._disabled) return null;
+                          return (
+                            <tr key={v.id || index} className="hover:bg-gray-50 transition-colors">
+                              <td className="py-3 px-4 font-medium text-gray-900">{v.name}</td>
+                              {variants.some(vv => !vv._disabled && (vv._color || vv.option2)) && (
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2">
+                                    {v.image_url ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={v.image_url} alt="" className="w-7 h-7 rounded-md object-cover border border-gray-200" />
+                                    ) : v.option3 ? (
+                                      <div className="w-5 h-5 rounded-md border border-gray-300 shrink-0" style={{ background: v.option3 }} />
+                                    ) : null}
+                                    <span className="text-gray-600 text-xs">{v.option2 || v._color || '—'}</span>
+                                  </div>
+                                </td>
+                              )}
                               <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
-                                  {v.image_url ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={v.image_url} alt="" className="w-7 h-7 rounded-md object-cover border border-gray-200" />
-                                  ) : v.option3 ? (
-                                    <div className="w-5 h-5 rounded-md border border-gray-300 shrink-0" style={{ background: v.option3 }} />
-                                  ) : null}
-                                  <span className="text-gray-600 text-xs">{v.option2 || v._color || '—'}</span>
-                                </div>
+                                <input type="number" value={v.price ?? ''}
+                                  onChange={e => { const nv = [...variants]; nv[index].price = parseFloat(e.target.value) || 0; setVariants(nv); }}
+                                  placeholder={price || '0'}
+                                  className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
                               </td>
-                            )}
-                            <td className="py-3 px-4">
-                              <input type="number" value={v.price ?? ''}
-                                onChange={e => { const nv = [...variants]; nv[index].price = parseFloat(e.target.value) || 0; setVariants(nv); }}
-                                placeholder={price || '0'}
-                                className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
-                            </td>
-                            <td className="py-3 px-4">
-                              <input type="number" value={v.quantity ?? 0}
-                                onChange={e => { const nv = [...variants]; nv[index].quantity = parseInt(e.target.value) || 0; setVariants(nv); }}
-                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <button type="button"
-                                onClick={() => setVariants(variants.filter((_, i) => i !== index))}
-                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                <i className="ri-close-line"></i>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                              <td className="py-3 px-4">
+                                <input type="number" value={v.quantity ?? 0}
+                                  onChange={e => { const nv = [...variants]; nv[index].quantity = parseInt(e.target.value) || 0; setVariants(nv); }}
+                                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button type="button"
+                                  onClick={() => {
+                                    // Mark disabled via matrix if possible, else remove
+                                    if (v._size && v._color) {
+                                      setVariants(prev => prev.map((vv, i) => i === index ? { ...vv, _disabled: true } : vv));
+                                    } else {
+                                      setVariants(variants.filter((_, i) => i !== index));
+                                    }
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                  <i className="ri-close-line"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -936,11 +1059,18 @@ export default function ProductEditor({ productId }: { productId: string }) {
               )}
 
               {/* Empty state */}
-              {variants.length === 0 && (
+              {variants.filter(v => !v._disabled).length === 0 && variants.length === 0 && (
                 <div className="border-2 border-dashed border-gray-200 rounded-2xl py-14 text-center">
                   <i className="ri-stack-line text-5xl text-gray-300 mb-3 block"></i>
                   <p className="font-semibold text-gray-500">No variants generated yet</p>
                   <p className="text-sm text-gray-400 mt-1">Fill in sizes and/or colors above, then click <strong>Generate Variants</strong></p>
+                </div>
+              )}
+              {variants.filter(v => !v._disabled).length === 0 && variants.length > 0 && (
+                <div className="border-2 border-dashed border-amber-200 rounded-2xl py-10 text-center bg-amber-50">
+                  <i className="ri-error-warning-line text-4xl text-amber-400 mb-2 block"></i>
+                  <p className="font-semibold text-amber-700">All combinations are disabled</p>
+                  <p className="text-sm text-amber-600 mt-1">Check at least one cell in the matrix above to enable it</p>
                 </div>
               )}
             </div>

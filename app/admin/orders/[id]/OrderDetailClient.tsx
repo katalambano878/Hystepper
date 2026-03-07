@@ -214,7 +214,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-6">
+        <div className="max-w-7xl mx-auto p-4 sm:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             {fraudAnalysis.riskLevel !== 'low' && (
@@ -233,8 +233,8 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
 
               <div className="space-y-4">
                 {order.order_items?.map((item: any) => (
-                  <div key={item.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="w-20 h-20 bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center relative">
+                  <div key={item.id} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                    <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center relative shrink-0">
                       {item.products?.product_images?.[0]?.url ? (
                         <img
                           src={item.products.product_images[0].url}
@@ -245,13 +245,13 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                         <i className="ri-image-line text-2xl text-gray-300"></i>
                       )}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">{item.product_name}</h3>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 mb-1 text-sm sm:text-base truncate">{item.product_name}</h3>
                       <p className="text-sm text-gray-600 mb-1">{item.variant_name}</p>
                       <p className="text-xs text-gray-500">SKU: {item.sku}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900 mb-1">GH₵ {item.unit_price?.toFixed(2)}</p>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">GH₵ {item.unit_price?.toFixed(2)}</p>
                       <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
                     </div>
                   </div>

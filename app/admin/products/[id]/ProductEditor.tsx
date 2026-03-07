@@ -387,36 +387,36 @@ export default function ProductEditor({ productId }: { productId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center space-x-3 min-w-0">
           <Link
             href="/admin/products"
-            className="w-10 h-10 flex items-center justify-center border-2 border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
+            className="w-10 h-10 shrink-0 flex items-center justify-center border-2 border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
           >
             <i className="ri-arrow-left-line text-xl text-gray-700"></i>
           </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{productId === 'new' ? 'New Product' : 'Edit Product'}</h1>
-            <p className="text-gray-600 mt-1">Update product information and settings</p>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{productId === 'new' ? 'New Product' : 'Edit Product'}</h1>
+            <p className="text-gray-600 mt-1 text-sm sm:text-base">Update product information and settings</p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <button className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 transition-colors font-semibold whitespace-nowrap cursor-pointer">
-            <i className="ri-eye-line mr-2"></i>
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <button className="px-4 sm:px-6 py-2.5 sm:py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 transition-colors font-semibold whitespace-nowrap cursor-pointer text-sm sm:text-base">
+            <i className="ri-eye-line mr-1.5"></i>
             Preview
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className={`px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer flex items-center ${saving ? 'opacity-75 cursor-not-allowed' : ''}`}
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer flex items-center text-sm sm:text-base ${saving ? 'opacity-75 cursor-not-allowed' : ''}`}
           >
             {saving ? (
               <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
             ) : (
-              <i className="ri-save-line mr-2"></i>
+              <i className="ri-save-line mr-1.5"></i>
             )}
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
@@ -457,7 +457,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-6 py-4 font-semibold whitespace-nowrap transition-colors border-b-2 cursor-pointer ${activeTab === tab.id
+                className={`flex items-center space-x-1.5 sm:space-x-2 px-3 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-semibold whitespace-nowrap transition-colors border-b-2 cursor-pointer ${activeTab === tab.id
                   ? 'border-emerald-700 text-emerald-700 bg-emerald-50'
                   : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
@@ -469,7 +469,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
           </div>
         </div>
 
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           {activeTab === 'general' && (
             <div className="space-y-6 max-w-3xl">
               <div>
@@ -956,7 +956,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
               {variants.filter(v => !v._disabled).length > 0 && (
                 <div className="space-y-3">
                   {/* Bulk apply bar */}
-                  <div className="flex items-center gap-3 flex-wrap bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 bg-blue-50 border border-blue-200 rounded-xl px-3 sm:px-4 py-3">
                     <div className="flex items-center gap-1.5">
                       <i className="ri-flashlight-line text-blue-600"></i>
                       <span className="text-sm font-semibold text-blue-900">Bulk apply:</span>
@@ -965,13 +965,13 @@ export default function ProductEditor({ productId }: { productId: string }) {
                       <span className="text-xs text-blue-700 font-medium">Price GH₵</span>
                       <input type="number" value={bulkPrice} onChange={e => setBulkPrice(e.target.value)}
                         placeholder={price || '0'}
-                        className="w-24 px-2 py-1.5 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 bg-white" />
+                        className="w-20 sm:w-24 px-2 py-1.5 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 bg-white" />
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-blue-700 font-medium">Stock</span>
                       <input type="number" value={bulkStock} onChange={e => setBulkStock(e.target.value)}
                         placeholder="0"
-                        className="w-20 px-2 py-1.5 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 bg-white" />
+                        className="w-16 sm:w-20 px-2 py-1.5 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 bg-white" />
                     </div>
                     <button type="button"
                       onClick={() => {
@@ -985,9 +985,9 @@ export default function ProductEditor({ productId }: { productId: string }) {
                         toast.success('Applied to all active variants');
                       }}
                       className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
-                      Apply to All
+                      Apply
                     </button>
-                    <span className="ml-auto text-xs text-blue-600">
+                    <span className="w-full sm:w-auto sm:ml-auto text-xs text-blue-600">
                       {variants.filter(v => !v._disabled).length} variant{variants.filter(v => !v._disabled).length !== 1 ? 's' : ''} will be saved
                     </span>
                   </div>
@@ -1088,7 +1088,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 {/* URL Input */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-900 mb-2">Add Image URL</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       placeholder="https://example.com/image.jpg"

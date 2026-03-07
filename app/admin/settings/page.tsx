@@ -157,7 +157,7 @@ export default function SettingsPage() {
     );
 
     return (
-        <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
@@ -192,7 +192,7 @@ export default function SettingsPage() {
 
                 {/* Content Area */}
                 <div className="lg:col-span-3">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 lg:p-8">
                         {/* General Info Tab */}
                         {activeTab === 'general' && (
                             <form onSubmit={handleSaveSettings} className="space-y-6">

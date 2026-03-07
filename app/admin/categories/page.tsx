@@ -165,10 +165,10 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-          <p className="text-gray-600 mt-1">Organize your products into categories</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Categories</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Organize your products into categories</p>
         </div>
         <button
           onClick={() => {
@@ -176,7 +176,7 @@ export default function AdminCategoriesPage() {
             setFormData({ name: '', slug: '', description: '', image_url: '', parent_id: '', featured: false, status: 'active' });
             setShowAddModal(true);
           }}
-          className="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
+          className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2.5 sm:px-6 sm:py-3 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer self-start sm:self-auto text-sm sm:text-base"
         >
           <i className="ri-add-line mr-2"></i>
           Add Category

@@ -301,15 +301,15 @@ export default function AdminOrdersPage() {
 
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center bg-sky-100 rounded-xl text-sky-600 text-xl">🛵</div>
+            <div className="w-10 h-10 flex items-center justify-center bg-sky-100 rounded-xl text-sky-600 text-xl shrink-0">🛵</div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Deliveries</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">My Deliveries</h1>
               <p className="text-sm text-gray-500">Orders assigned to you — mark them when delivered</p>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 shrink-0">
             <div className="text-center px-4 py-2 bg-sky-50 rounded-xl border border-sky-200">
               <p className="text-xl font-bold text-sky-700">{activeOrders.length}</p>
               <p className="text-xs text-sky-600">Active</p>
@@ -427,8 +427,8 @@ export default function AdminOrdersPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
-          <p className="text-gray-600 mt-1">Manage and track all customer orders</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Orders</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage and track all customer orders</p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
           <button
@@ -530,26 +530,26 @@ export default function AdminOrdersPage() {
         </div>
 
         {selectedOrders.length > 0 && (
-          <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex items-center justify-between">
-            <p className="text-emerald-800 font-semibold">
+          <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-emerald-800 font-semibold text-sm">
               {selectedOrders.length} order{selectedOrders.length > 1 ? 's' : ''} selected
             </p>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => handleBulkAction('Mark as Processing', 'processing')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
                 Mark Processing
               </button>
               <button
                 onClick={() => handleBulkAction('Mark as Shipped', 'shipped')}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
                 Mark Shipped
               </button>
               <button
                 onClick={() => handleBulkAction('Export')}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
+                className="px-3 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
                 <i className="ri-download-line mr-2"></i>
                 Export

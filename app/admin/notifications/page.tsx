@@ -68,7 +68,7 @@ export default function NotificationsPage() {
         <div className="max-w-4xl mx-auto">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Marketing & Notifications</h1>
 
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
+            <div className="bg-white p-4 sm:p-6 lg:p-8 rounded-xl shadow-sm border border-gray-200">
                 <h2 className="text-xl font-semibold mb-6">Send New Campaign</h2>
 
                 {success && <div className="bg-emerald-50 text-emerald-700 p-4 rounded-lg mb-4">{success}</div>}

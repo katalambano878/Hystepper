@@ -146,12 +146,12 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-600 mt-1">Manage your product catalog and inventory</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Products</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your product catalog and inventory</p>
         </div>
         <Link
           href="/admin/products/new"
-          className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center md:items-start"
+          className="px-5 py-2.5 sm:px-6 sm:py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center md:items-start text-sm sm:text-base self-start md:self-auto"
         >
           <i className="ri-add-line mr-2"></i>
           Add Product
@@ -193,18 +193,18 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 transition-colors font-medium whitespace-nowrap cursor-pointer"
+                className="px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 transition-colors font-medium whitespace-nowrap cursor-pointer text-sm"
               >
-                <i className="ri-filter-line mr-2"></i>
+                <i className="ri-filter-line mr-1 sm:mr-2"></i>
                 Filters
               </button>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-3 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer"
+                className="px-3 sm:px-4 py-2.5 sm:py-3 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer text-sm"
               >
                 <option value="newest">Newest First</option>
                 <option value="name">Sort by Name</option>

@@ -185,7 +185,7 @@ export default function DeliveryPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Unassigned', count: unassignedCount, icon: 'ri-inbox-unarchive-line', color: 'amber', tab: 'unassigned' as const },
           { label: 'Out for Delivery', count: assignedCount, icon: 'ri-truck-line', color: 'blue', tab: 'assigned' as const },

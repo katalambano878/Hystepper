@@ -118,12 +118,12 @@ export default function AdminBlogPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Blog Posts</h1>
-          <p className="text-gray-600 mt-1">Create and manage your blog content</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Blog Posts</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Create and manage your blog content</p>
         </div>
-        <Link href="/admin/blog/new" className="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap">
+        <Link href="/admin/blog/new" className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2.5 sm:px-6 sm:py-3 rounded-lg font-semibold transition-colors whitespace-nowrap self-start sm:self-auto text-sm sm:text-base">
           <i className="ri-add-line mr-2"></i>
           New Post
         </Link>
@@ -150,28 +150,28 @@ export default function AdminBlogPage() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <select className="px-4 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <select className="px-3 sm:px-4 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer text-sm">
                 <option>All Status</option>
                 <option>Published</option>
                 <option>Draft</option>
                 <option>Scheduled</option>
               </select>
-              <select className="px-4 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer">
+              <select className="px-3 sm:px-4 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer text-sm">
                 <option>All Categories</option>
                 <option>Interior Design</option>
                 <option>Home Styling</option>
                 <option>Sustainability</option>
                 <option>Gift Ideas</option>
               </select>
-              <select className="px-4 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer">
+              <select className="px-3 sm:px-4 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer text-sm">
                 <option>Sort by Date</option>
                 <option>Sort by Views</option>
                 <option>Sort by Comments</option>
               </select>
             </div>
-            <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden">
+            <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden shrink-0 self-start sm:self-auto">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`w-10 h-10 flex items-center justify-center transition-colors ${
@@ -193,18 +193,18 @@ export default function AdminBlogPage() {
         </div>
 
         {selectedPosts.length > 0 && (
-          <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex items-center justify-between">
-            <p className="text-emerald-800 font-semibold">
+          <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-emerald-800 font-semibold text-sm">
               {selectedPosts.length} post{selectedPosts.length > 1 ? 's' : ''} selected
             </p>
-            <div className="flex items-center space-x-2">
-              <button className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
                 Publish
               </button>
-              <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+              <button className="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
                 Draft
               </button>
-              <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+              <button className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
                 Delete
               </button>
             </div>

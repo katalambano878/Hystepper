@@ -54,26 +54,26 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
     return (
         <div className="max-w-7xl mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center space-x-4">
-                    <Link href="/admin/customers" className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+                    <Link href="/admin/customers" className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors shrink-0">
                         <i className="ri-arrow-left-line text-xl"></i>
                     </Link>
-                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 text-2xl font-bold">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 text-xl sm:text-2xl font-bold shrink-0">
                         {customer.full_name?.charAt(0) || customer.email.charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">{customer.full_name || 'No Name'}</h1>
-                        <p className="text-gray-500">{customer.email}</p>
+                    <div className="min-w-0">
+                        <h1 className="text-xl sm:text-3xl font-bold text-gray-900 truncate">{customer.full_name || 'No Name'}</h1>
+                        <p className="text-gray-500 text-sm truncate">{customer.email}</p>
                     </div>
                 </div>
-                <div className="flex space-x-3">
-                    <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 cursor-pointer">
-                        <i className="ri-mail-send-line mr-2"></i>
-                        Send Email
+                <div className="flex gap-2 sm:gap-3 shrink-0">
+                    <button className="px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 cursor-pointer text-sm">
+                        <i className="ri-mail-send-line mr-1 sm:mr-2"></i>
+                        Email
                     </button>
-                    <button className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 cursor-pointer">
-                        Edit Customer
+                    <button className="px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 cursor-pointer text-sm">
+                        Edit
                     </button>
                 </div>
             </div>
@@ -109,6 +109,7 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
                 {orders.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">No orders found.</div>
                 ) : (
+                    <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
                             <tr>
@@ -148,6 +149,7 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 )}
             </div>
         </div>

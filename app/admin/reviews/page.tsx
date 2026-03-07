@@ -141,8 +141,8 @@ export default function AdminReviewsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Reviews</h1>
-          <p className="text-gray-600 mt-1">Moderate and manage customer reviews</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Reviews</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Moderate and manage customer reviews</p>
         </div>
       </div>
 
@@ -196,23 +196,23 @@ export default function AdminReviewsPage() {
         </div>
 
         {selectedReviews.length > 0 && (
-          <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex items-center justify-between">
-            <p className="text-emerald-800 font-semibold">
+          <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-emerald-800 font-semibold text-sm">
               {selectedReviews.length} review{selectedReviews.length > 1 ? 's' : ''} selected
             </p>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => handleBulkAction('Approve')}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
-                <i className="ri-check-line mr-2"></i>
+                <i className="ri-check-line mr-1"></i>
                 Approve
               </button>
               <button
                 onClick={() => handleBulkAction('Reject')}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
+                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
-                <i className="ri-close-line mr-2"></i>
+                <i className="ri-close-line mr-1"></i>
                 Reject
               </button>
             </div>

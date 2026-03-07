@@ -218,13 +218,13 @@ export default function InventoryManagementPage() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto">
                 {['all', 'low', 'out', 'good'].map((filter) => (
                   <button
                     key={filter}
                     onClick={() => setStockFilter(filter)}
-                    className={`px-4 py-2 rounded-md font-medium text-sm transition-colors whitespace-nowrap cursor-pointer ${stockFilter === filter
+                    className={`px-3 sm:px-4 py-2 rounded-md font-medium text-xs sm:text-sm transition-colors whitespace-nowrap cursor-pointer ${stockFilter === filter
                       ? 'bg-white text-gray-900 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
                       }`}
@@ -239,15 +239,15 @@ export default function InventoryManagementPage() {
 
               <button
                 onClick={() => setShowImportModal(true)}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center space-x-2 whitespace-nowrap cursor-pointer"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap cursor-pointer text-sm"
               >
                 <i className="ri-upload-line"></i>
-                <span>Import CSV</span>
+                <span>Import</span>
               </button>
 
               <button
                 onClick={() => setShowExportModal(true)}
-                className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-4 py-3 rounded-lg font-semibold transition-colors flex items-center space-x-2 whitespace-nowrap cursor-pointer"
+                className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap cursor-pointer text-sm"
               >
                 <i className="ri-download-line"></i>
                 <span>Export</span>
@@ -256,22 +256,22 @@ export default function InventoryManagementPage() {
           </div>
 
           {selectedProducts.length > 0 && (
-            <div className="mt-4 flex items-center justify-between p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-              <p className="text-emerald-800 font-medium">
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <p className="text-emerald-800 font-medium text-sm">
                 {selectedProducts.length} product{selectedProducts.length > 1 ? 's' : ''} selected
               </p>
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={handleBulkRestock}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-sm"
                 >
                   Bulk Restock
                 </button>
                 <button
                   onClick={() => setSelectedProducts([])}
-                  className="text-gray-600 hover:text-gray-900 font-medium whitespace-nowrap cursor-pointer"
+                  className="text-gray-600 hover:text-gray-900 font-medium whitespace-nowrap cursor-pointer text-sm"
                 >
-                  Clear Selection
+                  Clear
                 </button>
               </div>
             </div>

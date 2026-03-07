@@ -208,12 +208,12 @@ export default function AdminCustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Customers</h1>
-          <p className="text-gray-600 mt-1">Manage your customer base and relationships</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Customers</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your customer base and relationships</p>
         </div>
-        <button className="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer">
+        <button className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2.5 sm:px-6 sm:py-3 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer self-start sm:self-auto text-sm sm:text-base">
           <i className="ri-download-line mr-2"></i>
           Export Customers
         </button>
@@ -283,21 +283,21 @@ export default function AdminCustomersPage() {
         </div>
 
         {selectedCustomers.length > 0 && (
-          <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex items-center justify-between">
-            <p className="text-emerald-800 font-semibold">
+          <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-emerald-800 font-semibold text-sm">
               {selectedCustomers.length} customer{selectedCustomers.length > 1 ? 's' : ''} selected
             </p>
-            <div className="flex items-center space-x-2">
-              <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer">
-                <i className="ri-mail-line mr-2"></i>
-                Send Email
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer">
+                <i className="ri-mail-line mr-1"></i>
+                Email
               </button>
-              <button className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer">
-                <i className="ri-vip-crown-line mr-2"></i>
-                Mark as VIP
+              <button className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer">
+                <i className="ri-vip-crown-line mr-1"></i>
+                VIP
               </button>
-              <button className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer">
-                <i className="ri-download-line mr-2"></i>
+              <button className="px-3 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer">
+                <i className="ri-download-line mr-1"></i>
                 Export
               </button>
             </div>

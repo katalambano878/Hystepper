@@ -112,7 +112,20 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 return acc;
               }, []);
           })(),
-          sizes: [...new Set(productData.product_variants?.map((v: any) => v.name || v.option1).filter(Boolean))] || [],
+          sizes: (() => {
+            const variants = productData.product_variants || [];
+            const hasColors = variants.some((v: any) => v.option2);
+            if (hasColors) {
+              const sizeSet = new Set<string>();
+              variants.forEach((v: any) => {
+                const name = (v.name || '').toString().trim();
+                const size = name.includes(' / ') ? name.split(' / ')[0].trim() : name;
+                if (size) sizeSet.add(size);
+              });
+              return [...sizeSet];
+            }
+            return [...new Set(variants.map((v: any) => v.name || v.option1).filter(Boolean))];
+          })(),
           variants: productData.product_variants || [],
           features: features,
           care: 'Handle with care. Keep in dry place.',
@@ -489,6 +502,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                               key={colorName}
                               onClick={() => {
                                 setSelectedColor(colorName);
+                                setSelectedSize('');
                                 setColorOverrideImage(colorImage);
                                 setMainImageError(false);
                               }}
@@ -513,6 +527,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             key={colorName || colorHex}
                             onClick={() => {
                               setSelectedColor(colorName);
+                              setSelectedSize('');
                               setColorOverrideImage(null);
                               setMainImageError(false);
                             }}
@@ -534,7 +549,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </div>
                 )}
 
-                {/* Size Selection */}
+                {/* Size Selection — filtered by selected color when colors exist */}
                 {product.sizes && product.sizes.length > 0 && (
                   <div className="mb-8">
                     <div className="flex items-center justify-between mb-3">
@@ -542,90 +557,152 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       {selectedSize && <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedSize}</span>}
                     </div>
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
-                      {product.sizes.map((size: string) => (
-                        <button
-                          key={size}
-                          onClick={() => setSelectedSize(size)}
-                          className={`py-3 rounded-xl border-2 font-semibold transition-all text-center cursor-pointer ${selectedSize === size
-                            ? 'border-gold-600 bg-gold-600 text-white shadow-md shadow-gold-600/20 scale-[1.02]'
-                            : 'border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
-                            }`}
-                        >
-                          {size}
-                        </button>
-                      ))}
+                      {product.sizes.map((size: string) => {
+                        const hasColors = product.colors && product.colors.length > 0;
+                        const isAvailable = !hasColors || !selectedColor
+                          ? true
+                          : product.variants.some((v: any) => {
+                              const vSize = v.name?.includes(' / ') ? v.name.split(' / ')[0].trim() : v.name;
+                              return vSize === size && v.option2 === selectedColor && (v.quantity ?? 0) > 0;
+                            });
+                        const isOutOfStock = hasColors && selectedColor && !isAvailable;
+
+                        return (
+                          <button
+                            key={size}
+                            onClick={() => !isOutOfStock && setSelectedSize(size)}
+                            disabled={isOutOfStock}
+                            className={`py-3 rounded-xl border-2 font-semibold transition-all text-center ${isOutOfStock
+                              ? 'border-gray-100 text-gray-300 cursor-not-allowed line-through bg-gray-50'
+                              : selectedSize === size
+                                ? 'border-gold-600 bg-gold-600 text-white shadow-md shadow-gold-600/20 scale-[1.02] cursor-pointer'
+                                : 'border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 cursor-pointer'
+                              }`}
+                          >
+                            {size}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                <div className="mb-8">
-                  <label className="block font-semibold text-gray-900 mb-3">Quantity</label>
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center border-2 border-gray-200 rounded-xl bg-white overflow-hidden shadow-sm">
-                      <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
-                        disabled={product.stockCount === 0}
-                      >
-                        <i className="ri-subtract-line text-xl"></i>
-                      </button>
-                      <input
-                        type="number"
-                        value={quantity}
-                        onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                        className="w-16 h-12 text-center border-x-2 border-gray-100 focus:outline-none text-lg font-bold text-gray-900 bg-gray-50/50"
-                        min="1"
-                        max="10"
-                        disabled={product.stockCount === 0}
-                      />
-                      <button
-                        onClick={() => setQuantity(Math.min(10, quantity + 1))}
-                        className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
-                        disabled={product.stockCount === 0}
-                      >
-                        <i className="ri-add-line text-xl"></i>
-                      </button>
-                    </div>
-                    {product.stockCount > 10 && (
-                      <span className="text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full text-sm">
-                        <i className="ri-checkbox-circle-fill text-lg"></i> In Stock
-                      </span>
-                    )}
-                    {product.stockCount > 0 && product.stockCount <= 10 && (
-                      <span className="text-amber-600 font-semibold flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full text-sm">
-                        <i className="ri-error-warning-fill text-lg"></i> Only {product.stockCount} Left
-                      </span>
-                    )}
-                    {product.stockCount === 0 && (
-                      <span className="text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-3 py-1.5 rounded-full text-sm">
-                        <i className="ri-close-circle-fill text-lg"></i> Sold Out
-                      </span>
-                    )}
-                  </div>
-                </div>
+                {/* Quantity & Stock — show variant-level stock when a specific combo is selected */}
+                {(() => {
+                  const hasColors = product.colors && product.colors.length > 0;
+                  const hasSizes = product.sizes && product.sizes.length > 0;
+                  let variantStock: number | null = null;
 
-                <div className="flex flex-col gap-3 mb-8">
-                  <button
-                    disabled={product.stockCount === 0}
-                    className={`w-full bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-lg cursor-pointer shadow-lg shadow-gray-900/20 ${product.stockCount === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}`}
-                    onClick={handleAddToCart}
-                  >
-                    <i className="ri-shopping-cart-line text-xl"></i>
-                    <span>{product.stockCount === 0 ? 'Out of Stock' : 'Add to Cart'}</span>
-                  </button>
-                  {product.stockCount > 0 && (
-                    <button
-                      onClick={handleBuyNow}
-                      className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-lg cursor-pointer shadow-lg shadow-gold-600/20 hover:-translate-y-0.5"
-                    >
-                      <i className="ri-flashlight-fill text-xl"></i>
-                      <span>Buy It Now</span>
-                    </button>
-                  )}
-                </div>
+                  if (hasColors && hasSizes && selectedColor && selectedSize) {
+                    const match = product.variants.find((v: any) => {
+                      const vSize = v.name?.includes(' / ') ? v.name.split(' / ')[0].trim() : v.name;
+                      return vSize === selectedSize && v.option2 === selectedColor;
+                    });
+                    variantStock = match ? (match.quantity ?? 0) : 0;
+                  } else if (hasColors && !hasSizes && selectedColor) {
+                    const match = product.variants.find((v: any) => v.option2 === selectedColor || v.name === selectedColor);
+                    variantStock = match ? (match.quantity ?? 0) : 0;
+                  } else if (!hasColors && hasSizes && selectedSize) {
+                    const match = product.variants.find((v: any) => v.name === selectedSize);
+                    variantStock = match ? (match.quantity ?? 0) : 0;
+                  }
+
+                  const displayStock = variantStock !== null ? variantStock : product.stockCount;
+
+                  return (
+                    <div className="mb-8">
+                      <label className="block font-semibold text-gray-900 mb-3">Quantity</label>
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center border-2 border-gray-200 rounded-xl bg-white overflow-hidden shadow-sm">
+                          <button
+                            onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                            className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
+                            disabled={displayStock === 0}
+                          >
+                            <i className="ri-subtract-line text-xl"></i>
+                          </button>
+                          <input
+                            type="number"
+                            value={quantity}
+                            onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                            className="w-16 h-12 text-center border-x-2 border-gray-100 focus:outline-none text-lg font-bold text-gray-900 bg-gray-50/50"
+                            min="1"
+                            max="10"
+                            disabled={displayStock === 0}
+                          />
+                          <button
+                            onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                            className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
+                            disabled={displayStock === 0}
+                          >
+                            <i className="ri-add-line text-xl"></i>
+                          </button>
+                        </div>
+                        {displayStock > 10 && (
+                          <span className="text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full text-sm">
+                            <i className="ri-checkbox-circle-fill text-lg"></i> In Stock
+                          </span>
+                        )}
+                        {displayStock > 0 && displayStock <= 10 && (
+                          <span className="text-amber-600 font-semibold flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full text-sm">
+                            <i className="ri-error-warning-fill text-lg"></i> Only {displayStock} Left
+                          </span>
+                        )}
+                        {displayStock === 0 && (
+                          <span className="text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-3 py-1.5 rounded-full text-sm">
+                            <i className="ri-close-circle-fill text-lg"></i> Sold Out
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Add to Cart / Buy Now — use variant stock when available */}
+                {(() => {
+                  const hasColors = product.colors && product.colors.length > 0;
+                  const hasSizes = product.sizes && product.sizes.length > 0;
+                  let resolvedStock = product.stockCount;
+
+                  if (hasColors && hasSizes && selectedColor && selectedSize) {
+                    const match = product.variants.find((v: any) => {
+                      const vSize = v.name?.includes(' / ') ? v.name.split(' / ')[0].trim() : v.name;
+                      return vSize === selectedSize && v.option2 === selectedColor;
+                    });
+                    resolvedStock = match ? (match.quantity ?? 0) : 0;
+                  } else if (hasColors && !hasSizes && selectedColor) {
+                    const match = product.variants.find((v: any) => v.option2 === selectedColor || v.name === selectedColor);
+                    resolvedStock = match ? (match.quantity ?? 0) : 0;
+                  } else if (!hasColors && hasSizes && selectedSize) {
+                    const match = product.variants.find((v: any) => v.name === selectedSize);
+                    resolvedStock = match ? (match.quantity ?? 0) : 0;
+                  }
+
+                  return (
+                    <div className="flex flex-col gap-3 mb-8">
+                      <button
+                        disabled={resolvedStock === 0}
+                        className={`w-full bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-lg cursor-pointer shadow-lg shadow-gray-900/20 ${resolvedStock === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}`}
+                        onClick={handleAddToCart}
+                      >
+                        <i className="ri-shopping-cart-line text-xl"></i>
+                        <span>{resolvedStock === 0 ? 'Out of Stock' : 'Add to Cart'}</span>
+                      </button>
+                      {resolvedStock > 0 && (
+                        <button
+                          onClick={handleBuyNow}
+                          className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-lg cursor-pointer shadow-lg shadow-gold-600/20 hover:-translate-y-0.5"
+                        >
+                          <i className="ri-flashlight-fill text-xl"></i>
+                          <span>Buy It Now</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Notify Me When Back in Stock */}
-                {product.stockCount === 0 && (
+                {product.stockCount === 0 && !product.variants?.some((v: any) => (v.quantity ?? 0) > 0) && (
                   <div className="mb-8 p-6 bg-gray-50 border border-gray-200 rounded-2xl">
                     {notifySubmitted ? (
                       <div className="flex items-center gap-3 text-gold-700">

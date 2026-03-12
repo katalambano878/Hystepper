@@ -113,8 +113,13 @@ export default function CartPage() {
 
                             <div className="text-sm text-gray-600 mb-3 space-y-1">
                               {item.variant && <p>Variant: {item.variant}</p>}
-                              {/* Stock status assuming always available if in cart for now */}
-                              <p className="text-gold-600 font-medium">In Stock</p>
+                              {item.maxStock > 0 && item.maxStock <= 10 ? (
+                                <p className="text-amber-600 font-medium">Only {item.maxStock} in stock</p>
+                              ) : item.maxStock > 10 ? (
+                                <p className="text-gold-600 font-medium">In Stock</p>
+                              ) : (
+                                <p className="text-red-600 font-medium">Out of Stock</p>
+                              )}
                             </div>
 
                             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -126,27 +131,35 @@ export default function CartPage() {
                                 <div className="flex items-center border-2 border-gray-300 rounded-lg">
                                   <button
                                     onClick={() => updateQuantity(item.id, item.quantity - 1, item.variant)}
-                                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                    disabled={item.quantity <= 1}
                                   >
                                     <i className="ri-subtract-line"></i>
                                   </button>
                                   <input
                                     type="number"
                                     value={item.quantity}
-                                    onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1, item.variant)}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 1;
+                                      updateQuantity(item.id, Math.min(val, item.maxStock ?? 999), item.variant);
+                                    }}
                                     className="w-12 h-10 text-center border-x-2 border-gray-300 focus:outline-none font-semibold"
                                     min="1"
                                     max={item.maxStock ?? 999}
                                   />
                                   <button
                                     onClick={() => updateQuantity(item.id, item.quantity + 1, item.variant)}
-                                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                    disabled={item.quantity >= (item.maxStock ?? 999)}
                                   >
                                     <i className="ri-add-line"></i>
                                   </button>
                                 </div>
                               </div>
                             </div>
+                            {item.quantity >= (item.maxStock ?? 999) && (item.maxStock ?? 999) < 999 && (
+                              <p className="text-xs text-amber-600 mt-1 font-medium">Max stock reached</p>
+                            )}
 
                             {/* Saved for later functionality temporarily disabled until fully implemented with Context integration if requested */}
                             {/*

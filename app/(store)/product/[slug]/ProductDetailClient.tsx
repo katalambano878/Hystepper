@@ -89,7 +89,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         const transformedProduct = {
           ...productData,
           images: Array.isArray(rawImages) ? rawImages : [],
-          category: productData.categories?.name || 'Shop',
+          category: (Array.isArray(productData.categories) ? productData.categories[0] : productData.categories)?.name || 'Shop',
           rating: productData.rating_avg || 0,
           reviewCount: 0, // Placeholder
           stockCount: productData.quantity,
@@ -186,6 +186,41 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [showSizeError, setShowSizeError] = useState(false);
   const [showColorError, setShowColorError] = useState(false);
 
+  // Helper: get effective stock — variant stock when product has variants, else product stock
+  const getEffectiveStock = () => {
+    if (!product) return 0;
+    const hasColors = product.colors && product.colors.length > 0;
+    const hasSizes = product.sizes && product.sizes.length > 0;
+
+    if (hasColors && hasSizes && selectedColor && selectedSize) {
+      const match = product.variants?.find((v: any) => {
+        const vSize = v.name?.includes(' / ') ? v.name.split(' / ')[0].trim() : v.name;
+        return vSize === selectedSize && v.option2 === selectedColor;
+      });
+      return match ? (match.quantity ?? 0) : 0;
+    }
+    if (hasColors && !hasSizes && selectedColor) {
+      const match = product.variants?.find((v: any) => v.option2 === selectedColor || v.name === selectedColor);
+      return match ? (match.quantity ?? 0) : 0;
+    }
+    if (!hasColors && hasSizes && selectedSize) {
+      const match = product.variants?.find((v: any) => v.name === selectedSize);
+      return match ? (match.quantity ?? 0) : 0;
+    }
+    return Number(product.stockCount) || 0;
+  };
+
+  // Clamp quantity when variant selection changes (stock may be lower)
+  useEffect(() => {
+    if (!product) return;
+    const effective = getEffectiveStock();
+    if (effective > 0) {
+      setQuantity((q) => Math.max(1, Math.min(q, effective)));
+    } else {
+      setQuantity(1);
+    }
+  }, [product, selectedColor, selectedSize]);
+
   const handleAddToCart = () => {
     if (!product) return;
 
@@ -208,7 +243,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     }
 
     const price = Number(product.price);
-    const maxStock = Number(product.stockCount) || 0;
+    const maxStock = getEffectiveStock();
 
     const firstImage = (product.images || []).find(
       (img: string) => typeof img === 'string' && !img.startsWith('data:video')
@@ -222,10 +257,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       name: product.name ?? 'Product',
       price,
       image,
-      quantity: Math.max(1, Math.min(quantity, maxStock || 999)),
+      quantity: Math.max(1, Math.min(quantity, maxStock)),
       variant: [selectedSize, selectedColor].filter(Boolean).join(' / ') || undefined,
       slug: product.slug ?? product.id,
-      maxStock: maxStock || 999
+      maxStock
     });
   };
 
@@ -589,25 +624,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 {/* Quantity & Stock — show variant-level stock when a specific combo is selected */}
                 {(() => {
-                  const hasColors = product.colors && product.colors.length > 0;
-                  const hasSizes = product.sizes && product.sizes.length > 0;
-                  let variantStock: number | null = null;
-
-                  if (hasColors && hasSizes && selectedColor && selectedSize) {
-                    const match = product.variants.find((v: any) => {
-                      const vSize = v.name?.includes(' / ') ? v.name.split(' / ')[0].trim() : v.name;
-                      return vSize === selectedSize && v.option2 === selectedColor;
-                    });
-                    variantStock = match ? (match.quantity ?? 0) : 0;
-                  } else if (hasColors && !hasSizes && selectedColor) {
-                    const match = product.variants.find((v: any) => v.option2 === selectedColor || v.name === selectedColor);
-                    variantStock = match ? (match.quantity ?? 0) : 0;
-                  } else if (!hasColors && hasSizes && selectedSize) {
-                    const match = product.variants.find((v: any) => v.name === selectedSize);
-                    variantStock = match ? (match.quantity ?? 0) : 0;
-                  }
-
-                  const displayStock = variantStock !== null ? variantStock : product.stockCount;
+                  const displayStock = getEffectiveStock();
 
                   return (
                     <div className="mb-8">
@@ -624,16 +641,16 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                           <input
                             type="number"
                             value={quantity}
-                            onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                            onChange={(e) => setQuantity(Math.max(1, Math.min(displayStock, parseInt(e.target.value) || 1)))}
                             className="w-16 h-12 text-center border-x-2 border-gray-100 focus:outline-none text-lg font-bold text-gray-900 bg-gray-50/50"
                             min="1"
-                            max="10"
+                            max={displayStock}
                             disabled={displayStock === 0}
                           />
                           <button
-                            onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                            onClick={() => setQuantity(Math.min(displayStock, quantity + 1))}
                             className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
-                            disabled={displayStock === 0}
+                            disabled={displayStock === 0 || quantity >= displayStock}
                           >
                             <i className="ri-add-line text-xl"></i>
                           </button>
@@ -660,23 +677,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 {/* Add to Cart / Buy Now — use variant stock when available */}
                 {(() => {
-                  const hasColors = product.colors && product.colors.length > 0;
-                  const hasSizes = product.sizes && product.sizes.length > 0;
-                  let resolvedStock = product.stockCount;
-
-                  if (hasColors && hasSizes && selectedColor && selectedSize) {
-                    const match = product.variants.find((v: any) => {
-                      const vSize = v.name?.includes(' / ') ? v.name.split(' / ')[0].trim() : v.name;
-                      return vSize === selectedSize && v.option2 === selectedColor;
-                    });
-                    resolvedStock = match ? (match.quantity ?? 0) : 0;
-                  } else if (hasColors && !hasSizes && selectedColor) {
-                    const match = product.variants.find((v: any) => v.option2 === selectedColor || v.name === selectedColor);
-                    resolvedStock = match ? (match.quantity ?? 0) : 0;
-                  } else if (!hasColors && hasSizes && selectedSize) {
-                    const match = product.variants.find((v: any) => v.name === selectedSize);
-                    resolvedStock = match ? (match.quantity ?? 0) : 0;
-                  }
+                  const resolvedStock = getEffectiveStock();
 
                   return (
                     <div className="flex flex-col gap-3 mb-8">

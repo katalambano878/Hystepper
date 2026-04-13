@@ -96,9 +96,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           colors: (() => {
             const seen = new Set<string>();
             return (productData.product_variants || [])
-              .filter((v: any) => v && (v.option2 ?? v.name))
+              .filter((v: any) => v && v.option2)
               .reduce((acc: any[], v: any) => {
-                const name = (v.option2 ?? v.name ?? '').toString().trim();
+                const name = (v.option2 ?? '').toString().trim();
                 if (!name) return acc;
                 const hex = (v.option3 && typeof v.option3 === 'string') ? v.option3 : null;
                 const image = (v.image_url && typeof v.image_url === 'string') ? v.image_url : null;

@@ -740,11 +740,48 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     <h4 className="font-semibold text-gray-900">Sizes</h4>
                     <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">optional</span>
                   </div>
+
+                  {/* Preset shoe sizes */}
+                  <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-2">Quick select:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'].map(size => {
+                        const currentSizes = builderSizes.split(',').map(s => s.trim()).filter(Boolean);
+                        const isActive = currentSizes.includes(size);
+                        return (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => {
+                              if (isActive) {
+                                setBuilderSizes(currentSizes.filter(s => s !== size).join(', '));
+                              } else {
+                                const numericSizes = [...currentSizes, size].sort((a, b) => {
+                                  const na = Number(a), nb = Number(b);
+                                  if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                                  return a.localeCompare(b);
+                                });
+                                setBuilderSizes(numericSizes.join(', '));
+                              }
+                            }}
+                            className={`w-10 h-10 rounded-lg border-2 text-sm font-semibold transition-all cursor-pointer ${
+                              isActive
+                                ? 'border-emerald-500 bg-emerald-500 text-white shadow-sm'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-emerald-300 hover:text-emerald-600'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <input
                     type="text"
                     value={builderSizes}
                     onChange={e => setBuilderSizes(e.target.value)}
-                    placeholder="e.g. 36, 37, 38, 39, 40  or  S, M, L, XL"
+                    placeholder="Or type custom sizes: S, M, L, XL"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-white text-sm"
                   />
                   <p className="text-xs text-gray-400 mt-2">Separate values with commas</p>

@@ -275,89 +275,137 @@ export default function ProductsPage() {
             <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
           </div>
         ) : viewMode === 'list' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="py-4 px-6">
+          <>
+            <div className="md:hidden p-4 space-y-3">
+              {filteredProducts.map((product) => (
+                <div key={product.id} className="border border-gray-200 rounded-xl p-3 bg-white">
+                  <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
-                      checked={selectedProducts.length === products.length && products.length > 0}
-                      onChange={handleSelectAll}
-                      className="w-4 h-4 text-emerald-700 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
+                      checked={selectedProducts.includes(product.id)}
+                      onChange={() => handleSelectProduct(product.id)}
+                      className="mt-1 w-4 h-4 text-emerald-700 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer shrink-0"
                     />
-                  </th>
-                  <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Product</th>
-                  <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">SKU</th>
-                  <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Category</th>
-                  <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Price</th>
-                  <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Stock</th>
-                  <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Status</th>
-                  <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="py-4 px-6">
+                    <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 shrink-0">
+                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-gray-900 leading-tight line-clamp-2">{product.name}</p>
+                      <p className="text-xs text-gray-500 mt-1">{product.category}</p>
+                      <p className="text-xs text-gray-400 font-mono mt-0.5">SKU: {product.sku || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-sm">
+                    <span className="font-semibold text-gray-900">GH₵ {Number(product.price || 0).toFixed(2)}</span>
+                    <span className="text-gray-600">Stock: {product.stock}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${statusColors[product.status] || 'bg-gray-100 text-gray-600'}`}>
+                      {product.status}
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <Link
+                        href={`/admin/products/${product.id}`}
+                        className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <i className="ri-edit-line text-lg"></i>
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteProduct(product.id)}
+                        className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <i className="ri-delete-bin-line text-lg"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="py-4 px-6">
                       <input
                         type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={() => handleSelectProduct(product.id)}
+                        checked={selectedProducts.length === products.length && products.length > 0}
+                        onChange={handleSelectAll}
                         className="w-4 h-4 text-emerald-700 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
                       />
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{product.name}</p>
-                          <div className="flex items-center mt-1">
-                            <span className="text-xs text-gray-400">ID: {product.id.substring(0, 8)}...</span>
+                    </th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Product</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">SKU</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Category</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Price</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Stock</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Status</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.map((product) => (
+                    <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-4 px-6">
+                        <input
+                          type="checkbox"
+                          checked={selectedProducts.includes(product.id)}
+                          onChange={() => handleSelectProduct(product.id)}
+                          className="w-4 h-4 text-emerald-700 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900">{product.name}</p>
+                            <div className="flex items-center mt-1">
+                              <span className="text-xs text-gray-400">ID: {product.id.substring(0, 8)}...</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4 text-gray-700 text-sm font-mono">{product.sku || '-'}</td>
-                    <td className="py-4 px-4 text-gray-700 text-sm">{product.category}</td>
-                    <td className="py-4 px-4 font-semibold text-gray-900 whitespace-nowrap">GH₵ {product.price.toFixed(2)}</td>
-                    <td className="py-4 px-4 text-gray-700">
-                      {product.stock}
-                      {product.stock <= (product.metadata?.low_stock_threshold || 5) && product.stock > 0 && (
-                        <span className="ml-2 w-2 h-2 rounded-full bg-amber-500 inline-block" title="Low Stock"></span>
-                      )}
-                      {product.stock === 0 && (
-                        <span className="ml-2 w-2 h-2 rounded-full bg-red-500 inline-block" title="Out of Stock"></span>
-                      )}
-                    </td>
-                    <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap capitalize ${statusColors[product.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {product.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center space-x-2">
-                        <Link
-                          href={`/admin/products/${product.id}`}
-                          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <i className="ri-edit-line text-lg"></i>
-                        </Link>
-                        <button
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <i className="ri-delete-bin-line text-lg"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                      <td className="py-4 px-4 text-gray-700 text-sm font-mono">{product.sku || '-'}</td>
+                      <td className="py-4 px-4 text-gray-700 text-sm">{product.category}</td>
+                      <td className="py-4 px-4 font-semibold text-gray-900 whitespace-nowrap">GH₵ {product.price.toFixed(2)}</td>
+                      <td className="py-4 px-4 text-gray-700">
+                        {product.stock}
+                        {product.stock <= (product.metadata?.low_stock_threshold || 5) && product.stock > 0 && (
+                          <span className="ml-2 w-2 h-2 rounded-full bg-amber-500 inline-block" title="Low Stock"></span>
+                        )}
+                        {product.stock === 0 && (
+                          <span className="ml-2 w-2 h-2 rounded-full bg-red-500 inline-block" title="Out of Stock"></span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap capitalize ${statusColors[product.status] || 'bg-gray-100 text-gray-600'}`}>
+                          {product.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center space-x-2">
+                          <Link
+                            href={`/admin/products/${product.id}`}
+                            className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <i className="ri-edit-line text-lg"></i>
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <i className="ri-delete-bin-line text-lg"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="p-6 grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (

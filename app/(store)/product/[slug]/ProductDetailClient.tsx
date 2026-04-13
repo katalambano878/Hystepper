@@ -127,6 +127,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             return [...new Set(variants.map((v: any) => v.name || v.option1).filter(Boolean))];
           })(),
           variants: productData.product_variants || [],
+          totalVariantStock: (productData.product_variants || []).reduce((sum: number, v: any) => sum + (Number(v?.quantity) || 0), 0),
           features: features,
           care: 'Handle with care. Keep in dry place.',
           isPreorder: productData.metadata?.is_preorder || false
@@ -149,7 +150,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         if (productData.category_id) {
           const { data: related } = await supabase
             .from('products')
-            .select('slug, name, price, quantity, rating_avg, product_images(url, position)')
+            .select('slug, name, price, quantity, rating_avg, product_variants(quantity), product_images(url, position)')
             .eq('category_id', productData.category_id)
             .eq('status', 'active')
             .neq('id', productData.id)
@@ -166,7 +167,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               image: p.product_images?.[0]?.url || 'https://via.placeholder.com/800?text=No+Image',
               rating: p.rating_avg || 0,
               reviewCount: 0,
-              inStock: p.quantity > 0
+              inStock: ((p.product_variants || []).length > 0
+                ? (p.product_variants || []).reduce((sum: number, v: any) => sum + (Number(v?.quantity) || 0), 0)
+                : (Number(p.quantity) || 0)) > 0
             })));
           }
         }
@@ -207,7 +210,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       const match = product.variants?.find((v: any) => v.name === selectedSize);
       return match ? (match.quantity ?? 0) : 0;
     }
-    return Number(product.stockCount) || 0;
+    const variantTotal = Number(product.totalVariantStock) || 0;
+    const hasVariantInventory = Array.isArray(product.variants) && product.variants.length > 0;
+    return hasVariantInventory ? variantTotal : (Number(product.stockCount) || 0);
   };
 
   // Clamp quantity when variant selection changes (stock may be lower)
@@ -334,6 +339,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   }
 
   const discount = product.compare_at_price ? Math.round((1 - product.price / product.compare_at_price) * 100) : 0;
+  const totalAvailableStock = getEffectiveStock();
 
   const productSchema = generateProductSchema({
     name: product.name,
@@ -344,7 +350,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     sku: product.sku,
     rating: product.rating,
     reviewCount: product.reviewCount,
-    availability: product.quantity > 0 ? 'in_stock' : 'out_of_stock',
+    availability: totalAvailableStock > 0 ? 'in_stock' : 'out_of_stock',
     category: product.category
   });
 
@@ -703,7 +709,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 })()}
 
                 {/* Notify Me When Back in Stock */}
-                {product.stockCount === 0 && !product.variants?.some((v: any) => (v.quantity ?? 0) > 0) && (
+                {totalAvailableStock === 0 && (
                   <div className="mb-8 p-6 bg-gray-50 border border-gray-200 rounded-2xl">
                     {notifySubmitted ? (
                       <div className="flex items-center gap-3 text-gold-700">

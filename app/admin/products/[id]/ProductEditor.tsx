@@ -330,6 +330,9 @@ export default function ProductEditor({ productId }: { productId: string }) {
         }
         return payload;
       });
+      const effectiveProductQuantity = variantsToUpsert.length > 0
+        ? variantsToUpsert.reduce((sum, v) => sum + (Number(v.quantity) || 0), 0)
+        : (parseInt(stock) || 0);
 
       // 2. Delete variants that were removed — use correct Supabase v2 IN format
       if (productId !== 'new') {
@@ -358,6 +361,15 @@ export default function ProductEditor({ productId }: { productId: string }) {
           console.error('Variant save error:', variantError);
           toast.error('Product saved, but variants failed to update');
         }
+      }
+
+      // Keep parent product stock in sync with variant stock totals.
+      const { error: syncQuantityError } = await supabase
+        .from('products')
+        .update({ quantity: effectiveProductQuantity })
+        .eq('id', targetId);
+      if (syncQuantityError) {
+        console.error('Product quantity sync error:', syncQuantityError);
       }
 
       // 4. Save staged images for newly created products

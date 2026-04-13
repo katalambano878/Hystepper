@@ -43,7 +43,7 @@ export default function HomePage() {
           .select(`
             id, name, slug, price, compare_at_price, quantity, rating_avg, review_count, featured,
             product_images!product_id(url, position),
-            product_variants(option2, option3, image_url)
+            product_variants(option2, option3, image_url, quantity)
           `)
           .eq('status', 'active')
           .not('product_images.url', 'ilike', 'data:video%')
@@ -64,6 +64,11 @@ export default function HomePage() {
                 if (!seen.has(v.option2)) { seen.add(v.option2); acc.push({ name: v.option2, hex: v.option3 || null, image: v.image_url || null }); }
                 return acc;
               }, []);
+            const hasVariantInventory = (p.product_variants || []).length > 0;
+            const effectiveStock = hasVariantInventory
+              ? (p.product_variants || []).reduce((sum: number, v: any) => sum + (Number(v?.quantity) || 0), 0)
+              : (Number(p.quantity) || 0);
+
             return {
               id: p.slug,
               name: p.name,
@@ -75,7 +80,7 @@ export default function HomePage() {
               rating: p.rating_avg || 0,
               reviewCount: p.review_count || 0,
               slug: p.slug,
-              inStock: p.quantity > 0,
+              inStock: effectiveStock > 0,
               colors: colors.length > 0 ? colors : undefined
             };
           });
@@ -88,7 +93,7 @@ export default function HomePage() {
           .select(`
             id, name, slug, price, compare_at_price, quantity, rating_avg, review_count,
             product_images!product_id(url, position),
-            product_variants(option2, option3, image_url)
+            product_variants(option2, option3, image_url, quantity)
           `)
           .eq('status', 'active')
           .not('compare_at_price', 'is', null)
@@ -112,6 +117,11 @@ export default function HomePage() {
                   if (!seen.has(v.option2)) { seen.add(v.option2); acc.push({ name: v.option2, hex: v.option3 || null, image: v.image_url || null }); }
                   return acc;
                 }, []);
+              const hasVariantInventory = (p.product_variants || []).length > 0;
+              const effectiveStock = hasVariantInventory
+                ? (p.product_variants || []).reduce((sum: number, v: any) => sum + (Number(v?.quantity) || 0), 0)
+                : (Number(p.quantity) || 0);
+
               return {
                 id: p.slug,
                 name: p.name,
@@ -124,7 +134,7 @@ export default function HomePage() {
                 reviewCount: p.review_count || 0,
                 slug: p.slug,
                 badge: 'Sale',
-                inStock: p.quantity > 0,
+                inStock: effectiveStock > 0,
                 colors: colors.length > 0 ? colors : undefined
               };
             });

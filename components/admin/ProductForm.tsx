@@ -146,6 +146,14 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                     is_preorder: isPreorder
                 }
             };
+            const variantsToPersist = variants.map(v => ({
+                product_id: productId,
+                name: v.name,
+                sku: v.sku || null,
+                price: parseFloat(v.price) || 0,
+                quantity: parseInt(v.stock) || 0,
+                option1: v.name
+            }));
 
             let productId = initialData?.id;
             let error;
@@ -200,18 +208,15 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                 }
 
                 if (variants.length > 0) {
-                    const variantInserts = variants.map(v => ({
-                        product_id: productId,
-                        name: v.name,
-                        sku: v.sku || null,
-                        price: parseFloat(v.price) || 0,
-                        quantity: parseInt(v.stock) || 0,
-                        // simplified map:
-                        option1: v.name
-                    }));
+                    const variantInserts = variantsToPersist.map(v => ({ ...v, product_id: productId }));
                     const { error: varError } = await supabase.from('product_variants').insert(variantInserts);
                     if (varError) throw varError;
                 }
+
+                const syncedQuantity = variants.length > 0
+                    ? variantsToPersist.reduce((sum, v) => sum + (Number(v.quantity) || 0), 0)
+                    : (parseInt(stock) || 0);
+                await supabase.from('products').update({ quantity: syncedQuantity }).eq('id', productId);
             }
 
             alert(isEditMode ? 'Product updated successfully!' : 'Product created successfully!');

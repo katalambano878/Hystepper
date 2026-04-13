@@ -79,7 +79,7 @@ function ShopContent() {
             id, name, slug, price, compare_at_price, quantity, rating_avg, review_count, heel_height, product_code, style_name,
             categories!inner(name, slug),
             product_images!product_id(url, position),
-            product_variants(option2, option3, image_url)
+            product_variants(option2, option3, image_url, quantity)
           `, { count: 'exact' })
           .eq('status', 'active')
           .not('product_images.url', 'ilike', 'data:video%')
@@ -201,6 +201,11 @@ function ShopContent() {
                 return acc;
               }, []);
 
+            const hasVariantInventory = (p.product_variants || []).length > 0;
+            const effectiveStock = hasVariantInventory
+              ? (p.product_variants || []).reduce((sum: number, v: any) => sum + (Number(v?.quantity) || 0), 0)
+              : (Number(p.quantity) || 0);
+
             return {
               id: p.slug,
               name: p.name,
@@ -210,7 +215,7 @@ function ShopContent() {
               rating: p.rating_avg || 0,
               reviewCount: 0,
               badge: p.compare_at_price > p.price ? 'Sale' : undefined,
-              inStock: p.quantity > 0,
+              inStock: effectiveStock > 0,
               category: p.categories?.name,
               colors: colors.length > 0 ? colors : undefined
             };

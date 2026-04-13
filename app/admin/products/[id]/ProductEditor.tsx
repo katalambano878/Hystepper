@@ -6,6 +6,9 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
+type VariantMode = 'size_only' | 'size_color' | 'color_only';
+const PRESET_SHOE_SIZES = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
+
 export default function ProductEditor({ productId }: { productId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
   const [variants, setVariants] = useState<any[]>([]);
 
   // Variant Builder
+  const [variantMode, setVariantMode] = useState<VariantMode>('size_only');
   const [builderSizes, setBuilderSizes] = useState('');
   const [builderColors, setBuilderColors] = useState<{ id: string; name: string; hex: string; image_url: string | null }[]>([]);
   const [bulkPrice, setBulkPrice] = useState('');
@@ -132,6 +136,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
           const hasColors = pvs.some((v: any) => v.option2);
 
           if (hasCombo) {
+            setVariantMode('size_color');
             const sizes = [...new Set(pvs.map((v: any) => v.name?.split(' / ')[0]).filter(Boolean))] as string[];
             setBuilderSizes(sizes.join(', '));
             const colorMap = new Map<string, { id: string; name: string; hex: string; image_url: string | null }>();
@@ -142,6 +147,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
             });
             setBuilderColors([...colorMap.values()]);
           } else if (hasColors) {
+            setVariantMode('color_only');
             const colorMap = new Map<string, { id: string; name: string; hex: string; image_url: string | null }>();
             pvs.forEach((v: any) => {
               if (v.option2 && !colorMap.has(v.option2)) {
@@ -150,6 +156,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
             });
             setBuilderColors([...colorMap.values()]);
           } else {
+            setVariantMode('size_only');
             const sizes = pvs.map((v: any) => v.name).filter(Boolean) as string[];
             setBuilderSizes(sizes.join(', '));
           }
@@ -165,18 +172,26 @@ export default function ProductEditor({ productId }: { productId: string }) {
   }
 
   function generateVariants() {
-    const sizes = builderSizes.split(',').map(s => s.trim()).filter(Boolean);
+    const sizes = [...new Set(builderSizes.split(',').map(s => s.trim()).filter(Boolean))];
     const colors = builderColors.filter(c => c.name.trim());
 
-    if (sizes.length === 0 && colors.length === 0) {
-      toast.error('Add at least one size or color to generate variants');
+    if (variantMode === 'size_only' && sizes.length === 0) {
+      toast.error('Add at least one size to generate variants');
+      return;
+    }
+    if (variantMode === 'color_only' && colors.length === 0) {
+      toast.error('Add at least one color to generate variants');
+      return;
+    }
+    if (variantMode === 'size_color' && (sizes.length === 0 || colors.length === 0)) {
+      toast.error('Add at least one size and one color to generate variants');
       return;
     }
 
     const basePrice = parseFloat(price) || 0;
     const combinations: any[] = [];
 
-    if (sizes.length > 0 && colors.length > 0) {
+    if (variantMode === 'size_color') {
       for (const size of sizes) {
         for (const color of colors) {
           combinations.push({
@@ -194,7 +209,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
           });
         }
       }
-    } else if (sizes.length > 0) {
+    } else if (variantMode === 'size_only') {
       for (const size of sizes) {
         combinations.push({
           id: `temp-${Date.now()}-${Math.random()}`,
@@ -726,26 +741,85 @@ export default function ProductEditor({ productId }: { productId: string }) {
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Product Variants</h3>
-                <p className="text-gray-500 mt-1 text-sm">Define your options below — all combinations are auto-generated for you.</p>
+                <p className="text-gray-500 mt-1 text-sm">Pick a setup mode, then define options. Variant rows are generated automatically.</p>
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-3">
+                {[
+                  {
+                    id: 'size_only',
+                    title: 'Size Only',
+                    hint: 'Best for footwear sizes only',
+                    icon: 'ri-ruler-line'
+                  },
+                  {
+                    id: 'size_color',
+                    title: 'Size + Color',
+                    hint: 'Generate every size/color combination',
+                    icon: 'ri-layout-grid-line'
+                  },
+                  {
+                    id: 'color_only',
+                    title: 'Color Only',
+                    hint: 'Use colors without sizes',
+                    icon: 'ri-palette-line'
+                  }
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => setVariantMode(mode.id as VariantMode)}
+                    className={`text-left p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                      variantMode === mode.id
+                        ? 'border-emerald-500 bg-emerald-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <i className={`${mode.icon} ${variantMode === mode.id ? 'text-emerald-600' : 'text-gray-500'}`}></i>
+                      <p className={`font-semibold ${variantMode === mode.id ? 'text-emerald-800' : 'text-gray-900'}`}>{mode.title}</p>
+                    </div>
+                    <p className="text-xs text-gray-500">{mode.hint}</p>
+                  </button>
+                ))}
               </div>
 
               {/* Option Builder */}
               <div className="grid md:grid-cols-2 gap-5">
                 {/* Sizes */}
+                {(variantMode === 'size_only' || variantMode === 'size_color') && (
                 <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
                       <i className="ri-ruler-line text-emerald-600"></i>
                     </div>
                     <h4 className="font-semibold text-gray-900">Sizes</h4>
-                    <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">optional</span>
+                    <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">required</span>
                   </div>
 
                   {/* Preset shoe sizes */}
                   <div className="mb-3">
-                    <p className="text-xs text-gray-500 mb-2">Quick select:</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-500">Quick select:</p>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setBuilderSizes(PRESET_SHOE_SIZES.slice(1, 7).join(', '))}
+                          className="text-xs text-emerald-700 hover:text-emerald-800 font-medium cursor-pointer"
+                        >
+                          Use 37-42
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBuilderSizes('')}
+                          className="text-xs text-gray-500 hover:text-gray-700 font-medium cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-2">
-                      {['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'].map(size => {
+                      {PRESET_SHOE_SIZES.map(size => {
                         const currentSizes = builderSizes.split(',').map(s => s.trim()).filter(Boolean);
                         const isActive = currentSizes.includes(size);
                         return (
@@ -781,10 +855,10 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     type="text"
                     value={builderSizes}
                     onChange={e => setBuilderSizes(e.target.value)}
-                    placeholder="Or type custom sizes: S, M, L, XL"
+                    placeholder="Type custom sizes not in presets (e.g. 46, 47, XL)"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-white text-sm"
                   />
-                  <p className="text-xs text-gray-400 mt-2">Separate values with commas</p>
+                  <p className="text-xs text-gray-400 mt-2">Click buttons to add/remove. Separate custom values with commas.</p>
                   {builderSizes.trim() && (
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {builderSizes.split(',').map(s => s.trim()).filter(Boolean).map((s, i) => (
@@ -793,15 +867,17 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Colors / Images */}
+                {(variantMode === 'size_color' || variantMode === 'color_only') && (
                 <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
                       <i className="ri-palette-line text-purple-600"></i>
                     </div>
                     <h4 className="font-semibold text-gray-900">Colors / Appearance</h4>
-                    <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">optional</span>
+                    <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">required</span>
                   </div>
                   <div className="space-y-2">
                     {builderColors.map((color, ci) => (
@@ -854,12 +930,17 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     </button>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Generate button */}
               <div className="flex items-center gap-4 flex-wrap">
                 <button type="button" onClick={generateVariants}
-                  disabled={!builderSizes.trim() && builderColors.length === 0}
+                  disabled={
+                    (variantMode === 'size_only' && !builderSizes.trim()) ||
+                    (variantMode === 'color_only' && builderColors.filter(c => c.name.trim()).length === 0) ||
+                    (variantMode === 'size_color' && (!builderSizes.trim() || builderColors.filter(c => c.name.trim()).length === 0))
+                  }
                   className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
                   <i className="ri-magic-line"></i>
                   Generate Variants
@@ -869,9 +950,9 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     {(() => {
                       const s = builderSizes.split(',').map(x => x.trim()).filter(Boolean).length;
                       const c = builderColors.filter(x => x.name.trim()).length;
-                      if (s > 0 && c > 0) return `${s} sizes × ${c} colors = ${s * c} combinations`;
-                      if (s > 0) return `${s} size variant${s !== 1 ? 's' : ''}`;
-                      if (c > 0) return `${c} color variant${c !== 1 ? 's' : ''}`;
+                      if (variantMode === 'size_color') return `${s} sizes × ${c} colors = ${s * c} combinations`;
+                      if (variantMode === 'size_only') return `${s} size variant${s !== 1 ? 's' : ''}`;
+                      if (variantMode === 'color_only') return `${c} color variant${c !== 1 ? 's' : ''}`;
                       return '';
                     })()}
                   </p>
@@ -888,7 +969,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
               {(() => {
                 const mSizes = builderSizes.split(',').map(s => s.trim()).filter(Boolean);
                 const mColors = builderColors.filter(c => c.name.trim());
-                if (mSizes.length === 0 || mColors.length === 0 || variants.length === 0) return null;
+                if (variantMode !== 'size_color' || mSizes.length === 0 || mColors.length === 0 || variants.length === 0) return null;
                 const activeCount = variants.filter(v => !v._disabled).length;
 
                 return (

@@ -190,6 +190,34 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     // }
 }
 
+export async function sendPaymentLink(order: any) {
+    const { id, email, phone: orderPhone, shipping_address, total, order_number } = order;
+    const name = shipping_address?.full_name || shipping_address?.firstName || 'Customer';
+    const phone = orderPhone || shipping_address?.phone;
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    const paymentUrl = `${baseUrl}/pay/${id}`;
+
+    await sendEmail({
+        to: email,
+        subject: `Complete Your Payment - Order #${order_number || id}`,
+        html: `
+      <h1>Complete Your Payment</h1>
+      <p>Hi ${name},</p>
+      <p>Your order <strong>#${order_number || id}</strong> is waiting for payment.</p>
+      <p><strong>Total:</strong> GH₵${Number(total || 0).toFixed(2)}</p>
+      <p>Please use the link below to complete checkout:</p>
+      <p><a href="${paymentUrl}">${paymentUrl}</a></p>
+    `
+    });
+
+    if (phone) {
+        await sendSMS({
+            to: phone,
+            message: `Hi ${name}, complete payment for order #${order_number || id}: ${paymentUrl}`
+        });
+    }
+}
+
 export async function sendWelcomeMessage(user: { email: string, firstName: string, phone?: string }) {
     const { email, firstName, phone } = user;
 

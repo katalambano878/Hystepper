@@ -274,6 +274,28 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
 
+                                {/* Maintenance Mode */}
+                                <div className="pt-6 border-t border-gray-100">
+                                    <h3 className="text-base font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                                        <i className="ri-tools-line text-lg text-gray-600"></i>
+                                        Maintenance Mode
+                                    </h3>
+                                    <p className="text-sm text-gray-500 mb-4">When enabled, the storefront shows a maintenance page. Use the sidebar toggle to enable/disable. Admin always remains accessible.</p>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Countdown Duration (minutes)</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="1440"
+                                            value={settings.maintenance_countdown_minutes || '30'}
+                                            onChange={(e) => updateSetting('maintenance_countdown_minutes', e.target.value || '30')}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                            placeholder="30"
+                                        />
+                                        <p className="text-sm text-gray-500 mt-1">How long the countdown displays on the maintenance page (default: 30)</p>
+                                    </div>
+                                </div>
+
                                 <div className="pt-6 border-t border-gray-100 flex justify-end">
                                     <button
                                         type="submit"

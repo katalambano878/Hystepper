@@ -53,7 +53,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        // 1. Fetch confirmed orders for revenue/counts (delivered or completed only)
+        // 1. Fetch orders, then compute revenue from confirmed orders only
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
           .select('total, status, created_at, email')
@@ -61,7 +61,10 @@ export default function AdminDashboard() {
 
         if (ordersError) throw ordersError;
 
-        const totalRevenue = ordersData?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+        const confirmedStatuses = new Set(['delivered']);
+        const confirmedOrders = (ordersData || []).filter((order) => confirmedStatuses.has(order.status));
+
+        const totalRevenue = confirmedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
         const totalOrders = ordersData?.length || 0;
         const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
@@ -84,7 +87,7 @@ export default function AdminDashboard() {
           return acc;
         }, {});
 
-        ordersData?.forEach(order => {
+        confirmedOrders.forEach(order => {
           const date = new Date(order.created_at).toISOString().split('T')[0];
           if (chartMap[date] !== undefined) {
             chartMap[date] += (order.total || 0);

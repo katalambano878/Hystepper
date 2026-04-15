@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sendOrderConfirmation, sendOrderStatusUpdate, sendWelcomeMessage, sendContactMessage, sendEmail, sendSMS } from '@/lib/notifications';
+import { sendOrderConfirmation, sendOrderStatusUpdate, sendWelcomeMessage, sendContactMessage, sendPaymentLink, sendEmail, sendSMS } from '@/lib/notifications';
 
 export async function POST(request: Request) {
     try {
@@ -29,6 +29,14 @@ export async function POST(request: Request) {
         if (type === 'contact') {
             await sendContactMessage(payload);
             return NextResponse.json({ success: true, message: 'Contact message sent' });
+        }
+
+        if (type === 'payment_link') {
+            if (!payload.id || !payload.order_number) {
+                return NextResponse.json({ error: 'Missing order details' }, { status: 400 });
+            }
+            await sendPaymentLink(payload);
+            return NextResponse.json({ success: true, message: 'Payment link sent' });
         }
 
         if (type === 'campaign') {

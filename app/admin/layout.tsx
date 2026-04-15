@@ -25,6 +25,10 @@ export default function AdminLayout({
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [staffRole, setStaffRole] = useState<string | null>(null);
 
+  // Maintenance mode
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
+  const [maintenanceToggling, setMaintenanceToggling] = useState(false);
+
   useEffect(() => {
     async function checkAuth() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -39,6 +43,7 @@ export default function AdminLayout({
       } else {
         setUser(session.user);
         setIsAuthenticated(true);
+        document.cookie = 'admin_session=1; path=/; max-age=86400; SameSite=Lax';
 
         // Check profile role — 'admin' = super admin with full access
         const { data: profileRow } = await supabase
@@ -114,6 +119,12 @@ export default function AdminLayout({
       }
     }
     fetchModules();
+
+    supabase.from('store_settings').select('key, value').eq('key', 'maintenance_mode').then(({ data }) => {
+      data?.forEach((row: { key: string; value: unknown }) => {
+        if (row.key === 'maintenance_mode') setMaintenanceEnabled(String(row.value) === 'true');
+      });
+    });
   }, []);
 
   // Screen size check for initial state
@@ -134,8 +145,26 @@ export default function AdminLayout({
   }, []);
 
   const handleLogout = async () => {
+    document.cookie = 'admin_session=; path=/; max-age=0';
     await supabase.auth.signOut();
     router.push('/admin/login');
+  };
+
+  const handleToggleMaintenance = async () => {
+    const next = !maintenanceEnabled;
+    setMaintenanceToggling(true);
+    try {
+      await supabase.from('store_settings').upsert(
+        { key: 'maintenance_mode', value: next ? 'true' : 'false', updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+      setMaintenanceEnabled(next);
+    } catch (err) {
+      console.error('Failed to toggle maintenance:', err);
+      alert('Failed to update. Please try again.');
+    } finally {
+      setMaintenanceToggling(false);
+    }
   };
 
   if (isLoading) {
@@ -236,7 +265,25 @@ export default function AdminLayout({
             })}
           </nav>
 
-          <div className="mt-8 pt-8 border-t border-gray-200">
+          <div className="mt-8 pt-8 border-t border-gray-200 space-y-1">
+            {/* Maintenance Mode Toggle */}
+            <div className={`flex items-center justify-between px-4 py-3 rounded-lg ${maintenanceEnabled ? 'bg-amber-50' : 'bg-gray-50'}`}>
+              <div className="flex items-center gap-2 min-w-0">
+                <i className={`text-lg shrink-0 ${maintenanceEnabled ? 'ri-tools-fill text-amber-600' : 'ri-store-2-line text-gray-600'}`}></i>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">Maintenance</p>
+                  <p className="text-xs text-gray-500 truncate">{maintenanceEnabled ? 'Store offline' : 'Store live'}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleToggleMaintenance}
+                disabled={maintenanceToggling}
+                className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 ${maintenanceEnabled ? 'bg-amber-500 focus:ring-amber-400' : 'bg-gray-300 focus:ring-gray-400'} ${maintenanceToggling ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                title={maintenanceEnabled ? 'Bring store back online' : 'Enable maintenance mode'}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${maintenanceEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
             <Link
               href="/"
               target="_blank"

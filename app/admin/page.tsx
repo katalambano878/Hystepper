@@ -20,7 +20,7 @@ export default function AdminDashboard() {
       color: 'emerald'
     },
     {
-      title: 'Orders',
+      title: 'Paid orders',
       value: '0',
       change: '0%',
       trend: 'up',
@@ -28,7 +28,7 @@ export default function AdminDashboard() {
       color: 'blue'
     },
     {
-      title: 'Customers', // This is total active users for us currently
+      title: 'Customers (Active)',
       value: '0',
       change: '0%',
       trend: 'up',
@@ -53,26 +53,21 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        // 1. Fetch orders, then compute revenue from confirmed orders only
+        // 1. Confirmed payment = payment_status === 'paid' (same as admin Orders "Confirmed" tab)
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
-          .select('total, status, created_at, email')
-          .in('status', ['delivered', 'shipped', 'processing']);
+          .select('total, status, payment_status, created_at, email')
+          .eq('payment_status', 'paid');
 
         if (ordersError) throw ordersError;
 
-        const confirmedStatuses = new Set(['delivered']);
-        const confirmedOrders = (ordersData || []).filter((order) => confirmedStatuses.has(order.status));
+        const paidOrders = ordersData || [];
 
-        const totalRevenue = confirmedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-        const totalOrders = ordersData?.length || 0;
+        const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        const totalOrders = paidOrders.length;
         const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-        // 2. Fetch Customers Count (approximation using orders unique emails if we don't have user metrics access)
-        // Since we can't query auth.users directly from client, we'll estimate active customers via orders or just keep it 0 if we can't.
-        // Actually, best to just show "Orders" or "Recent Signups" if we had a public profiles table.
-        // We'll use unique emails from orders as a proxy for "Customers"
-        const uniqueCustomers = new Set(ordersData?.map(o => o.email)).size;
+        const uniqueCustomers = new Set(paidOrders.map((o) => o.email).filter(Boolean)).size;
 
 
         // Process Chart Data (Last 7 Days)
@@ -87,7 +82,7 @@ export default function AdminDashboard() {
           return acc;
         }, {});
 
-        confirmedOrders.forEach(order => {
+        paidOrders.forEach(order => {
           const date = new Date(order.created_at).toISOString().split('T')[0];
           if (chartMap[date] !== undefined) {
             chartMap[date] += (order.total || 0);
@@ -110,7 +105,7 @@ export default function AdminDashboard() {
             color: 'emerald'
           },
           {
-            title: 'Orders',
+            title: 'Paid orders',
             value: totalOrders.toString(),
             change: '+0%',
             trend: 'up',

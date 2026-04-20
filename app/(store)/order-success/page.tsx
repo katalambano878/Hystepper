@@ -69,13 +69,28 @@ function OrderSuccessContent() {
 
   const orderDate = new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const estimatedDelivery = new Date(new Date(order.created_at).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const pointsEarned = Math.floor(order.total / 10); // Example logic: 1 point per 10 currency units
+  const pointsEarned = Math.floor(order.total / 10);
+
+  const shippingAddr = order.shipping_address || {};
+  const recipientName = [shippingAddr.firstName, shippingAddr.lastName].filter(Boolean).join(' ').trim() || 'Customer';
+  const addressLines = [
+    shippingAddr.address,
+    [shippingAddr.city, shippingAddr.region].filter(Boolean).join(', '),
+    shippingAddr.postalCode,
+  ].filter(Boolean);
+
+  const steps = [
+    { key: 'confirmed', label: 'Confirmed', icon: 'ri-checkbox-circle-line', done: true },
+    { key: 'processing', label: 'Processing', icon: 'ri-loader-4-line', done: false, current: true },
+    { key: 'shipped', label: 'Shipped', icon: 'ri-truck-line', done: false },
+    { key: 'delivered', label: 'Delivered', icon: 'ri-home-smile-2-line', done: false },
+  ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
+    <main className="min-h-screen bg-[#fafaf7]">
       {showConfetti && (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-          {[...Array(50)].map((_, i) => (
+          {[...Array(36)].map((_, i) => (
             <div
               key={i}
               className="absolute animate-fall"
@@ -86,196 +101,250 @@ function OrderSuccessContent() {
                 animationDuration: `${3 + Math.random() * 2}s`
               }}
             >
-              <i className={`ri-${['heart', 'star', 'gift'][Math.floor(Math.random() * 3)]}-fill text-${['yellow', 'amber', 'orange'][Math.floor(Math.random() * 3)]}-500 text-xl opacity-70`}></i>
+              <i className={`ri-${['heart', 'star', 'sparkling'][Math.floor(Math.random() * 3)]}-fill text-${['yellow', 'amber', 'orange'][Math.floor(Math.random() * 3)]}-400 text-lg opacity-80`}></i>
             </div>
           ))}
         </div>
       )}
 
-      <section className="py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12 text-center mb-8">
-            <div className="w-24 h-24 flex items-center justify-center mx-auto mb-6 bg-gold-100 rounded-full">
-              <i className="ri-checkbox-circle-fill text-6xl text-gold-600"></i>
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-gold-50 via-amber-50/40 to-transparent pointer-events-none" />
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-14 pb-10">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold tracking-wide uppercase mb-5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Payment received
             </div>
-
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Order Confirmed!</h1>
-            <p className="text-xl text-gray-600 mb-8">
-              Thank you for your purchase. We're processing your order now.
-            </p>
-
-            <div className="bg-gold-50 rounded-xl p-6 mb-8">
-              <div className="grid md:grid-cols-3 gap-6 text-center">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Order Number</p>
-                  <p className="text-lg font-bold text-gray-900">{order.order_number}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Order Date</p>
-                  <p className="text-lg font-bold text-gray-900">{orderDate}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Estimated Delivery</p>
-                  <p className="text-lg font-bold text-gold-700">{estimatedDelivery}</p>
-                </div>
+            <div className="relative w-20 h-20 mx-auto mb-5">
+              <div className="absolute inset-0 rounded-full bg-gold-100 animate-ping opacity-60" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-gold-500 to-amber-600 flex items-center justify-center shadow-lg shadow-gold-200">
+                <i className="ri-check-line text-white text-4xl font-bold" />
               </div>
             </div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 tracking-tight">
+              Thank you, {recipientName.split(' ')[0]}.
+            </h1>
+            <p className="text-base sm:text-lg text-gray-600 max-w-xl mx-auto">
+              Your order <span className="font-semibold text-gray-900">{order.order_number}</span> is confirmed. A receipt is on its way to <span className="text-gray-900">{order.email}</span>.
+            </p>
+          </div>
+        </div>
+      </section>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-20">
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-6 sm:p-8 shadow-sm mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Order</p>
+                <p className="font-semibold text-gray-900">{order.order_number}</p>
+              </div>
+              <div className="w-px h-10 bg-gray-200" />
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Placed</p>
+                <p className="font-semibold text-gray-900">{orderDate}</p>
+              </div>
+              <div className="w-px h-10 bg-gray-200 hidden sm:block" />
+              <div className="hidden sm:block">
+                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Est. delivery</p>
+                <p className="font-semibold text-gold-700">{estimatedDelivery}</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
               <Link
-                href={`/account?tab=orders`}
-                className="bg-gold-600 hover:bg-gold-700 text-white px-8 py-4 rounded-lg font-semibold transition-colors inline-flex items-center justify-center whitespace-nowrap"
+                href="/account?tab=orders"
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-gray-900 hover:bg-black text-white text-sm font-semibold transition-colors"
               >
-                <i className="ri-file-list-3-line mr-2"></i>
-                View Order
+                <i className="ri-file-list-3-line mr-1.5" />
+                View order
               </Link>
               <Link
                 href="/shop"
-                className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-8 py-4 rounded-lg font-semibold transition-colors inline-flex items-center justify-center whitespace-nowrap"
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-full border border-gray-300 hover:border-gray-900 hover:text-gray-900 text-gray-700 text-sm font-semibold transition-colors"
               >
-                <i className="ri-shopping-bag-line mr-2"></i>
-                Continue Shopping
+                Keep shopping
               </Link>
             </div>
+          </div>
+        </div>
 
-            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border-2 border-gold-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 flex items-center justify-center bg-gold-500 rounded-full">
-                    <i className="ri-star-fill text-white text-2xl"></i>
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-6 sm:p-8 shadow-sm mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Order progress</h2>
+            <span className="text-xs text-gray-500">Real-time</span>
+          </div>
+          <div className="relative">
+            <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-200" />
+            <div className="absolute top-5 left-0 h-0.5 bg-gradient-to-r from-gold-500 to-amber-500" style={{ width: '25%' }} />
+            <div className="relative grid grid-cols-4 gap-2">
+              {steps.map((step) => (
+                <div key={step.key} className="flex flex-col items-center text-center">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                      step.done
+                        ? 'bg-gradient-to-br from-gold-500 to-amber-600 border-transparent text-white shadow-md shadow-gold-200'
+                        : step.current
+                        ? 'bg-white border-gold-500 text-gold-600'
+                        : 'bg-white border-gray-200 text-gray-300'
+                    }`}
+                  >
+                    <i className={`${step.icon} text-lg ${step.current ? 'animate-spin-slow' : ''}`} />
                   </div>
-                  <div className="text-left">
-                    <p className="font-bold text-gray-900 text-lg">You Earned {pointsEarned} Points!</p>
-                    <p className="text-sm text-gray-600">Join our loyalty program to redeem.</p>
-                  </div>
+                  <p className={`mt-2 text-xs font-semibold ${step.done || step.current ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {step.label}
+                  </p>
                 </div>
-                <Link
-                  href="/register"
-                  className="bg-gold-500 hover:bg-gold-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap"
-                >
-                  Join Now
-                </Link>
-              </div>
+              ))}
             </div>
           </div>
+        </div>
 
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Order Items</h2>
-              <div className="space-y-4">
-                {order.order_items.map((item: any) => (
-                  <div key={item.id} className="flex items-center space-x-4">
-                    <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.metadata?.image || 'https://via.placeholder.com/150'}
-                        alt={item.product_name}
-                        className="w-full h-full object-cover object-center"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900 line-clamp-2">{item.product_name}</p>
-                      <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+        <div className="grid lg:grid-cols-5 gap-6">
+          <div className="lg:col-span-3 bg-white border border-gray-200/80 rounded-2xl p-6 sm:p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-gray-900">Your items</h2>
+              <span className="text-sm text-gray-500">{order.order_items.length} item{order.order_items.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {order.order_items.map((item: any) => (
+                <div key={item.id} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.metadata?.image || 'https://via.placeholder.com/150'}
+                      alt={item.product_name}
+                      className="w-full h-full object-cover object-center"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{item.product_name}</p>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                       {item.variant_name && (
-                        <p className="text-xs text-gray-500">{item.variant_name}</p>
+                        <>
+                          <span>{item.variant_name}</span>
+                          <span className="w-1 h-1 rounded-full bg-gray-300" />
+                        </>
                       )}
+                      <span>Qty {item.quantity}</span>
                     </div>
-                    <p className="font-bold text-gray-900">GH₵{item.unit_price.toFixed(2)}</p>
                   </div>
-                ))}
-              </div>
-              <div className="border-t border-gray-200 mt-4 pt-4">
-                <div className="flex justify-between text-sm text-gray-600 mb-2">
-                  <span>Subtotal</span>
-                  <span>GH₵{order.subtotal.toFixed(2)}</span>
+                  <p className="font-semibold text-gray-900 text-right whitespace-nowrap">
+                    GH₵{(item.unit_price * item.quantity).toFixed(2)}
+                  </p>
                 </div>
-                <div className="flex justify-between text-sm text-gray-600 mb-2">
-                  <span>Shipping</span>
-                  <span>GH₵{order.shipping_total.toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between text-xl font-bold text-gray-900 border-t border-gray-200 pt-2">
-                  <span>Total Paid</span>
-                  <span>GH₵{order.total.toFixed(2)}</span>
-                </div>
-              </div>
+              ))}
             </div>
-
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Delivery Details</h2>
-              <div className="space-y-3">
-                {order.shipping_address && (
-                  <>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Recipient</p>
-                      <p className="font-semibold text-gray-900">
-                        {order.shipping_address.firstName} {order.shipping_address.lastName}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Address</p>
-                      <p className="text-gray-900">{order.shipping_address.address}</p>
-                      <p className="text-gray-900">{order.shipping_address.city}, {order.shipping_address.region}</p>
-                      <p className="text-gray-900">{order.shipping_address.postalCode}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Phone</p>
-                      <p className="text-gray-900">{order.phone}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Email</p>
-                      <p className="text-gray-900">{order.email}</p>
-                    </div>
-                  </>
-                )}
+            <div className="border-t border-gray-100 mt-6 pt-5 space-y-2">
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Subtotal</span>
+                <span>GH₵{order.subtotal.toFixed(2)}</span>
               </div>
-
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h3 className="font-semibold text-gray-900 mb-3">What's Next?</h3>
-                <div className="space-y-3">
-                  <div className="flex items-start space-x-3">
-                    <i className="ri-mail-line text-gold-700 mt-1"></i>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Email Confirmation</p>
-                      <p className="text-sm text-gray-600">Sent to {order.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-3">
-                    <i className="ri-box-3-line text-gold-700 mt-1"></i>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Processing</p>
-                      <p className="text-sm text-gray-600">We'll pack your order today</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-3">
-                    <i className="ri-truck-line text-gold-700 mt-1"></i>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Shipping Updates</p>
-                      <p className="text-sm text-gray-600">Track via email & SMS</p>
-                    </div>
-                  </div>
-                </div>
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Shipping</span>
+                <span>GH₵{order.shipping_total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between pt-3 mt-2 border-t border-gray-100">
+                <span className="text-base font-bold text-gray-900">Total paid</span>
+                <span className="text-lg font-bold text-gold-700">GH₵{order.total.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
-          <div className="mt-8 text-center">
-            <p className="text-gray-600 mb-4">Need help with your order?</p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <Link href="/contact" className="text-gold-700 hover:text-gold-900 font-semibold whitespace-nowrap">
-                <i className="ri-customer-service-line mr-1"></i>
-                Contact Support
-              </Link>
-              <Link href="/account/orders" className="text-gold-700 hover:text-gold-900 font-semibold whitespace-nowrap">
-                <i className="ri-question-line mr-1"></i>
-                Order Help
-              </Link>
-              <Link href="/policy" className="text-gold-700 hover:text-gold-900 font-semibold whitespace-nowrap">
-                <i className="ri-arrow-left-right-line mr-1"></i>
-                Exchange & Refund Policy
-              </Link>
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white border border-gray-200/80 rounded-2xl p-6 sm:p-8 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900 mb-5">Delivery to</h2>
+              <div className="space-y-4 text-sm">
+                <div>
+                  <p className="font-semibold text-gray-900">{recipientName}</p>
+                  {addressLines.map((line, i) => (
+                    <p key={i} className="text-gray-600">{line}</p>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                  <i className="ri-phone-line text-gray-400" />
+                  <span className="text-gray-700">{order.phone}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <i className="ri-mail-line text-gray-400" />
+                  <span className="text-gray-700 truncate">{order.email}</span>
+                </div>
+              </div>
             </div>
+
+            <div className="bg-white border border-gray-200/80 rounded-2xl p-6 sm:p-8 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900 mb-5">What happens next</h2>
+              <ol className="relative space-y-5">
+                <div className="absolute left-[15px] top-6 bottom-6 w-px bg-gray-100" />
+                <li className="relative flex gap-4">
+                  <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
+                    <i className="ri-mail-send-line text-gold-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Email confirmation</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Sent to {order.email}</p>
+                  </div>
+                </li>
+                <li className="relative flex gap-4">
+                  <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
+                    <i className="ri-box-3-line text-gold-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">We pack with care</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Dispatched within 24 hours</p>
+                  </div>
+                </li>
+                <li className="relative flex gap-4">
+                  <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
+                    <i className="ri-truck-line text-gold-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Live tracking</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Updates via email & SMS</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-900 to-gold-900 p-6 sm:p-8 text-white">
+          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-gold-500/20 blur-3xl" />
+          <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-400 to-amber-500 flex items-center justify-center flex-shrink-0">
+                <i className="ri-sparkling-2-fill text-white text-xl" />
+              </div>
+              <div>
+                <p className="font-bold text-lg">You earned {pointsEarned} Sleek Points</p>
+                <p className="text-sm text-white/70">Create an account to redeem on your next order.</p>
+              </div>
+            </div>
+            <Link
+              href="/register"
+              className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-white text-gray-900 text-sm font-semibold hover:bg-gold-50 transition-colors whitespace-nowrap"
+            >
+              Claim points
+              <i className="ri-arrow-right-line ml-1.5" />
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-10 text-center">
+          <p className="text-sm text-gray-500 mb-3">Need a hand with your order?</p>
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
+            <Link href="/contact" className="text-gray-700 hover:text-gold-700 font-medium inline-flex items-center whitespace-nowrap">
+              <i className="ri-customer-service-2-line mr-1.5" />
+              Contact support
+            </Link>
+            <Link href="/account/orders" className="text-gray-700 hover:text-gold-700 font-medium inline-flex items-center whitespace-nowrap">
+              <i className="ri-question-line mr-1.5" />
+              Order help
+            </Link>
+            <Link href="/policy" className="text-gray-700 hover:text-gold-700 font-medium inline-flex items-center whitespace-nowrap">
+              <i className="ri-arrow-left-right-line mr-1.5" />
+              Exchange & refund
+            </Link>
           </div>
         </div>
       </section>
@@ -289,6 +358,12 @@ function OrderSuccessContent() {
         }
         .animate-fall {
           animation: fall linear forwards;
+        }
+        @keyframes spin-slow {
+          to { transform: rotate(360deg); }
+        }
+        :global(.animate-spin-slow) {
+          animation: spin-slow 3s linear infinite;
         }
       `}</style>
     </main>

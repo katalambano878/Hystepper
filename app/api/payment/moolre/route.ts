@@ -1,99 +1,117 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+/**
+ * Initiate a Moolre payment. This mirrors standardecom's proven shape:
+ *  - The amount is always taken from the DB (never trust the client).
+ *  - externalref is `<order_number>-R<timestamp>` so repeat attempts are unique.
+ *  - The callback strips the `-R<ts>` suffix to find the real order.
+ */
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { orderId, amount, customerEmail } = body;
+        const { orderId, customerEmail, redirectUrl } = body;
 
-        if (!orderId || !amount) {
-            return NextResponse.json({ success: false, message: 'Missing orderId or amount' }, { status: 400 });
+        if (!orderId || typeof orderId !== 'string') {
+            return NextResponse.json({ success: false, message: 'Missing or invalid orderId' }, { status: 400 });
         }
 
         if (!process.env.MOOLRE_API_USER || !process.env.MOOLRE_API_PUBKEY || !process.env.MOOLRE_ACCOUNT_NUMBER) {
-            console.error('Missing Moolre credentials');
+            console.error('[Payment] Missing Moolre credentials');
             return NextResponse.json({ success: false, message: 'Payment gateway configuration error' }, { status: 500 });
         }
 
-        const requestUrl = new URL(req.url);
-        const rawBaseUrl = process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin;
-        const baseUrl = rawBaseUrl.replace(/\/+$/, '');
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+        const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+            auth: { autoRefreshToken: false, persistSession: false },
+        });
 
-        // Moolre Payload
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+        const query = supabaseAdmin
+            .from('orders')
+            .select('id, order_number, total, email, payment_status');
+
+        const { data: order, error: orderError } = isUUID
+            ? await query.eq('id', orderId).single()
+            : await query.eq('order_number', orderId).single();
+
+        if (orderError || !order) {
+            console.error('[Payment] Order not found:', orderId);
+            return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+        }
+
+        if (order.payment_status === 'paid') {
+            return NextResponse.json({ success: false, message: 'Order is already paid' }, { status: 400 });
+        }
+
+        const amount = Number(order.total);
+        if (!amount || amount <= 0) {
+            return NextResponse.json({ success: false, message: 'Invalid order amount' }, { status: 400 });
+        }
+
+        const orderRef = order.order_number || orderId;
+
+        const requestUrl = new URL(req.url);
+        const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin).replace(/\/+$/, '');
+
+        const defaultRedirectUrl = `${baseUrl}/order-success?order=${orderRef}&payment_success=true`;
+        const allowedPrefixes = ['https://'];
+        const safeRedirectUrl =
+            typeof redirectUrl === 'string' &&
+                allowedPrefixes.some((prefix) => redirectUrl.startsWith(prefix))
+                ? redirectUrl
+                : defaultRedirectUrl;
+
+        const uniqueRef = `${orderRef}-R${Date.now()}`;
+
         const payload = {
             type: 1,
-            amount: amount.toString(), // Ensure string
-            email: process.env.MOOLRE_MERCHANT_EMAIL || 'hystepper2@gmail.com', // Business email
-            externalref: orderId,
+            amount: amount.toString(),
+            email: process.env.MOOLRE_MERCHANT_EMAIL || 'info@hystepper.com',
+            externalref: uniqueRef,
             callback: `${baseUrl}/api/payment/moolre/callback`,
-            redirect: `${baseUrl}/order-success?order=${orderId}&payment_success=true`,
-            reusable: "0",
-            currency: "GHS",
+            redirect: safeRedirectUrl,
+            reusable: '0',
+            currency: 'GHS',
             accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER,
             metadata: {
-                customer_email: customerEmail
-            }
+                customer_email: customerEmail || order.email,
+                original_order_number: orderRef,
+            },
         };
 
-        console.log('Initiating Moolre Payment:', payload);
+        console.log('[Payment] Initiating for order:', orderRef, '| Amount:', amount, '| Callback:', payload.callback);
 
         const response = await fetch('https://api.moolre.com/embed/link', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-API-USER': process.env.MOOLRE_API_USER,
-                'X-API-PUBKEY': process.env.MOOLRE_API_PUBKEY
+                'X-API-PUBKEY': process.env.MOOLRE_API_PUBKEY,
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
         });
 
         const result = await response.json();
-        console.log('Moolre Response:', result);
+        console.log('[Payment] Moolre status:', result.status, '| has URL:', !!result.data?.authorization_url);
 
         if (result.status === 1 && result.data?.authorization_url) {
-            const moolreReference = result.data.reference;
-
-            // Persist the Moolre reference on the order so reconcile/verify can find it later.
-            try {
-                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-                const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-                const admin = createClient(supabaseUrl, supabaseKey);
-
-                const { data: existing } = await admin
-                    .from('orders')
-                    .select('metadata')
-                    .eq('order_number', orderId)
-                    .single();
-
-                const mergedMeta = {
-                    ...(existing?.metadata || {}),
-                    moolre_reference: moolreReference,
-                    moolre_initiated_at: new Date().toISOString(),
-                };
-
-                await admin
-                    .from('orders')
-                    .update({ metadata: mergedMeta })
-                    .eq('order_number', orderId);
-            } catch (persistErr) {
-                console.error('Failed to persist Moolre reference (non-blocking):', persistErr);
-            }
-
-            return NextResponse.json({ success: true, url: result.data.authorization_url, reference: moolreReference });
+            return NextResponse.json({
+                success: true,
+                url: result.data.authorization_url,
+                reference: result.data.reference,
+                externalRef: uniqueRef,
+            });
         } else {
-            console.error('Moolre rejected request:', { payload, result });
+            console.error('[Payment] Moolre rejected request:', result);
             return NextResponse.json(
-                {
-                    success: false,
-                    message: result.message || result.error || 'Failed to generate payment link',
-                    moolre: result,
-                },
+                { success: false, message: result.message || 'Failed to generate payment link', moolre: result },
                 { status: 400 }
             );
         }
-
     } catch (error: any) {
-        console.error('Payment API Error:', error);
+        console.error('[Payment] API error:', error);
         return NextResponse.json({ success: false, message: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }

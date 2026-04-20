@@ -34,21 +34,17 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
     if (!order) return;
     try {
       setReconciling(true);
-      const res = await fetch('/api/payment/moolre/reconcile', {
+      const res = await fetch('/api/payment/moolre/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderNumber: order.order_number }),
       });
       const payload = await res.json();
 
-      if (payload.status === 'paid') {
+      if (payload.success && payload.payment_status === 'paid') {
         alert('Verified with Moolre — order marked as paid.');
-      } else if (payload.status === 'failed') {
-        alert('Moolre reports this payment failed. Order marked as failed.');
-      } else if (payload.status === 'pending') {
-        alert('Moolre reports this payment is still pending. Try again in a few minutes.');
       } else {
-        alert(payload.message || 'Could not verify with Moolre.');
+        alert(payload.message || 'Could not verify with Moolre yet. Try again in a moment.');
       }
 
       await fetchOrderDetails();

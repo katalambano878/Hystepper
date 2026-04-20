@@ -47,42 +47,35 @@ function OrderSuccessContent() {
           orderData.payment_status !== 'refunded';
 
         if (needsReconcile) {
-          // Moolre can take 10-60s to register a transaction on their side, so
-          // we poll a few times: wait, refetch the order (webhook may have
-          // landed), and if still unpaid ask /reconcile to verify directly.
-          const waitSteps = [3000, 5000, 7000, 10000]; // ~25s of attempts total
-          for (const wait of waitSteps) {
-            if (cancelled) return;
-            await new Promise((resolve) => setTimeout(resolve, wait));
-            if (cancelled) return;
+          // Mirrors standardecom: give the webhook ~3s to land, refetch,
+          // then fall through to /verify which asks Moolre directly.
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          if (cancelled) return;
 
-            try {
-              const refreshed = await fetchOrder();
-              if (refreshed?.payment_status === 'paid') {
-                orderData = refreshed;
-                break;
+          try {
+            const refreshed = await fetchOrder();
+            if (refreshed?.payment_status === 'paid') {
+              orderData = refreshed;
+            } else {
+              try {
+                const res = await fetch('/api/payment/moolre/verify', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderNumber }),
+                });
+                const result = await res.json().catch(() => ({}));
+                if (result?.success && result?.payment_status === 'paid') {
+                  const updated = await fetchOrder();
+                  if (updated) orderData = updated;
+                } else {
+                  orderData = await fetchOrder();
+                }
+              } catch (verifyErr) {
+                console.warn('Verify failed (non-blocking):', verifyErr);
               }
-
-              // Webhook hasn't landed — verify with Moolre directly.
-              const res = await fetch('/api/payment/moolre/reconcile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orderNumber }),
-              });
-              const payload = await res.json().catch(() => ({}));
-              const after = await fetchOrder();
-              if (after?.payment_status === 'paid') {
-                orderData = after;
-                break;
-              }
-              if (payload?.status === 'failed') {
-                orderData = after ?? orderData;
-                break;
-              }
-              // payload.status === 'pending' / 'unknown' — try again.
-            } catch (reconErr) {
-              console.warn('Auto-reconcile attempt failed (non-blocking):', reconErr);
             }
+          } catch (refetchErr) {
+            console.warn('Refetch during verify failed:', refetchErr);
           }
         }
 

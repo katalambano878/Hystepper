@@ -47,16 +47,29 @@ function OrderSuccessContent() {
           orderData.payment_status !== 'refunded';
 
         if (needsReconcile) {
+          // Give Moolre's async webhook a short window to land first.
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+
+          // Refetch in case the webhook came through during that wait.
           try {
-            await fetch('/api/payment/moolre/reconcile', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orderNumber }),
-            });
-            // Refetch to pick up any status change
-            orderData = await fetchOrder();
-          } catch (reconErr) {
-            console.warn('Auto-reconcile failed (non-blocking):', reconErr);
+            const refreshed = await fetchOrder();
+            if (refreshed?.payment_status === 'paid') {
+              orderData = refreshed;
+            } else {
+              // Webhook hasn't landed — verify with Moolre directly.
+              try {
+                await fetch('/api/payment/moolre/reconcile', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderNumber }),
+                });
+                orderData = await fetchOrder();
+              } catch (reconErr) {
+                console.warn('Auto-reconcile failed (non-blocking):', reconErr);
+              }
+            }
+          } catch (refetchErr) {
+            console.warn('Refetch during reconcile failed:', refetchErr);
           }
         }
 

@@ -16,7 +16,8 @@ export async function POST(req: Request) {
         }
 
         const requestUrl = new URL(req.url);
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin;
+        const rawBaseUrl = process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin;
+        const baseUrl = rawBaseUrl.replace(/\/+$/, '');
 
         // Moolre Payload
         const payload = {
@@ -52,7 +53,15 @@ export async function POST(req: Request) {
         if (result.status === 1 && result.data?.authorization_url) {
             return NextResponse.json({ success: true, url: result.data.authorization_url, reference: result.data.reference });
         } else {
-            return NextResponse.json({ success: false, message: result.message || 'Failed to generate payment link' }, { status: 400 });
+            console.error('Moolre rejected request:', { payload, result });
+            return NextResponse.json(
+                {
+                    success: false,
+                    message: result.message || result.error || 'Failed to generate payment link',
+                    moolre: result,
+                },
+                { status: 400 }
+            );
         }
 
     } catch (error: any) {

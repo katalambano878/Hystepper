@@ -47,29 +47,42 @@ function OrderSuccessContent() {
           orderData.payment_status !== 'refunded';
 
         if (needsReconcile) {
-          // Give Moolre's async webhook a short window to land first.
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          // Moolre can take 10-60s to register a transaction on their side, so
+          // we poll a few times: wait, refetch the order (webhook may have
+          // landed), and if still unpaid ask /reconcile to verify directly.
+          const waitSteps = [3000, 5000, 7000, 10000]; // ~25s of attempts total
+          for (const wait of waitSteps) {
+            if (cancelled) return;
+            await new Promise((resolve) => setTimeout(resolve, wait));
+            if (cancelled) return;
 
-          // Refetch in case the webhook came through during that wait.
-          try {
-            const refreshed = await fetchOrder();
-            if (refreshed?.payment_status === 'paid') {
-              orderData = refreshed;
-            } else {
-              // Webhook hasn't landed — verify with Moolre directly.
-              try {
-                await fetch('/api/payment/moolre/reconcile', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ orderNumber }),
-                });
-                orderData = await fetchOrder();
-              } catch (reconErr) {
-                console.warn('Auto-reconcile failed (non-blocking):', reconErr);
+            try {
+              const refreshed = await fetchOrder();
+              if (refreshed?.payment_status === 'paid') {
+                orderData = refreshed;
+                break;
               }
+
+              // Webhook hasn't landed — verify with Moolre directly.
+              const res = await fetch('/api/payment/moolre/reconcile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderNumber }),
+              });
+              const payload = await res.json().catch(() => ({}));
+              const after = await fetchOrder();
+              if (after?.payment_status === 'paid') {
+                orderData = after;
+                break;
+              }
+              if (payload?.status === 'failed') {
+                orderData = after ?? orderData;
+                break;
+              }
+              // payload.status === 'pending' / 'unknown' — try again.
+            } catch (reconErr) {
+              console.warn('Auto-reconcile attempt failed (non-blocking):', reconErr);
             }
-          } catch (refetchErr) {
-            console.warn('Refetch during reconcile failed:', refetchErr);
           }
         }
 

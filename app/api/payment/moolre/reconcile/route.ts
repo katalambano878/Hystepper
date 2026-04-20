@@ -3,8 +3,20 @@ import { createClient } from '@supabase/supabase-js';
 import { sendOrderConfirmation } from '@/lib/notifications';
 
 /**
- * Reconcile a Moolre payment by asking Moolre directly via /embed/status.
- * The order is only marked paid when Moolre's API confirms success — we never
+ * Reconcile a Moolre payment by asking Moolre's verify API directly.
+ *
+ * Endpoint:   POST https://api.moolre.com/open/transact/status
+ * Body:       { type: 1, idtype: 1, id: <externalref>, accountnumber: <MOOLRE_ACCOUNT_NUMBER> }
+ * Headers:    X-API-USER, X-API-PUBKEY, Content-Type: application/json
+ *
+ * Success response shape:
+ *   { status: 1, code: "SS01", message: "Transaction Successful",
+ *     data: { txstatus: 1, amount: "4.96", transactionid: "46041037", externalref: "ORD-..." } }
+ *
+ * Not-found yet (still processing) shape:
+ *   { status: 1, code: "SS07", message: "Transaction not found", data: { txstatus: 3 } }
+ *
+ * The order is only marked paid when Moolre confirms success — we never
  * trust the client's say-so.
  *
  * Body: { orderNumber: string }
@@ -56,26 +68,31 @@ export async function POST(req: Request) {
 
     const apiUser = process.env.MOOLRE_API_USER;
     const apiPubKey = process.env.MOOLRE_API_PUBKEY;
-    if (!apiUser || !apiPubKey) {
+    const accountNumber = process.env.MOOLRE_ACCOUNT_NUMBER;
+    if (!apiUser || !apiPubKey || !accountNumber) {
       return NextResponse.json(
         { success: false, status: 'unknown', message: 'Moolre credentials missing' },
         { status: 500 }
       );
     }
 
-    // Moolre's verify endpoint: POST /embed/status with { externalref }
     console.log('[Moolre Reconcile] Verifying', orderNumber);
 
     let moolreJson: any = null;
     try {
-      const resp = await fetch('https://api.moolre.com/embed/status', {
+      const resp = await fetch('https://api.moolre.com/open/transact/status', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-API-USER': apiUser,
           'X-API-PUBKEY': apiPubKey,
         },
-        body: JSON.stringify({ externalref: orderNumber }),
+        body: JSON.stringify({
+          type: 1,
+          idtype: 1, // 1 = look up by externalref (our order_number)
+          id: orderNumber,
+          accountnumber: accountNumber,
+        }),
       });
       moolreJson = await resp.json();
       console.log('[Moolre Reconcile] Response:', JSON.stringify(moolreJson).slice(0, 500));
@@ -87,34 +104,37 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!moolreJson || moolreJson.status !== 1 || !moolreJson.data) {
+    const apiOk = moolreJson?.status === 1 || moolreJson?.status === '1';
+    const code = String(moolreJson?.code || '').toUpperCase();
+    const data = moolreJson?.data || {};
+    const txStatus = data.txstatus;
+
+    // SS07 / txstatus 3 = transaction not found yet (webhook may still be in flight).
+    if (code === 'SS07' || txStatus === 3 || txStatus === '3') {
       return NextResponse.json({
-        success: false,
-        status: 'unknown',
-        message: moolreJson?.message || 'Could not find this payment on Moolre yet. Try again in a moment.',
+        success: true,
+        status: 'pending',
+        message: 'Moolre has no record of this payment yet. Try again in a moment.',
       });
     }
 
-    const data = moolreJson.data;
-    const statusStr = String(data.status || '').toLowerCase();
-    const isPaid =
-      statusStr === 'success' ||
-      statusStr === 'successful' ||
-      statusStr === 'completed' ||
-      statusStr === 'paid';
-
-    const isFailed =
-      statusStr === 'failed' ||
-      statusStr === 'failure' ||
-      statusStr === 'declined';
+    // txstatus 1 = success
+    const isPaid = apiOk && (txStatus === 1 || txStatus === '1');
+    // txstatus 2 = failed
+    const isFailed = txStatus === 2 || txStatus === '2';
 
     if (isPaid) {
-      // Verify amount matches order total
+      // Verify amount matches order total (defence against tampering).
       if (data.amount != null) {
         const paidAmount = parseFloat(data.amount);
         const expectedAmount = Number(order.total);
         if (Number.isFinite(paidAmount) && Math.abs(paidAmount - expectedAmount) > 0.01) {
-          console.error('[Moolre Reconcile] Amount mismatch. Expected:', expectedAmount, 'Got:', paidAmount);
+          console.error(
+            '[Moolre Reconcile] Amount mismatch. Expected:',
+            expectedAmount,
+            'Got:',
+            paidAmount
+          );
           return NextResponse.json(
             {
               success: false,
@@ -126,9 +146,11 @@ export async function POST(req: Request) {
         }
       }
 
+      const moolreRef = data.transactionid || data.thirdpartyref || data.reference || 'RECONCILED';
+
       const { data: updated, error: rpcErr } = await admin.rpc('mark_order_paid', {
         order_ref: orderNumber,
-        moolre_ref: data.transactionid || data.reference || 'RECONCILED',
+        moolre_ref: String(moolreRef),
       });
 
       if (rpcErr) {
@@ -164,8 +186,8 @@ export async function POST(req: Request) {
           payment_status: 'failed',
           metadata: {
             ...(order.metadata || {}),
-            moolre_reference: data.transactionid || data.reference,
-            failure_reason: data.message || 'Moolre reported transaction failed',
+            moolre_reference: data.transactionid || data.thirdpartyref || data.reference,
+            failure_reason: moolreJson?.message || 'Moolre reported transaction failed',
             reconciled_at: new Date().toISOString(),
           },
         })
@@ -181,7 +203,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       status: 'pending',
-      message: 'Moolre reports payment is still pending',
+      message: moolreJson?.message || 'Moolre reports payment is still pending',
     });
   } catch (err: any) {
     console.error('[Moolre Reconcile] critical error:', err);

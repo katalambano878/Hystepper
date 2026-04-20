@@ -9,42 +9,57 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+async function parseBody(req: Request): Promise<Record<string, any>> {
+    const contentType = (req.headers.get('content-type') || '').toLowerCase();
+    const rawText = await req.text();
+
+    // Always log the raw payload so we can debug Moolre's exact webhook shape.
+    console.log('[Moolre Callback] Content-Type:', contentType);
+    console.log('[Moolre Callback] Raw body:', rawText);
+
+    if (!rawText) return {};
+
+    if (contentType.includes('application/json')) {
+        try { return JSON.parse(rawText); } catch { /* fall through */ }
+    }
+
+    if (contentType.includes('x-www-form-urlencoded')) {
+        try {
+            const params = new URLSearchParams(rawText);
+            return Object.fromEntries(params.entries());
+        } catch { /* fall through */ }
+    }
+
+    // Best-effort fallback: try JSON, then urlencoded.
+    try { return JSON.parse(rawText); } catch {
+        try {
+            const params = new URLSearchParams(rawText);
+            const entries = Object.fromEntries(params.entries());
+            if (Object.keys(entries).length > 0) return entries;
+        } catch { /* ignore */ }
+    }
+
+    return {};
+}
+
 export async function POST(req: Request) {
     try {
-        let body: any = {};
-        const contentType = req.headers.get('content-type') || '';
+        const body = await parseBody(req);
+        console.log('[Moolre Callback] Parsed body:', body);
 
-        // Robust Body Parsing (JSON vs Form Data)
-        try {
-            if (contentType.includes('application/json')) {
-                body = await req.json();
-            } else if (contentType.includes('form')) { // x-www-form-urlencoded or multipart
-                const formData = await req.formData();
-                body = Object.fromEntries(formData.entries());
-            } else {
-                // Fallback: Try JSON, then text ignoring errors
-                try {
-                    body = await req.json();
-                } catch {
-                    console.warn('Could not parse callback body as JSON, ignoring.');
-                }
-            }
-        } catch (parseError) {
-            console.error('Body parsing failed:', parseError);
-            return NextResponse.json({ success: false, message: 'Invalid Request Body' }, { status: 400 });
-        }
-
-        console.log('Moolre Callback Received:', body);
+        // Moolre sometimes nests the payload under `data`.
+        const payload: any = body?.data && typeof body.data === 'object' ? { ...body, ...body.data } : body;
 
         const {
             status,
-            externalref, // This is our orderNumber
-            orderRef, // Alternate key?
-            external_reference, // Alternate key?
-            reference,   // Moolre's reference
-        } = body;
+            txstatus,
+            externalref,
+            orderRef,
+            external_reference,
+            reference,
+            transactionid,
+        } = payload;
 
-        // Determine the correct merchant order reference
         const merchantOrderRef = externalref || orderRef || external_reference;
 
         if (!merchantOrderRef) {
@@ -52,15 +67,18 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, message: 'Invalid callback data: Missing order reference' }, { status: 400 });
         }
 
-        // Verify payment success (flexible match: case-insensitive string or number 1)
-        const statusStr = String(status || '').toLowerCase();
+        // Verify payment success (flexible match across known Moolre shapes)
+        const statusStr = String(status ?? '').toLowerCase();
+        const txStatusNum = Number(txstatus);
         const isSuccess =
             statusStr === 'success' ||
             statusStr === 'successful' ||
             statusStr === 'completed' ||
             statusStr === 'paid' ||
             status == 1 ||
-            statusStr === '1';
+            statusStr === '1' ||
+            txStatusNum === 1;
+        const isExplicitFailure = txStatusNum === 2 || statusStr === 'failed' || statusStr === 'failure';
 
         if (isSuccess) {
             console.log(`Processing successful payment for Order ${merchantOrderRef}, Method: Moolre`);
@@ -69,7 +87,7 @@ export async function POST(req: Request) {
             const { data: orderJson, error: updateError } = await supabase
                 .rpc('mark_order_paid', {
                     order_ref: merchantOrderRef,
-                    moolre_ref: reference
+                    moolre_ref: transactionid || reference || 'WEBHOOK'
                 });
 
             if (updateError) {
@@ -93,22 +111,25 @@ export async function POST(req: Request) {
 
             return NextResponse.json({ success: true, message: 'Payment verified and Order Updated' });
 
-        } else {
-            // Payment failed or pending
-            console.log(`Payment failed/pending for order ${merchantOrderRef}, status: ${status}`);
+        } else if (isExplicitFailure) {
+            console.log(`Payment explicitly failed for order ${merchantOrderRef}, status: ${status}, txstatus: ${txstatus}`);
 
             await supabase
                 .from('orders')
                 .update({
                     payment_status: 'failed',
                     metadata: {
-                        moolre_reference: reference,
-                        failure_reason: body.message || 'Payment failed'
-                    }
+                        moolre_reference: transactionid || reference,
+                        failure_reason: payload.message || 'Payment failed',
+                    },
                 })
                 .eq('order_number', merchantOrderRef);
 
-            return NextResponse.json({ success: false, message: 'Payment reported as not successful' });
+            return NextResponse.json({ success: false, message: 'Payment reported as failed' });
+        } else {
+            // Unknown / pending — leave the order state alone. Reconcile can retry later.
+            console.log(`Payment pending/unknown for order ${merchantOrderRef}, status: ${status}, txstatus: ${txstatus}`);
+            return NextResponse.json({ success: true, message: 'Callback received, payment not final' });
         }
 
     } catch (error: any) {
@@ -118,5 +139,19 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-    return NextResponse.json({ message: 'Moolre callback endpoint ready' });
+    // If Moolre (or a browser redirect) pings with query params, reuse the POST logic
+    // by constructing a synthetic POST request.
+    const url = new URL(req.url);
+    if ([...url.searchParams.keys()].length === 0) {
+        return NextResponse.json({ message: 'Moolre callback endpoint ready' });
+    }
+
+    console.log('[Moolre Callback] GET params:', Object.fromEntries(url.searchParams.entries()));
+
+    const synthetic = new Request(req.url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: url.searchParams.toString(),
+    });
+    return POST(synthetic);
 }

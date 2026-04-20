@@ -8,37 +8,71 @@ import { supabase } from '@/lib/supabase';
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get('order');
+  const paymentSuccessFlag = searchParams.get('payment_success') === 'true';
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showConfetti, setShowConfetti] = useState(true);
 
+  const fetchOrder = async () => {
+    if (!orderNumber) return null;
+    const { data: orderData, error } = await supabase
+      .from('orders')
+      .select(`*, order_items (*)`)
+      .eq('order_number', orderNumber)
+      .single();
+    if (error) throw error;
+    return orderData;
+  };
+
   useEffect(() => {
-    async function fetchOrder() {
+    let cancelled = false;
+
+    async function run() {
       if (!orderNumber) {
         setLoading(false);
         return;
       }
 
       try {
-        const { data: orderData, error } = await supabase
-          .from('orders')
-          .select(`
-                    *,
-                    order_items (*)
-                `)
-          .eq('order_number', orderNumber)
-          .single();
+        let orderData = await fetchOrder();
+        if (cancelled) return;
 
-        if (error) throw error;
-        setOrder(orderData);
+        // Auto-reconcile: if we returned from Moolre but the async webhook hasn't
+        // flipped the order to paid yet, query Moolre directly and update the order.
+        const needsReconcile =
+          paymentSuccessFlag &&
+          orderData &&
+          orderData.payment_method === 'moolre' &&
+          orderData.payment_status !== 'paid' &&
+          orderData.payment_status !== 'refunded';
+
+        if (needsReconcile) {
+          try {
+            await fetch('/api/payment/moolre/reconcile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderNumber }),
+            });
+            // Refetch to pick up any status change
+            orderData = await fetchOrder();
+          } catch (reconErr) {
+            console.warn('Auto-reconcile failed (non-blocking):', reconErr);
+          }
+        }
+
+        if (!cancelled) setOrder(orderData);
       } catch (err) {
         console.error('Error fetching order:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-    fetchOrder();
-  }, [orderNumber]);
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderNumber, paymentSuccessFlag]);
 
   if (loading) {
     return (

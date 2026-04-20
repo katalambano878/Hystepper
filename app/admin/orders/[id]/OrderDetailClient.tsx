@@ -24,32 +24,38 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
-  const [markingPaid, setMarkingPaid] = useState(false);
+  // NOTE: Manual "Mark as paid" intentionally disabled. We only trust Moolre's verify
+  // endpoint to mark payments; see handleReconcile below.
+  // const [markingPaid, setMarkingPaid] = useState(false);
+  // const handleMarkPaid = async () => { ... };
+  const [reconciling, setReconciling] = useState(false);
 
-  const handleMarkPaid = async () => {
+  const handleReconcile = async () => {
     if (!order) return;
-    if (!confirm(`Mark order ${order.order_number} as PAID? Use this only when a successful payment was made but the webhook didn't update.`)) {
-      return;
-    }
     try {
-      setMarkingPaid(true);
-      const res = await fetch('/api/admin/orders/mark-paid', {
+      setReconciling(true);
+      const res = await fetch('/api/payment/moolre/reconcile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderNumber: order.order_number,
-          reference: order.metadata?.moolre_reference || 'ADMIN-RECONCILE',
-        }),
+        body: JSON.stringify({ orderNumber: order.order_number }),
       });
       const payload = await res.json();
-      if (!res.ok || !payload.success) {
-        throw new Error(payload.error || 'Failed to mark as paid');
+
+      if (payload.status === 'paid') {
+        alert('Verified with Moolre — order marked as paid.');
+      } else if (payload.status === 'failed') {
+        alert('Moolre reports this payment failed. Order marked as failed.');
+      } else if (payload.status === 'pending') {
+        alert('Moolre reports this payment is still pending. Try again in a few minutes.');
+      } else {
+        alert(payload.message || 'Could not verify with Moolre.');
       }
+
       await fetchOrderDetails();
     } catch (err: any) {
-      alert(err.message || 'Something went wrong');
+      alert(err.message || 'Reconcile failed');
     } finally {
-      setMarkingPaid(false);
+      setReconciling(false);
     }
   };
 
@@ -472,30 +478,33 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                 </div>
               </div>
 
-              {order.payment_status !== 'paid' && order.payment_status !== 'refunded' && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={handleMarkPaid}
-                    disabled={markingPaid}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    {markingPaid ? (
-                      <>
-                        <i className="ri-loader-4-line animate-spin" />
-                        Marking…
-                      </>
-                    ) : (
-                      <>
-                        <i className="ri-check-double-line" />
-                        Mark as paid
-                      </>
-                    )}
-                  </button>
-                  <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-                    Use if a payment went through but the webhook didn't update the order.
-                  </p>
-                </div>
-              )}
+              {order.payment_method === 'moolre' &&
+                order.payment_status !== 'paid' &&
+                order.payment_status !== 'refunded' && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={handleReconcile}
+                      disabled={reconciling}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gray-900 hover:bg-black text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {reconciling ? (
+                        <>
+                          <i className="ri-loader-4-line animate-spin" />
+                          Checking with Moolre…
+                        </>
+                      ) : (
+                        <>
+                          <i className="ri-refresh-line" />
+                          Reconcile with Moolre
+                        </>
+                      )}
+                    </button>
+                    <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+                      Re-checks this transaction against Moolre. Marks the order paid only
+                      if Moolre confirms the payment.
+                    </p>
+                  </div>
+                )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

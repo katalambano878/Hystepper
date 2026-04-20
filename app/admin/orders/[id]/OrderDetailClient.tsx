@@ -24,6 +24,34 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+
+  const handleMarkPaid = async () => {
+    if (!order) return;
+    if (!confirm(`Mark order ${order.order_number} as PAID? Use this only when a successful payment was made but the webhook didn't update.`)) {
+      return;
+    }
+    try {
+      setMarkingPaid(true);
+      const res = await fetch('/api/admin/orders/mark-paid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber: order.order_number,
+          reference: order.metadata?.moolre_reference || 'ADMIN-RECONCILE',
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || 'Failed to mark as paid');
+      }
+      await fetchOrderDetails();
+    } catch (err: any) {
+      alert(err.message || 'Something went wrong');
+    } finally {
+      setMarkingPaid(false);
+    }
+  };
 
   useEffect(() => {
     fetchOrderDetails();
@@ -420,20 +448,54 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                   <span className="text-gray-600">Method</span>
                   <span className="font-semibold text-gray-900 capitalize">{order.payment_method}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-gray-600">Status</span>
-                  <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-semibold whitespace-nowrap capitalize">
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap capitalize ${
+                      order.payment_status === 'paid'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : order.payment_status === 'failed'
+                        ? 'bg-red-100 text-red-700'
+                        : order.payment_status === 'refunded'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
                     {order.payment_status}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  {/* Transaction ID might be in metadata depending on callback */}
                   <span className="text-gray-600">Transaction</span>
                   <span className="text-sm text-gray-900 font-mono truncate max-w-[150px]">
                     {order.metadata?.moolre_reference || order.payment_transaction_id || 'N/A'}
                   </span>
                 </div>
               </div>
+
+              {order.payment_status !== 'paid' && order.payment_status !== 'refunded' && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <button
+                    onClick={handleMarkPaid}
+                    disabled={markingPaid}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {markingPaid ? (
+                      <>
+                        <i className="ri-loader-4-line animate-spin" />
+                        Marking…
+                      </>
+                    ) : (
+                      <>
+                        <i className="ri-check-double-line" />
+                        Mark as paid
+                      </>
+                    )}
+                  </button>
+                  <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+                    Use if a payment went through but the webhook didn't update the order.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

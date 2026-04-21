@@ -118,13 +118,21 @@ export async function POST(req: Request) {
 
       if (moolreApiVerified && checkResult.data?.amount) {
         const paidAmount = parseFloat(checkResult.data.amount);
-        const expectedAmount = Number(order.total);
+        const payableNow = Number((order as any).metadata?.payable_now);
+        const expectedAmount =
+          Number.isFinite(payableNow) && payableNow > 0
+            ? payableNow
+            : Number(order.total);
         if (Math.abs(paidAmount - expectedAmount) > 0.01) {
           console.error(
             '[Verify] AMOUNT MISMATCH! Expected:',
             expectedAmount,
-            'Got:',
-            paidAmount
+            '| Got:',
+            paidAmount,
+            '| order.total:',
+            order.total,
+            '| payable_now:',
+            payableNow
           );
           moolreApiVerified = false;
         }

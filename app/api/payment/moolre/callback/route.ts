@@ -132,7 +132,7 @@ export async function POST(req: Request) {
 
       const { data: existingOrder, error: fetchError } = await supabase
         .from('orders')
-        .select('id, order_number, payment_status, total')
+        .select('id, order_number, payment_status, total, metadata')
         .eq('order_number', merchantOrderRef)
         .single();
 
@@ -146,17 +146,28 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, message: 'Order already processed' });
       }
 
-      // Verify the callback amount matches what we expect on the order.
+      // Verify the callback amount matches what we ASKED Moolre to charge, not
+      // necessarily the full order total. With "Pay Item Cost Only", delivery
+      // is billed on arrival, so the online charge == metadata.payable_now.
       const callbackAmount =
         data.amount != null ? parseFloat(data.amount) :
         body.amount != null ? parseFloat(body.amount) :
         null;
       if (callbackAmount !== null && Number.isFinite(callbackAmount)) {
-        const expectedAmount = Number(existingOrder.total);
+        const payableNow = Number(existingOrder.metadata?.payable_now);
+        const expectedAmount =
+          Number.isFinite(payableNow) && payableNow > 0
+            ? payableNow
+            : Number(existingOrder.total);
         if (Math.abs(callbackAmount - expectedAmount) > 0.01) {
-          console.error('[Moolre Callback] AMOUNT MISMATCH. Expected:', expectedAmount, 'Got:', callbackAmount);
+          console.error(
+            '[Moolre Callback] AMOUNT MISMATCH. Expected:', expectedAmount,
+            '| Got:', callbackAmount,
+            '| order.total:', existingOrder.total,
+            '| payable_now:', payableNow
+          );
           return NextResponse.json(
-            { success: false, message: 'Payment amount does not match order total' },
+            { success: false, message: 'Payment amount does not match order' },
             { status: 400 }
           );
         }

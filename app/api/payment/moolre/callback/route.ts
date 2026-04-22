@@ -66,12 +66,21 @@ export async function POST(req: Request) {
     const body = await parseBody(req);
     console.log('[Moolre Callback] Body keys:', Object.keys(body).join(', '));
 
-    // Verify the shared secret. Moolre posts `secret` in the body; we match
-    // against MOOLRE_CALLBACK_SECRET. Only skipped if the env var is unset.
+    // Moolre nests the transaction under body.data
+    const data: any = body.data || {};
+
+    // Verify the shared secret. Moolre has sent the secret both at the top
+    // level (body.secret) and nested (body.data.secret) in different payload
+    // shapes, so accept either. Only skipped if the env var is unset.
     const expectedSecret = process.env.MOOLRE_CALLBACK_SECRET;
+    const providedSecret = body.secret || data.secret;
     if (expectedSecret) {
-      if (!body.secret || body.secret !== expectedSecret) {
-        console.error('[Moolre Callback] Secret mismatch or missing. Rejecting.');
+      if (!providedSecret || providedSecret !== expectedSecret) {
+        console.error(
+          '[Moolre Callback] Secret mismatch or missing. Rejecting.',
+          '| provided present:', !!providedSecret,
+          '| lengths:', providedSecret?.length, 'vs', expectedSecret.length
+        );
         return NextResponse.json(
           { success: false, message: 'Invalid callback signature' },
           { status: 403 }
@@ -80,9 +89,6 @@ export async function POST(req: Request) {
     } else {
       console.warn('[Moolre Callback] MOOLRE_CALLBACK_SECRET not configured — skipping signature check.');
     }
-
-    // Moolre nests the transaction under body.data
-    const data: any = body.data || {};
 
     // Order reference can come in several places; normalize. Also strip any
     // retry suffix like "-R1770000000" that some setups append.

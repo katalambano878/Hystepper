@@ -246,6 +246,11 @@ export default function AdminLayout({
   };
 
   const handleToggleMaintenance = async () => {
+    // Staff (non-super-admin) must not be able to toggle maintenance mode.
+    if (!isSuperAdmin) {
+      alert('Only a super admin can toggle maintenance mode.');
+      return;
+    }
     const next = !maintenanceEnabled;
     setMaintenanceToggling(true);
     try {
@@ -377,24 +382,26 @@ export default function AdminLayout({
           </nav>
 
           <div className="mt-8 pt-8 border-t border-gray-200 space-y-1">
-            {/* Maintenance Mode Toggle */}
-            <div className={`flex items-center justify-between px-4 py-3 rounded-lg ${maintenanceEnabled ? 'bg-amber-50' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 min-w-0">
-                <i className={`text-lg shrink-0 ${maintenanceEnabled ? 'ri-tools-fill text-amber-600' : 'ri-store-2-line text-gray-600'}`}></i>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">Maintenance</p>
-                  <p className="text-xs text-gray-500 truncate">{maintenanceEnabled ? 'Store offline' : 'Store live'}</p>
+            {/* Maintenance Mode Toggle — super admin only */}
+            {isSuperAdmin && (
+              <div className={`flex items-center justify-between px-4 py-3 rounded-lg ${maintenanceEnabled ? 'bg-amber-50' : 'bg-gray-50'}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <i className={`text-lg shrink-0 ${maintenanceEnabled ? 'ri-tools-fill text-amber-600' : 'ri-store-2-line text-gray-600'}`}></i>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">Maintenance</p>
+                    <p className="text-xs text-gray-500 truncate">{maintenanceEnabled ? 'Store offline' : 'Store live'}</p>
+                  </div>
                 </div>
+                <button
+                  onClick={handleToggleMaintenance}
+                  disabled={maintenanceToggling}
+                  className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 ${maintenanceEnabled ? 'bg-amber-500 focus:ring-amber-400' : 'bg-gray-300 focus:ring-gray-400'} ${maintenanceToggling ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                  title={maintenanceEnabled ? 'Bring store back online' : 'Enable maintenance mode'}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${maintenanceEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
               </div>
-              <button
-                onClick={handleToggleMaintenance}
-                disabled={maintenanceToggling}
-                className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 ${maintenanceEnabled ? 'bg-amber-500 focus:ring-amber-400' : 'bg-gray-300 focus:ring-gray-400'} ${maintenanceToggling ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-                title={maintenanceEnabled ? 'Bring store back online' : 'Enable maintenance mode'}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${maintenanceEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
-            </div>
+            )}
             <Link
               href="/"
               target="_blank"

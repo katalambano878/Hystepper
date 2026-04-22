@@ -362,37 +362,10 @@ export default function CheckoutPage() {
         });
       }
 
-      // Send confirmation SMS only
-      try {
-        await fetch('/api/notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'order_confirmation',
-            payload: {
-              email: shippingData.email || null,
-              name: `${shippingData.firstName} ${shippingData.lastName}`,
-              orderNumber: orderNumber,
-              subtotal: subtotal,
-              shipping: shippingCost,
-              discount: totalDiscount,
-              total: total,
-              payableNow: payableNow,
-              items: cart.map(item => ({
-                name: item.name,
-                variant: item.variant,
-                quantity: item.quantity,
-                price: item.price
-              })),
-              shippingAddress: shippingData,
-              phone: shippingData.phone,
-              paymentOption: paymentOption
-            }
-          })
-        });
-      } catch (notifErr) {
-        console.error('Failed to send confirmation:', notifErr);
-      }
+      // Order confirmation notifications (email + SMS) are fired from the
+      // payment webhook / verify path once payment is actually confirmed.
+      // Sending them here at order-creation time produced bogus "Hi Customer,
+      // ... #undefined" messages for orders that never paid.
 
       // Handle Payment
       if (payableNow <= 0) {

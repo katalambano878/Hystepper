@@ -1,7 +1,60 @@
 import { Resend } from 'resend';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'missing_api_key');
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'hystepper2@gmail.com';
+
+let _adminClient: SupabaseClient | null = null;
+function getAdminClient(): SupabaseClient | null {
+    if (_adminClient) return _adminClient;
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return null;
+    _adminClient = createClient(url, key, {
+        auth: { autoRefreshToken: false, persistSession: false },
+    });
+    return _adminClient;
+}
+
+/**
+ * Atomically claim the "confirmation sent" flag on an order. Returns true the
+ * first time it succeeds for that order, false on every subsequent call.
+ * Used to prevent duplicate order-confirmation emails/SMS when multiple
+ * payment paths (webhook, callback, verify, etc.) all try to notify.
+ */
+async function claimConfirmationSend(orderId: string | undefined): Promise<boolean> {
+    if (!orderId) return true; // no id → can't dedupe, fall through
+    const supabase = getAdminClient();
+    if (!supabase) return true; // no admin client → don't block notifications
+
+    try {
+        const { data: existing } = await supabase
+            .from('orders')
+            .select('metadata')
+            .eq('id', orderId)
+            .single();
+
+        if (existing?.metadata?.confirmation_sent_at) {
+            console.log(`[Notifications] Order ${orderId} already confirmed at ${existing.metadata.confirmation_sent_at}. Skipping.`);
+            return false;
+        }
+
+        const nextMeta = {
+            ...(existing?.metadata || {}),
+            confirmation_sent_at: new Date().toISOString(),
+        };
+
+        await supabase
+            .from('orders')
+            .update({ metadata: nextMeta })
+            .eq('id', orderId);
+
+        return true;
+    } catch (err: any) {
+        console.error('[Notifications] claimConfirmationSend error:', err?.message || err);
+        return true;
+    }
+}
 
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
     if (!process.env.RESEND_API_KEY) {
@@ -104,6 +157,12 @@ export async function sendOrderConfirmation(order: any) {
 
     // Prefer top-level phone, then shipping address phone
     const phone = orderPhone || shipping_address?.phone;
+
+    // Dedupe: if we've already sent a confirmation for this order, bail.
+    // This prevents duplicate SMS/emails when webhook + callback + verify
+    // all race to notify for the same successful payment.
+    const shouldSend = await claimConfirmationSend(id);
+    if (!shouldSend) return;
 
     console.log(`Preparing confirmation for Order #${order_number}. Phone: ${phone}, Name: ${name}`);
 

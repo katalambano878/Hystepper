@@ -13,6 +13,7 @@ interface Order {
   status: string;
   payment_status?: string;
   payment_method: string;
+  payment_provider?: string;
   shipping_method: string;
   created_at: string;
   phone?: string;
@@ -20,6 +21,7 @@ interface Order {
   metadata?: {
     payable_now?: number;
     delivery_fee_due?: number;
+    pos_sale?: boolean;
     [key: string]: any;
   };
   profiles?: {
@@ -29,6 +31,14 @@ interface Order {
   order_items?: {
     quantity: number;
   }[];
+}
+
+function isPosOrder(order: Order): boolean {
+  return (
+    order.metadata?.pos_sale === true ||
+    order.payment_provider === 'pos' ||
+    (order.order_number || '').startsWith('POS-')
+  );
 }
 
 interface OrderStats {
@@ -115,6 +125,7 @@ export default function AdminOrdersPage() {
           status,
           payment_status,
           payment_method,
+          payment_provider,
           shipping_method,
           created_at,
           phone,
@@ -268,8 +279,8 @@ export default function AdminOrdersPage() {
       }
     } else if (action === 'Export') {
       const ordersToExport = orders.filter(o => selectedOrders.includes(o.id));
-      const csvContent = `Order ID,Customer,Email,Date,Items,Total,Status,Payment\n${ordersToExport.map(o =>
-        `${o.order_number || o.id},${getCustomerName(o)},${getCustomerEmail(o)},${formatDate(o.created_at)},${getItemCount(o)},${o.total},${o.status},${o.payment_method || 'N/A'}`
+      const csvContent = `Order ID,Source,Customer,Email,Date,Items,Total,Status,Payment\n${ordersToExport.map(o =>
+        `${o.order_number || o.id},${isPosOrder(o) ? 'POS' : 'Online'},${getCustomerName(o)},${getCustomerEmail(o)},${formatDate(o.created_at)},${getItemCount(o)},${o.total},${o.status},${o.payment_method || 'N/A'}`
       ).join('\n')}`;
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
@@ -284,8 +295,8 @@ export default function AdminOrdersPage() {
   };
 
   const handleExportAll = () => {
-    const csvContent = `Order ID,Customer,Email,Date,Items,Total,Status,Payment\n${orders.map(o =>
-      `${o.order_number || o.id},${getCustomerName(o)},${getCustomerEmail(o)},${formatDate(o.created_at)},${getItemCount(o)},${o.total},${o.status},${o.payment_method || 'N/A'}`
+    const csvContent = `Order ID,Source,Customer,Email,Date,Items,Total,Status,Payment\n${orders.map(o =>
+      `${o.order_number || o.id},${isPosOrder(o) ? 'POS' : 'Online'},${getCustomerName(o)},${getCustomerEmail(o)},${formatDate(o.created_at)},${getItemCount(o)},${o.total},${o.status},${o.payment_method || 'N/A'}`
     ).join('\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -684,9 +695,22 @@ export default function AdminOrdersPage() {
                       />
                     </td>
                     <td className="py-4 px-4">
-                      <Link href={`/admin/orders/${order.id}`} className="text-emerald-700 hover:text-emerald-800 font-semibold whitespace-nowrap cursor-pointer">
-                        {order.order_number || order.id.substring(0, 8)}
-                      </Link>
+                      <div className="flex items-center gap-2 whitespace-nowrap">
+                        <Link href={`/admin/orders/${order.id}`} className="text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer">
+                          {order.order_number || order.id.substring(0, 8)}
+                        </Link>
+                        {isPosOrder(order) ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                            <i className="ri-store-3-line text-[11px]"></i>
+                            POS
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                            <i className="ri-global-line text-[11px]"></i>
+                            Online
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center space-x-3">

@@ -5,6 +5,55 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
+// Maps each admin URL prefix to the permission key that grants access.
+// Keys are matched longest-prefix-first; a value of null means "no permission
+// required" (e.g. login). Any admin path not listed here falls back to
+// requiring the 'dashboard' permission.
+const PATH_PERMISSIONS: Array<[string, string | null]> = [
+  ['/admin/login', null],
+  ['/admin/orders', 'orders'],
+  ['/admin/delivery', 'delivery'],
+  ['/admin/rider', 'order_status'],
+  ['/admin/pos', 'pos'],
+  ['/admin/products', 'products'],
+  ['/admin/categories', 'categories'],
+  ['/admin/customers', 'customers'],
+  ['/admin/customer-insights', 'customers'],
+  ['/admin/reviews', 'reviews'],
+  ['/admin/inventory', 'inventory'],
+  ['/admin/analytics', 'analytics'],
+  ['/admin/coupons', 'coupons'],
+  ['/admin/notifications', 'notifications'],
+  ['/admin/test-sms', 'notifications'],
+  ['/admin/blog', 'blog'],
+  ['/admin/modules', 'modules'],
+  ['/admin/staff', 'staff'],
+  ['/admin/settings', 'settings'],
+  ['/admin', 'dashboard'],
+];
+
+function requiredPermissionFor(pathname: string): string | null | undefined {
+  for (const [prefix, perm] of PATH_PERMISSIONS) {
+    if (pathname === prefix || pathname.startsWith(prefix + '/')) return perm;
+  }
+  return undefined;
+}
+
+function firstAllowedPath(
+  permissions: Record<string, boolean>,
+  role: string | null
+): string {
+  if (role === 'rider') return '/admin/rider';
+  for (const [path, perm] of PATH_PERMISSIONS) {
+    if (path === '/admin/login') continue;
+    // /admin/rider is the rider-only view; non-riders shouldn't be landed here
+    // even if they happen to carry the order_status permission.
+    if (path === '/admin/rider') continue;
+    if (perm && permissions[perm]) return path;
+  }
+  return '/admin/login';
+}
+
 export default function AdminLayout({
   children,
 }: {
@@ -40,50 +89,96 @@ export default function AdminLayout({
 
       if (!session) {
         router.push('/admin/login');
-      } else {
-        setUser(session.user);
-        setIsAuthenticated(true);
-        document.cookie = 'admin_session=1; path=/; max-age=86400; SameSite=Lax';
-
-        // Check profile role — 'admin' = super admin with full access
-        const { data: profileRow } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (profileRow?.role === 'admin') {
-          setIsSuperAdmin(true);
-          setStaffPermissions(null); // full access
-        } else {
-          // Check staff table for granular permissions
-          const { data: staffRow } = await supabase
-            .from('staff')
-            .select('permissions, is_active, role')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-          if (staffRow) {
-            if (!staffRow.is_active) {
-              await supabase.auth.signOut();
-              router.push('/admin/login');
-              return;
-            }
-            setStaffRole(staffRow.role);
-            if (staffRow.role === 'admin') {
-              setIsSuperAdmin(true);
-              setStaffPermissions(null);
-            } else {
-              setStaffPermissions(staffRow.permissions || {});
-              // Role-based landing pages on first load
-              if (staffRow.role === 'rider' && (pathname === '/admin' || pathname === '/admin/orders')) {
-                router.push('/admin/rider');
-              }
-            }
-          }
-          // If no staff record found, they still see the dashboard (existing behaviour)
-        }
+        return;
       }
+
+      setUser(session.user);
+      setIsAuthenticated(true);
+      document.cookie = 'admin_session=1; path=/; max-age=86400; SameSite=Lax';
+
+      // Check profile role — 'admin' = super admin with full access
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      // Super admin short-circuit: full access, skip all other checks.
+      if (profileRow?.role === 'admin') {
+        setIsSuperAdmin(true);
+        setStaffPermissions(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // Not a super admin — must be a staff member with explicit permissions.
+      const { data: staffRow } = await supabase
+        .from('staff')
+        .select('permissions, is_active, role')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      // No staff record AND no admin profile = not allowed in the admin area.
+      // This plugs a leak where stale users with no staff row were getting
+      // full access via the earlier "fallback to full dashboard" behaviour.
+      if (!staffRow) {
+        console.warn('[Admin] User has no staff record, signing out:', session.user.email);
+        await supabase.auth.signOut();
+        document.cookie = 'admin_session=; path=/; max-age=0';
+        router.push('/admin/login?error=no_access');
+        return;
+      }
+
+      if (!staffRow.is_active) {
+        await supabase.auth.signOut();
+        router.push('/admin/login?error=inactive');
+        return;
+      }
+
+      setStaffRole(staffRow.role);
+
+      if (staffRow.role === 'admin') {
+        setIsSuperAdmin(true);
+        setStaffPermissions(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const perms: Record<string, boolean> = staffRow.permissions || {};
+      setStaffPermissions(perms);
+
+      // Riders only ever see their personal delivery queue.
+      if (staffRow.role === 'rider' && pathname !== '/admin/rider') {
+        router.replace('/admin/rider');
+        setIsLoading(false);
+        return;
+      }
+
+      // Inverse: non-riders shouldn't access the rider-only view even if they
+      // happen to carry the order_status permission.
+      if (staffRow.role !== 'rider' && pathname.startsWith('/admin/rider')) {
+        router.replace(firstAllowedPath(perms, staffRow.role));
+        setIsLoading(false);
+        return;
+      }
+
+      // Enforce per-page permissions. If the user typed a URL they don't have
+      // access to, send them back to the first page they can see.
+      const required = requiredPermissionFor(pathname);
+      if (required && !perms[required]) {
+        const next = firstAllowedPath(perms, staffRow.role);
+        if (next === '/admin/login') {
+          // Staff with zero allowed pages — sign them out cleanly.
+          await supabase.auth.signOut();
+          document.cookie = 'admin_session=; path=/; max-age=0';
+          router.replace('/admin/login?error=no_access');
+          return;
+        }
+        router.replace(next);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(false);
     }
 
@@ -171,6 +266,24 @@ export default function AdminLayout({
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">Loading Admin...</div>;
   }
 
+  // If somehow we got here without auth, render nothing (router.push has fired
+  // and will replace the page). Prevents flash of admin UI for rejected users.
+  if (pathname !== '/admin/login' && !isAuthenticated) {
+    return <div className="min-h-screen bg-gray-50" />;
+  }
+
+  // Non-admin staff whose current path they lack permission for: render blank
+  // while the redirect is in flight.
+  if (!isSuperAdmin && staffPermissions && pathname !== '/admin/login') {
+    const required = requiredPermissionFor(pathname);
+    if (required && !staffPermissions[required]) {
+      return <div className="min-h-screen bg-gray-50" />;
+    }
+    if (staffRole === 'rider' && pathname !== '/admin/rider') {
+      return <div className="min-h-screen bg-gray-50" />;
+    }
+  }
+
   const menuItems = [
     { title: 'Dashboard',        icon: 'ri-dashboard-line',      path: '/admin',                  exact: true,  permKey: 'dashboard' },
     { title: 'Orders',           icon: 'ri-shopping-bag-line',   path: '/admin/orders',            badge: '',    permKey: 'orders' },
@@ -194,16 +307,14 @@ export default function AdminLayout({
   ];
 
   const visibleMenuItems = menuItems.filter(item => {
-    // Filter by module toggle first
     if ((item as any).moduleId && !enabledModules.includes((item as any).moduleId)) return false;
-    // Super admins see everything
     if (isSuperAdmin || staffPermissions === null) return true;
-    // Riders only ever see their personal delivery queue
     if (staffRole === 'rider') return (item as any).permKey === 'order_status';
-    // Non-riders never see the "My Deliveries" rider-only item
+    // Non-riders never see the rider-only "My Deliveries" item.
     if ((item as any).path === '/admin/rider') return false;
-    // If no permKey, always show (e.g. SMS Debugger — utility item)
-    if (!(item as any).permKey) return true;
+    // Hide items that have no declared permKey from non-admin staff — utility
+    // pages like SMS Debugger should not leak to limited-access users.
+    if (!(item as any).permKey) return false;
     return !!staffPermissions[(item as any).permKey];
   });
 

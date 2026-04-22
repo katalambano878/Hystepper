@@ -1,17 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const err = searchParams?.get('error');
+    if (err === 'no_access') {
+      setError('This account has no staff access. Contact an administrator.');
+    } else if (err === 'inactive') {
+      setError('Your account has been deactivated. Contact an administrator.');
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,11 +127,6 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              <strong>Note:</strong> In a real production app, this would be restricted to users with the 'admin' role. For this demo, any registered user can view the dashboard.
-            </p>
-          </div>
         </div>
 
         <div className="mt-6 text-center">

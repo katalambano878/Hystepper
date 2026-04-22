@@ -322,7 +322,23 @@ export default function POSPage() {
                 })
             );
 
-            setCompletedOrder({ id: order.id, total: grandTotal, items: cart });
+            const customerNameForReceipt = selectedCustomer
+                ? (selectedCustomer.full_name || selectedCustomer.email || 'Customer')
+                : (guestDetails.firstName || guestDetails.lastName
+                    ? `${guestDetails.firstName} ${guestDetails.lastName}`.trim()
+                    : 'Walk-in Customer');
+
+            setCompletedOrder({
+                id: order.id,
+                order_number: order.order_number,
+                total: grandTotal,
+                items: cart,
+                paymentMethod,
+                amountTendered: paymentMethod === 'cash' ? parseFloat(amountTendered || '0') : grandTotal,
+                changeDue: paymentMethod === 'cash' ? Math.max(0, parseFloat(amountTendered || '0') - grandTotal) : 0,
+                customerName: customerNameForReceipt,
+                createdAt: order.created_at || new Date().toISOString(),
+            });
             setCart([]);
 
             // Refresh product stock so the grid reflects the sale immediately.
@@ -357,6 +373,183 @@ export default function POSPage() {
         } finally {
             setProcessing(false);
         }
+    };
+
+    const printReceipt = () => {
+        if (!completedOrder) return;
+
+        const esc = (s: string) =>
+            String(s ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+        const fmtMoney = (n: number) => `GH₵${Number(n || 0).toFixed(2)}`;
+        const dt = new Date(completedOrder.createdAt || Date.now());
+        const dateStr = dt.toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+
+        const storeName = 'Hy-Stepper';
+        const storeTagline = 'Point of Sale Receipt';
+
+        const itemsHtml = (completedOrder.items || [])
+            .map((item: CartItem) => {
+                const lineTotal = item.price * item.cartQuantity;
+                const variantLine = item.variantLabel
+                    ? `<div class="variant">${esc(item.variantLabel)}</div>`
+                    : '';
+                return `
+                <tr class="item-row">
+                    <td class="name">
+                        <div class="title">${esc(item.name)}</div>
+                        ${variantLine}
+                        <div class="qty-line">${item.cartQuantity} × ${fmtMoney(item.price)}</div>
+                    </td>
+                    <td class="amt">${fmtMoney(lineTotal)}</td>
+                </tr>`;
+            })
+            .join('');
+
+        const paymentLabel =
+            completedOrder.paymentMethod === 'cash'
+                ? 'Cash'
+                : completedOrder.paymentMethod === 'mobile_money'
+                ? 'Mobile Money'
+                : completedOrder.paymentMethod === 'card'
+                ? 'Card'
+                : String(completedOrder.paymentMethod || 'Paid');
+
+        const receiptRef = completedOrder.order_number || completedOrder.id.slice(0, 8);
+
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Receipt ${esc(receiptRef)}</title>
+<style>
+    @page { size: 80mm auto; margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Courier New', ui-monospace, monospace;
+        font-size: 12px;
+        color: #000;
+        margin: 0;
+        padding: 12px 10px;
+        width: 80mm;
+    }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .bold { font-weight: 700; }
+    .muted { color: #555; }
+    .store { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+    .tagline { font-size: 11px; margin-top: 2px; }
+    .divider { border-top: 1px dashed #000; margin: 8px 0; }
+    .meta { font-size: 11px; line-height: 1.5; }
+    .meta .row { display: flex; justify-content: space-between; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 4px 0; vertical-align: top; }
+    .item-row .name { padding-right: 6px; }
+    .item-row .name .title { font-weight: 700; }
+    .item-row .name .variant { font-size: 11px; color: #444; }
+    .item-row .name .qty-line { font-size: 11px; color: #333; margin-top: 2px; }
+    .item-row .amt { text-align: right; white-space: nowrap; font-weight: 700; }
+    .totals .row { display: flex; justify-content: space-between; padding: 2px 0; }
+    .totals .grand { font-size: 15px; font-weight: 800; padding-top: 4px; }
+    .footer { text-align: center; font-size: 11px; margin-top: 12px; line-height: 1.5; }
+    .thanks { font-weight: 700; font-size: 13px; margin-top: 4px; }
+    @media screen {
+        body {
+            background: #f3f4f6;
+            padding: 24px;
+            width: auto;
+        }
+        .sheet {
+            background: #fff;
+            width: 80mm;
+            margin: 0 auto;
+            padding: 16px 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+    }
+    @media print {
+        body { background: #fff; padding: 0; }
+        .sheet { box-shadow: none; padding: 0; width: 80mm; }
+    }
+</style>
+</head>
+<body>
+<div class="sheet">
+    <div class="center">
+        <div class="store">${esc(storeName)}</div>
+        <div class="tagline muted">${esc(storeTagline)}</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="meta">
+        <div class="row"><span>Receipt</span><span class="bold">#${esc(receiptRef)}</span></div>
+        <div class="row"><span>Date</span><span>${esc(dateStr)}</span></div>
+        <div class="row"><span>Customer</span><span>${esc(completedOrder.customerName)}</span></div>
+        <div class="row"><span>Payment</span><span>${esc(paymentLabel)}</span></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <table>
+        <tbody>
+            ${itemsHtml}
+        </tbody>
+    </table>
+
+    <div class="divider"></div>
+
+    <div class="totals">
+        <div class="row"><span>Subtotal</span><span>${fmtMoney(completedOrder.total)}</span></div>
+        <div class="row grand"><span>TOTAL</span><span>${fmtMoney(completedOrder.total)}</span></div>
+        ${
+            completedOrder.paymentMethod === 'cash'
+                ? `
+        <div class="row"><span>Tendered</span><span>${fmtMoney(completedOrder.amountTendered)}</span></div>
+        <div class="row"><span>Change</span><span>${fmtMoney(completedOrder.changeDue)}</span></div>`
+                : ''
+        }
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="footer">
+        <div class="thanks">Thank you for shopping with us!</div>
+        <div class="muted">Exchanges accepted within 7 days with receipt.</div>
+        <div class="muted">hystepper.com</div>
+    </div>
+</div>
+<script>
+    window.addEventListener('load', function () {
+        setTimeout(function () {
+            window.focus();
+            window.print();
+        }, 150);
+    });
+    window.addEventListener('afterprint', function () {
+        window.close();
+    });
+</script>
+</body>
+</html>`;
+
+        const win = window.open('', '_blank', 'width=400,height=640');
+        if (!win) {
+            alert('Please allow pop-ups to print the receipt.');
+            return;
+        }
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
     };
 
     const resetCheckout = () => {
@@ -663,11 +856,15 @@ export default function POSPage() {
                                 </div>
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900">Payment Successful!</h2>
-                                    <p className="text-gray-500 mt-1">Order #{completedOrder.id.slice(0, 8)} completed.</p>
-                                    <p className="text-lg font-semibold text-gray-900 mt-2">Change Due: GH₵{changeDue > 0 ? changeDue.toFixed(2) : '0.00'}</p>
+                                    <p className="text-gray-500 mt-1">Order #{completedOrder.order_number || completedOrder.id.slice(0, 8)} completed.</p>
+                                    {completedOrder.paymentMethod === 'cash' && (
+                                        <p className="text-lg font-semibold text-gray-900 mt-2">
+                                            Change Due: GH₵{(completedOrder.changeDue || 0).toFixed(2)}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 w-full">
-                                    <button onClick={() => window.print()} className="py-3 px-4 border border-gray-300 rounded-xl font-semibold hover:bg-gray-50">
+                                    <button onClick={printReceipt} className="py-3 px-4 border border-gray-300 rounded-xl font-semibold hover:bg-gray-50">
                                         Print Receipt
                                     </button>
                                     <button onClick={resetCheckout} className="py-3 px-4 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700">

@@ -17,6 +17,11 @@ interface Order {
   created_at: string;
   phone?: string;
   shipping_address?: any;
+  metadata?: {
+    payable_now?: number;
+    delivery_fee_due?: number;
+    [key: string]: any;
+  };
   profiles?: {
     full_name: string;
     email: string;
@@ -114,6 +119,7 @@ export default function AdminOrdersPage() {
           created_at,
           phone,
           shipping_address,
+          metadata,
           rider_id,
           rider_notes,
           assigned_at,
@@ -695,7 +701,36 @@ export default function AdminOrdersPage() {
                     </td>
                     <td className="py-4 px-4 text-gray-700 text-sm whitespace-nowrap">{formatDate(order.created_at)}</td>
                     <td className="py-4 px-4 text-gray-700">{getItemCount(order)}</td>
-                    <td className="py-4 px-4 font-semibold text-gray-900 whitespace-nowrap">GH₵ {order.total?.toFixed(2) || '0.00'}</td>
+                    <td className="py-4 px-4 whitespace-nowrap">
+                      {(() => {
+                        const payableNow = Number(order.metadata?.payable_now);
+                        const deliveryDue = Number(order.metadata?.delivery_fee_due);
+                        const isPartial =
+                          Number.isFinite(payableNow) &&
+                          payableNow > 0 &&
+                          Number.isFinite(deliveryDue) &&
+                          deliveryDue > 0 &&
+                          Math.abs(payableNow + deliveryDue - Number(order.total)) < 0.01;
+
+                        if (isPartial) {
+                          return (
+                            <div className="leading-tight">
+                              <p className="font-semibold text-gray-900 text-sm">
+                                GH₵ {payableNow.toFixed(2)}
+                              </p>
+                              <p className="text-[11px] text-amber-600">
+                                + GH₵ {deliveryDue.toFixed(2)} on delivery
+                              </p>
+                            </div>
+                          );
+                        }
+                        return (
+                          <p className="font-semibold text-gray-900 text-sm">
+                            GH₵ {order.total?.toFixed(2) || '0.00'}
+                          </p>
+                        );
+                      })()}
+                    </td>
                     <td className="py-4 px-4 text-gray-700 text-sm whitespace-nowrap">
                       <p>{order.payment_method || 'N/A'}</p>
                       {orderViewTab === 'abandoned' && (

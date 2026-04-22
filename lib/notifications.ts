@@ -50,61 +50,50 @@ function formatPhoneNumber(phone: string): string {
 }
 
 export async function sendSMS({ to, message }: { to: string; message: string }) {
-    // SMS TEMPORARILY DISABLED
-    console.log('SMS Service is temporarily disabled. Would have sent:', { to, message });
-    return { success: true, message: 'SMS disabled', data: null };
-
-    /*
-    // Allow distinct SMS credentials, falling back to payment credentials
-    // Note: Moolre SMS might not use PubKey, or might differ from Payment PubKey.
-    // Logic: If using custom SMS User, only use custom SMS PubKey (don't fallback to Payment PubKey).
+    // Allow distinct SMS credentials, falling back to payment credentials.
+    // If a custom SMS user is set, its pubkey must be used explicitly (don't
+    // mix a custom SMS user with the payment pubkey).
     const isCustomSmsUser = !!process.env.MOOLRE_SMS_API_USER;
     const smsUser = process.env.MOOLRE_SMS_API_USER || process.env.MOOLRE_API_USER;
     const smsVasKey = process.env.MOOLRE_SMS_API_KEY || process.env.MOOLRE_API_KEY;
 
     let smsPubKey = process.env.MOOLRE_SMS_API_PUBKEY;
     if (!isCustomSmsUser) {
-        // If reusing Payment User, reuse Payment PubKey
         smsPubKey = smsPubKey || process.env.MOOLRE_API_PUBKEY;
     }
 
     if (!smsVasKey || !smsUser) {
-        console.warn('Missing Moolre credentials (VASKEY or USER) for SMS.');
-        return null;
+        console.warn('[SMS] Missing Moolre credentials (VASKEY or USER). Skipping.');
+        return { success: false, message: 'SMS credentials missing', data: null };
     }
 
     const recipient = formatPhoneNumber(to);
+    const senderId = process.env.MOOLRE_SMS_SENDER_ID || 'Hy-Stepper';
 
     try {
-        console.log(`Sending SMS to ${recipient}: ${message}`);
+        console.log(`[SMS] Sending to ${recipient} via ${senderId}: ${message.slice(0, 60)}...`);
         const response = await fetch('https://api.moolre.com/open/sms/send', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-API-VASKEY': smsVasKey,
                 'X-API-USER': smsUser,
-                'X-API-PUBKEY': smsPubKey || ''
+                'X-API-PUBKEY': smsPubKey || '',
             },
             body: JSON.stringify({
                 type: 1,
-                senderid: 'Hy_stepper', 
-                messages: [
-                    {
-                        recipient: recipient,
-                        message: message
-                    }
-                ]
-            })
+                senderid: senderId,
+                messages: [{ recipient, message }],
+            }),
         });
 
         const result = await response.json();
-        console.log('SMS Result:', result);
-        return result;
-    } catch (error) {
-        console.error('SMS Error:', error);
-        return null;
+        console.log('[SMS] Result:', JSON.stringify(result).slice(0, 500));
+        return { success: result.status === 1, ...result };
+    } catch (error: any) {
+        console.error('[SMS] Error:', error?.message || error);
+        return { success: false, message: error?.message || 'SMS send failed', data: null };
     }
-    */
 }
 
 export async function sendOrderConfirmation(order: any) {

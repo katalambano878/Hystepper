@@ -289,18 +289,52 @@ function OrderSuccessContent() {
               ))}
             </div>
             <div className="border-t border-gray-100 mt-6 pt-5 space-y-2">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
-                <span>GH₵{order.subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Shipping</span>
-                <span>GH₵{order.shipping_total.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between pt-3 mt-2 border-t border-gray-100">
-                <span className="text-base font-bold text-gray-900">Total paid</span>
-                <span className="text-lg font-bold text-gold-700">GH₵{order.total.toFixed(2)}</span>
-              </div>
+              {(() => {
+                const payableNow = Number(order.metadata?.payable_now);
+                const deliveryDue = Number(order.metadata?.delivery_fee_due);
+                const isPartial =
+                  Number.isFinite(payableNow) &&
+                  payableNow > 0 &&
+                  Number.isFinite(deliveryDue) &&
+                  deliveryDue > 0 &&
+                  Math.abs(payableNow + deliveryDue - Number(order.total)) < 0.01;
+
+                return (
+                  <>
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Subtotal</span>
+                      <span>GH₵{order.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Shipping</span>
+                      <span>GH₵{order.shipping_total.toFixed(2)}</span>
+                    </div>
+                    {isPartial ? (
+                      <>
+                        <div className="flex justify-between pt-3 mt-2 border-t border-gray-100">
+                          <span className="text-base font-bold text-gray-900">Paid now</span>
+                          <span className="text-lg font-bold text-gold-700">
+                            GH₵{payableNow.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Due on delivery</span>
+                          <span className="font-semibold text-amber-700">
+                            GH₵{deliveryDue.toFixed(2)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between pt-3 mt-2 border-t border-gray-100">
+                        <span className="text-base font-bold text-gray-900">Total paid</span>
+                        <span className="text-lg font-bold text-gold-700">
+                          GH₵{order.total.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 

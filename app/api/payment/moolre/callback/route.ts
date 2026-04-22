@@ -106,13 +106,15 @@ export async function POST(req: Request) {
       'callback';
 
     const apiStatus = body.status;
-    const txStatus = data.txtstatus; // NOTE: Moolre's actual field is "txtstatus" with extra "t"
+    // Moolre's live payload uses "txstatus"; some docs say "txtstatus".
+    // Accept either so we're resilient to the field spelling.
+    const txStatus = data.txstatus ?? data.txtstatus;
     const messageStr = String(body.message || '').toLowerCase();
 
     console.log(
       '[Moolre Callback] ref:', merchantOrderRef,
       '| API status:', apiStatus,
-      '| txtstatus:', txStatus,
+      '| txstatus:', txStatus,
       '| message:', body.message,
       '| moolre ref:', moolreReference
     );
@@ -202,7 +204,7 @@ export async function POST(req: Request) {
 
     // Explicit failure
     if (txStatus === 2 || txStatus === '2' || messageIndicatesFailure) {
-      console.log(`[Moolre Callback] Payment FAILED for ${merchantOrderRef} | txtstatus: ${txStatus}`);
+      console.log(`[Moolre Callback] Payment FAILED for ${merchantOrderRef} | txstatus: ${txStatus}`);
 
       await supabase
         .from('orders')

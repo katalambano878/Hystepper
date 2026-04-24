@@ -72,12 +72,16 @@ export default function POSPage() {
     const [amountTendered, setAmountTendered] = useState<string>('');
     const [processing, setProcessing] = useState(false);
     const [completedOrder, setCompletedOrder] = useState<any>(null);
+    const [orderType, setOrderType] = useState<'walk_in' | 'delivery'>('walk_in');
     const [guestDetails, setGuestDetails] = useState({
         firstName: '',
         lastName: '',
         email: '',
         phone: '',
-        address: ''
+        address: '',
+        city: '',
+        region: '',
+        notes: '',
     });
 
     useEffect(() => {
@@ -248,24 +252,68 @@ export default function POSPage() {
 
     const handleCheckout = async () => {
         if (cart.length === 0) return;
+
+        // Resolve names/phones from either the selected customer or the guest form.
+        const resolvedFirstName = (selectedCustomer
+            ? (selectedCustomer.full_name || '').split(' ')[0]
+            : guestDetails.firstName
+        ) || '';
+        const resolvedLastName = (selectedCustomer
+            ? (selectedCustomer.full_name || '').split(' ').slice(1).join(' ')
+            : guestDetails.lastName
+        ) || '';
+        const resolvedFullName = `${resolvedFirstName} ${resolvedLastName}`.trim();
+        const resolvedEmail = (guestDetails.email || selectedCustomer?.email || '').trim();
+        const resolvedPhone = (guestDetails.phone || selectedCustomer?.phone || '').trim();
+
+        // Delivery orders require a phone + address so we can actually deliver.
+        if (orderType === 'delivery') {
+            if (!resolvedPhone.trim()) {
+                alert('Delivery orders require a customer phone number.');
+                return;
+            }
+            if (!guestDetails.address.trim()) {
+                alert('Please enter a delivery address.');
+                return;
+            }
+        }
+
         setProcessing(true);
 
         try {
-            const shippingAddr = selectedCustomer ? {} : {
-                firstName: guestDetails.firstName,
-                lastName: guestDetails.lastName,
-                email: guestDetails.email,
-                phone: guestDetails.phone,
-                address: guestDetails.address
+            // Build a shipping_address using the same shape as online orders so the
+            // admin order details screen renders correctly (address_line1, city, etc.)
+            const deliveryAddress = {
+                full_name: resolvedFullName || 'Walk-in Customer',
+                first_name: resolvedFirstName,
+                last_name: resolvedLastName,
+                email: resolvedEmail,
+                phone: resolvedPhone,
+                address_line1: guestDetails.address,
+                city: guestDetails.city,
+                state: guestDetails.region,
+                country: 'Ghana',
+                notes: guestDetails.notes,
             };
-            const orderMeta = selectedCustomer ? {} : {
-                guest_checkout: true,
-                first_name: guestDetails.firstName,
-                last_name: guestDetails.lastName,
-                phone: guestDetails.phone,
-                email: guestDetails.email
+            const walkInAddress = {
+                full_name: resolvedFullName || 'Walk-in Customer',
+                phone: resolvedPhone,
+                note: 'POS in-store sale',
             };
-            const addressData = Object.keys(shippingAddr).length > 0 ? shippingAddr : { note: 'POS in-store sale' };
+            const addressData = orderType === 'delivery' ? deliveryAddress : walkInAddress;
+
+            const orderMeta: any = {
+                pos_sale: true,
+                pos_order_type: orderType,
+                stock_reduced: true,
+            };
+            if (!selectedCustomer) {
+                orderMeta.guest_checkout = true;
+                orderMeta.first_name = resolvedFirstName;
+                orderMeta.last_name = resolvedLastName;
+                orderMeta.phone = resolvedPhone;
+                orderMeta.email = resolvedEmail;
+            }
 
             // Flag stock_reduced: true up-front so the Moolre/Paystack webhook's
             // mark_order_paid RPC never attempts to re-reduce stock for POS sales.
@@ -274,17 +322,19 @@ export default function POSPage() {
                 .insert({
                     order_number: `POS-${Date.now()}`,
                     user_id: selectedCustomer?.id || null,
-                    email: selectedCustomer?.email || guestDetails.email || 'pos@store.local',
-                    phone: selectedCustomer?.phone || guestDetails.phone || null,
+                    email: resolvedEmail || 'pos@store.local',
+                    phone: resolvedPhone || null,
                     total: grandTotal,
                     subtotal: grandTotal,
-                    status: 'delivered',
+                    // Walk-in sales are completed instantly; deliveries start in
+                    // processing so they flow through the normal fulfilment queue.
+                    status: orderType === 'delivery' ? 'processing' : 'delivered',
                     payment_status: 'paid',
                     payment_method: paymentMethod,
                     payment_provider: 'pos',
                     shipping_address: addressData,
                     billing_address: addressData,
-                    metadata: { ...orderMeta, pos_sale: true, stock_reduced: true }
+                    metadata: orderMeta,
                 })
                 .select()
                 .single();
@@ -365,11 +415,11 @@ export default function POSPage() {
             // Refresh product stock so the grid reflects the sale immediately.
             fetchData();
 
-            const notifEmail = selectedCustomer ? selectedCustomer.email : guestDetails.email;
-            if (notifEmail) {
-                const notifPhone = selectedCustomer ? selectedCustomer.phone : guestDetails.phone;
-                const notifName = selectedCustomer ? (selectedCustomer.full_name || 'Customer') : guestDetails.firstName;
-
+            // Notify the customer (email + SMS) when we have real contact
+            // details. We override the saved `pos@store.local` placeholder so
+            // sendOrderConfirmation never emails that fake address.
+            const customerHasContact = Boolean(resolvedEmail || resolvedPhone);
+            if (customerHasContact) {
                 fetch('/api/notifications', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -377,16 +427,29 @@ export default function POSPage() {
                         type: 'order_created',
                         payload: {
                             ...order,
-                            order_number: order.order_number,
-                            email: notifEmail,
-                            shipping_address: {
-                                firstName: notifName.split(' ')[0],
-                                phone: notifPhone
-                            }
-                        }
-                    })
-                }).catch(err => console.error('POS Notification error:', err));
+                            email: resolvedEmail || '',
+                            phone: resolvedPhone || '',
+                        },
+                    }),
+                }).catch((err) => console.error('POS customer notification error:', err));
             }
+
+            fetch('/api/notifications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'pos_admin_alert',
+                    payload: {
+                        orderId: order.id,
+                        orderNumber: order.order_number,
+                        total: grandTotal,
+                        orderType,
+                        paymentMethod,
+                        customerName: resolvedFullName || 'Walk-in Customer',
+                        customerPhone: resolvedPhone || '',
+                    },
+                }),
+            }).catch((err) => console.error('POS admin alert error:', err));
 
         } catch (error: any) {
             console.error('Checkout failed:', error);
@@ -601,12 +664,16 @@ export default function POSPage() {
         setCompletedOrder(null);
         setAmountTendered('');
         setSelectedCustomer(null);
+        setOrderType('walk_in');
         setGuestDetails({
             firstName: '',
             lastName: '',
             email: '',
             phone: '',
-            address: ''
+            address: '',
+            city: '',
+            region: '',
+            notes: '',
         });
     };
 
@@ -932,6 +999,36 @@ export default function POSPage() {
                                     </div>
 
                                     <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Order Type</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setOrderType('walk_in')}
+                                                className={`py-3 rounded-lg font-medium border transition-all flex items-center justify-center space-x-2 ${
+                                                    orderType === 'walk_in'
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600'
+                                                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                                }`}
+                                            >
+                                                <i className="ri-store-2-line"></i>
+                                                <span>Walk-in</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setOrderType('delivery')}
+                                                className={`py-3 rounded-lg font-medium border transition-all flex items-center justify-center space-x-2 ${
+                                                    orderType === 'delivery'
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600'
+                                                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                                }`}
+                                            >
+                                                <i className="ri-truck-line"></i>
+                                                <span>Delivery</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">Customer (Optional)</label>
                                         <select
                                             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none mb-4"
@@ -973,7 +1070,7 @@ export default function POSPage() {
                                                     />
                                                     <input
                                                         type="tel"
-                                                        placeholder="Phone (Optional)"
+                                                        placeholder={orderType === 'delivery' ? 'Phone (Required)' : 'Phone (Optional)'}
                                                         value={guestDetails.phone}
                                                         onChange={e => setGuestDetails({ ...guestDetails, phone: e.target.value })}
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
@@ -982,6 +1079,59 @@ export default function POSPage() {
                                             </div>
                                         )}
                                     </div>
+
+                                    {orderType === 'delivery' && (
+                                        <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 space-y-3 animate-in fade-in slide-in-from-top-2">
+                                            <h4 className="text-sm font-bold text-amber-900 border-b border-amber-200 pb-2 mb-2 flex items-center">
+                                                <i className="ri-truck-line mr-2"></i>
+                                                Delivery Details
+                                            </h4>
+                                            {selectedCustomer && (
+                                                <p className="text-xs text-amber-800 mb-2">
+                                                    Confirm the delivery phone and address below. Leave blank fields for this customer will fall back to their account.
+                                                </p>
+                                            )}
+                                            {selectedCustomer && (
+                                                <input
+                                                    type="tel"
+                                                    placeholder="Delivery Phone (Required)"
+                                                    value={guestDetails.phone}
+                                                    onChange={(e) => setGuestDetails({ ...guestDetails, phone: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
+                                                />
+                                            )}
+                                            <textarea
+                                                placeholder="Delivery Address (Required)"
+                                                value={guestDetails.address}
+                                                onChange={(e) => setGuestDetails({ ...guestDetails, address: e.target.value })}
+                                                rows={2}
+                                                className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
+                                            />
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <input
+                                                    type="text"
+                                                    placeholder="City / Town"
+                                                    value={guestDetails.city}
+                                                    onChange={(e) => setGuestDetails({ ...guestDetails, city: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Region"
+                                                    value={guestDetails.region}
+                                                    onChange={(e) => setGuestDetails({ ...guestDetails, region: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
+                                                />
+                                            </div>
+                                            <textarea
+                                                placeholder="Delivery Notes (Optional) — landmarks, rider instructions"
+                                                value={guestDetails.notes}
+                                                onChange={(e) => setGuestDetails({ ...guestDetails, notes: e.target.value })}
+                                                rows={2}
+                                                className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
+                                            />
+                                        </div>
+                                    )}
 
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
@@ -1028,7 +1178,11 @@ export default function POSPage() {
                                 <div className="p-6 border-t border-gray-100 bg-gray-50 shrink-0">
                                     <button
                                         onClick={handleCheckout}
-                                        disabled={processing || (paymentMethod === 'cash' && (parseFloat(amountTendered || '0') < grandTotal))}
+                                        disabled={
+                                            processing ||
+                                            (paymentMethod === 'cash' && parseFloat(amountTendered || '0') < grandTotal) ||
+                                            (orderType === 'delivery' && (!guestDetails.address.trim() || !((guestDetails.phone || selectedCustomer?.phone || '').trim())))
+                                        }
                                         className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center space-x-2"
                                     >
                                         {processing ? (

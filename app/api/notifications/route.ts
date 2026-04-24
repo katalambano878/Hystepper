@@ -7,6 +7,7 @@ import {
     sendWelcomeMessage,
     sendContactMessage,
     sendPaymentLink,
+    sendPosAdminAlert,
     sendEmail,
     sendSMS,
     emailLayout,
@@ -172,6 +173,97 @@ export async function POST(request: Request) {
             }
             await sendContactMessage(payload);
             return NextResponse.json({ success: true, message: 'Contact message sent' });
+        }
+
+        // --------------------------------------------------------------
+        // pos_admin_alert — fires whenever a POS sale (walk-in or delivery)
+        // is completed so the store owner always gets an SMS + email, even
+        // when the buyer left no contact details.
+        // --------------------------------------------------------------
+        if (type === 'pos_admin_alert') {
+            const { orderId, orderNumber, total, orderType, paymentMethod, customerName, customerPhone } = payload || {};
+            if (!orderId || !orderNumber) {
+                return NextResponse.json({ error: 'orderId and orderNumber are required' }, { status: 400 });
+            }
+
+            // Only trust the alert if the order actually exists and was
+            // created within the last 10 minutes — same guard as order_created.
+            const { data: existing } = await supabaseAdmin
+                .from('orders')
+                .select('id, created_at, metadata')
+                .eq('id', orderId)
+                .maybeSingle();
+            if (!existing) {
+                return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+            }
+            const orderAgeMs = Date.now() - new Date(existing.created_at).getTime();
+            if (orderAgeMs > 10 * 60 * 1000) {
+                return NextResponse.json({ error: 'Alert window expired' }, { status: 400 });
+            }
+            if (existing.metadata?.pos_sale !== true) {
+                return NextResponse.json({ error: 'Order is not a POS sale' }, { status: 400 });
+            }
+
+            await sendPosAdminAlert({
+                orderId,
+                orderNumber: String(orderNumber),
+                total: Number(total) || 0,
+                orderType: orderType === 'delivery' ? 'delivery' : 'walk_in',
+                paymentMethod: String(paymentMethod || 'cash'),
+                customerName: customerName ? String(customerName) : undefined,
+                customerPhone: customerPhone ? String(customerPhone) : undefined,
+            });
+            return NextResponse.json({ success: true, message: 'POS admin alert sent' });
+        }
+
+        // --------------------------------------------------------------
+        // pos_admin_alert — fires on every completed POS sale so the store
+        // owner gets an SMS (and email) summarising the transaction.
+        // --------------------------------------------------------------
+        if (type === 'pos_admin_alert') {
+            const {
+                orderId,
+                orderNumber,
+                total,
+                orderType: posType,
+                paymentMethod,
+                customerName,
+                customerPhone,
+            } = payload;
+
+            if (!orderId || !orderNumber) {
+                return NextResponse.json({ error: 'orderId and orderNumber required' }, { status: 400 });
+            }
+
+            const { data: existing } = await supabaseAdmin
+                .from('orders')
+                .select('id, created_at, payment_provider, metadata')
+                .eq('id', orderId)
+                .maybeSingle();
+
+            if (!existing) {
+                return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+            }
+            // Only fire for recent POS orders to prevent abuse.
+            const orderAgeMs = Date.now() - new Date(existing.created_at).getTime();
+            const isPos =
+                existing.payment_provider === 'pos' ||
+                existing.metadata?.pos_sale === true;
+            if (!isPos || orderAgeMs > 10 * 60 * 1000) {
+                return NextResponse.json({ error: 'Not a recent POS order' }, { status: 400 });
+            }
+
+            await sendPosAdminAlert({
+                orderId,
+                orderNumber,
+                total: Number(total) || 0,
+                orderType: posType === 'delivery' ? 'delivery' : 'walk_in',
+                paymentMethod: String(paymentMethod || 'cash'),
+                customerName: customerName ? String(customerName) : undefined,
+                customerPhone: customerPhone ? String(customerPhone) : undefined,
+            });
+
+            return NextResponse.json({ success: true, message: 'POS admin alert sent' });
         }
 
         // --------------------------------------------------------------

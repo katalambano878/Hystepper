@@ -433,14 +433,56 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Shipping Address</h2>
-              <div className="text-gray-700 space-y-1">
-                <p>{shippingAddress.address_line1}</p>
-                {shippingAddress.address_line2 && <p>{shippingAddress.address_line2}</p>}
-                <p>{shippingAddress.city}, {shippingAddress.state}</p>
-                <p>{shippingAddress.postal_code}</p>
-                <p className="font-semibold">{shippingAddress.country}</p>
-              </div>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">
+                {order.metadata?.pos_sale && order.metadata?.pos_order_type !== 'delivery'
+                  ? 'Pickup / In-store'
+                  : 'Shipping Address'}
+              </h2>
+              {order.metadata?.pos_sale && order.metadata?.pos_order_type !== 'delivery' ? (
+                <div className="flex items-start gap-2 text-gray-700">
+                  <i className="ri-store-3-line text-indigo-600 text-lg mt-0.5"></i>
+                  <div>
+                    <p className="font-semibold">Walk-in POS Sale</p>
+                    <p className="text-sm text-gray-500">
+                      Customer collected the items in-store. No delivery required.
+                    </p>
+                    {shippingAddress.note && (
+                      <p className="text-xs text-gray-400 mt-1">{shippingAddress.note}</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-700 space-y-1">
+                  {shippingAddress.address_line1 && <p>{shippingAddress.address_line1}</p>}
+                  {shippingAddress.address_line2 && <p>{shippingAddress.address_line2}</p>}
+                  {(shippingAddress.city || shippingAddress.state) && (
+                    <p>
+                      {[shippingAddress.city, shippingAddress.state].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                  {shippingAddress.postal_code && <p>{shippingAddress.postal_code}</p>}
+                  {shippingAddress.country && (
+                    <p className="font-semibold">{shippingAddress.country}</p>
+                  )}
+                  {shippingAddress.notes && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1">
+                        Delivery Notes
+                      </p>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">
+                        {shippingAddress.notes}
+                      </p>
+                    </div>
+                  )}
+                  {!shippingAddress.address_line1 &&
+                    !shippingAddress.city &&
+                    !shippingAddress.state && (
+                      <p className="text-sm text-gray-400 italic">
+                        No shipping address on file.
+                      </p>
+                    )}
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

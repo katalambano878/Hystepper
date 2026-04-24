@@ -606,3 +606,79 @@ ${emailButton('Reply to ' + safeName, `mailto:${safeEmail}?subject=Re: ${encodeU
 `, `New contact from ${safeName}: ${safeSubject}`),
     });
 }
+
+// ---------------------------------------------------------------------------
+// POS admin alert — fires whenever the POS completes a sale (walk-in or
+// delivery) so the store owner always gets an SMS notification, even when
+// the customer didn't leave any contact details.
+// ---------------------------------------------------------------------------
+
+async function resolveAdminAlertPhone(): Promise<string | null> {
+    const envPhone = (process.env.ADMIN_PHONE || process.env.STORE_PHONE || '').trim();
+    if (envPhone) return envPhone;
+
+    try {
+        const { data } = await supabaseAdmin
+            .from('store_settings')
+            .select('key, value')
+            .eq('key', 'contact_phone')
+            .single();
+        const raw = (data?.value ?? '').toString().trim();
+        return raw || null;
+    } catch {
+        return null;
+    }
+}
+
+export async function sendPosAdminAlert(alert: {
+    orderId: string;
+    orderNumber: string;
+    total: number;
+    orderType: 'walk_in' | 'delivery';
+    paymentMethod: string;
+    customerName?: string;
+    customerPhone?: string;
+}) {
+    const adminPhone = await resolveAdminAlertPhone();
+    const typeLabel = alert.orderType === 'delivery' ? 'Delivery' : 'Walk-in';
+    const pay = (alert.paymentMethod || 'cash').toString().toUpperCase();
+    const customerLine = alert.customerName && alert.customerName !== 'Walk-in Customer'
+        ? ` for ${alert.customerName}`
+        : '';
+    const phoneLine = alert.customerPhone ? ` (${alert.customerPhone})` : '';
+
+    const message = `POS ${typeLabel} sale #${alert.orderNumber}: GH₵${Number(alert.total).toFixed(2)} via ${pay}${customerLine}${phoneLine}.`;
+
+    console.log(
+        `[Notification] POS admin alert | Order #${alert.orderNumber} | AdminSMS: ${adminPhone ? 'yes' : 'no'}`
+    );
+
+    if (adminPhone) {
+        await sendSMS({ to: adminPhone, message });
+    }
+
+    // Also email the admin with a short branded summary so there's a written
+    // paper-trail alongside the SMS.
+    try {
+        await sendEmail({
+            to: ADMIN_EMAIL,
+            subject: `POS ${typeLabel} Sale #${alert.orderNumber}`,
+            html: emailLayout(`
+<h2 style="margin:0 0 16px;color:#111827;font-size:20px;">New POS ${typeLabel} Sale</h2>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border-radius:12px;overflow:hidden;margin:16px 0;">
+  ${emailInfoRow('Order', `#${escapeHtml(alert.orderNumber)}`)}
+  ${emailInfoRow('Type', typeLabel)}
+  ${emailInfoRow('Total', `<span style="color:${BRAND.color};font-weight:700;">GH₵${Number(alert.total).toFixed(2)}</span>`)}
+  ${emailInfoRow('Payment', escapeHtml(pay))}
+  ${alert.customerName ? emailInfoRow('Customer', escapeHtml(alert.customerName)) : ''}
+  ${alert.customerPhone ? emailInfoRow('Phone', escapeHtml(alert.customerPhone)) : ''}
+</table>
+
+${emailButton('Open Order', `${BRAND.url}/admin/orders/${alert.orderId}`)}
+`, `New POS ${typeLabel} sale #${alert.orderNumber}`),
+        });
+    } catch (err) {
+        console.error('[Notification] POS admin email failed:', err);
+    }
+}

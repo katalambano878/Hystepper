@@ -22,6 +22,7 @@ interface Order {
     payable_now?: number;
     delivery_fee_due?: number;
     pos_sale?: boolean;
+    pos_order_type?: 'walk_in' | 'delivery';
     [key: string]: any;
   };
   profiles?: {
@@ -700,9 +701,21 @@ export default function AdminOrdersPage() {
                           {order.order_number || order.id.substring(0, 8)}
                         </Link>
                         {isPosOrder(order) ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
-                            <i className="ri-store-3-line text-[11px]"></i>
-                            POS
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                              order.metadata?.pos_order_type === 'delivery'
+                                ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                : 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                            }`}
+                          >
+                            <i
+                              className={`text-[11px] ${
+                                order.metadata?.pos_order_type === 'delivery'
+                                  ? 'ri-truck-line'
+                                  : 'ri-store-3-line'
+                              }`}
+                            ></i>
+                            {order.metadata?.pos_order_type === 'delivery' ? 'POS · Delivery' : 'POS'}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">

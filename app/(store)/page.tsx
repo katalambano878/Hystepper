@@ -2,10 +2,26 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import ProductCard from '@/components/ProductCard';
 
+interface HeroSlide {
+  id?: string;
+  image: string;
+  title: string;
+  subtitle: string;
+  button_text: string;
+  button_link: string;
+}
+
+const FALLBACK_HERO_SLIDE: HeroSlide = {
+  image: '/hero-new.jpeg',
+  title: 'Stay Sleek in Style',
+  subtitle: 'Elevate your look with our exclusive collection of footwear and bags — made for the modern woman.',
+  button_text: 'Shop Now',
+  button_link: '/shop',
+};
 
 export default function HomePage() {
 
@@ -13,23 +29,11 @@ export default function HomePage() {
   const [discountedProducts, setDiscountedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const config = {
-    hero: {
-      headline: 'Stay Sleek in Style',
-      subheadline: 'Elevate your look with our exclusive collection of footwear and bags — made for the modern woman.',
-      primaryButtonText: 'Shop Now',
-      primaryButtonLink: '/shop',
-      backgroundImage: '/hero-new.jpeg'
-    },
-    sections: {
-      newArrivals: {
-        enabled: true,
-        title: 'Trending Now',
-        subtitle: 'Our most loved styles this season',
-        count: 8
-      }
-    }
-  };
+  // Hero CMS state
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([FALLBACK_HERO_SLIDE]);
+  const [autoplaySeconds, setAutoplaySeconds] = useState<number>(6);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const hoverRef = useRef(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -150,52 +154,177 @@ export default function HomePage() {
     fetchData();
   }, []);
 
+  // Load hero slides from CMS (store_settings).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('store_settings')
+          .select('key, value')
+          .in('key', ['hero_slides', 'hero_autoplay_seconds']);
+
+        if (cancelled || !data) return;
+
+        const map: Record<string, any> = {};
+        data.forEach(row => { map[row.key] = row.value; });
+
+        let slides: HeroSlide[] = [];
+        const raw = map.hero_slides;
+        if (Array.isArray(raw)) {
+          slides = raw;
+        } else if (typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) slides = parsed;
+          } catch { /* ignore */ }
+        }
+
+        const cleaned = slides
+          .map((s: any) => ({
+            image: s?.image || '',
+            title: s?.title || '',
+            subtitle: s?.subtitle || '',
+            button_text: s?.button_text || '',
+            button_link: s?.button_link || '',
+          }))
+          .filter(s => s.image || s.title || s.subtitle);
+
+        if (cleaned.length > 0) setHeroSlides(cleaned);
+
+        const autoplay = Number(map.hero_autoplay_seconds);
+        if (Number.isFinite(autoplay) && autoplay >= 2 && autoplay <= 30) {
+          setAutoplaySeconds(autoplay);
+        }
+      } catch (err) {
+        console.warn('Hero CMS fetch failed, using defaults:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Auto-rotate slides (skipped when only one slide or while hovered).
+  useEffect(() => {
+    if (heroSlides.length <= 1) return;
+    const id = setInterval(() => {
+      if (hoverRef.current) return;
+      setCurrentSlide(prev => (prev + 1) % heroSlides.length);
+    }, autoplaySeconds * 1000);
+    return () => clearInterval(id);
+  }, [heroSlides.length, autoplaySeconds]);
+
+  // Keep currentSlide in range when slides change (e.g. fewer after save).
+  useEffect(() => {
+    if (currentSlide >= heroSlides.length) setCurrentSlide(0);
+  }, [heroSlides.length, currentSlide]);
+
+  const activeSlide = heroSlides[currentSlide] || FALLBACK_HERO_SLIDE;
+  const isMultiSlide = heroSlides.length > 1;
+
   return (
     <main className="min-h-screen bg-white">
 
-      {/* Hero Section — Clean & Elegant */}
-      <section className="relative h-[70vh] lg:h-[85vh] overflow-hidden group">
-        {/* Full Background Image */}
-        <div className="absolute inset-0 overflow-hidden">
-          {config.hero.backgroundImage.startsWith('data:') ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={config.hero.backgroundImage}
-              alt="Hy_stepper Collection"
-              className="w-full h-full object-cover object-top"
-            />
-          ) : (
-            <Image
-              src={config.hero.backgroundImage}
-              alt="Hy_stepper Collection"
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover object-top"
-            />
+      {/* Hero Section — CMS-driven slider */}
+      <section
+        className="relative h-[70vh] lg:h-[85vh] overflow-hidden group"
+        onMouseEnter={() => { hoverRef.current = true; }}
+        onMouseLeave={() => { hoverRef.current = false; }}
+      >
+        {/* Slides — stacked & cross-faded */}
+        {heroSlides.map((slide, idx) => {
+          const isActive = idx === currentSlide;
+          const imgSrc = slide.image || FALLBACK_HERO_SLIDE.image;
+          return (
+            <div
+              key={slide.id || `${imgSrc}-${idx}`}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-out ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
+              aria-hidden={!isActive}
+            >
+              <div className="absolute inset-0 overflow-hidden">
+                {imgSrc.startsWith('data:') ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imgSrc}
+                    alt={slide.title || 'Hy_stepper Collection'}
+                    className="w-full h-full object-cover object-top"
+                  />
+                ) : (
+                  <Image
+                    src={imgSrc}
+                    alt={slide.title || 'Hy_stepper Collection'}
+                    fill
+                    priority={idx === 0}
+                    sizes="100vw"
+                    className="object-cover object-top"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60" />
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Content — animates in on slide change */}
+        <div
+          key={`hero-content-${currentSlide}`}
+          className="relative h-full flex flex-col items-center justify-end pb-20 lg:pb-28 px-4 text-center z-20"
+        >
+          {activeSlide.title && (
+            <h1 className="font-serif text-4xl sm:text-5xl lg:text-7xl text-white leading-tight mb-4 drop-shadow-lg animate-fade-in-up">
+              {activeSlide.title}
+            </h1>
           )}
-          {/* Gradient overlay for readability */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60"></div>
+          {activeSlide.subtitle && (
+            <p className="text-lg lg:text-xl text-white/90 max-w-xl mb-8 drop-shadow-md animate-fade-in-up delay-100">
+              {activeSlide.subtitle}
+            </p>
+          )}
+          {activeSlide.button_text && activeSlide.button_link && (
+            <div className="animate-fade-in-up delay-200">
+              <Link
+                href={activeSlide.button_link}
+                className="group inline-flex items-center gap-3 bg-gold-500 hover:bg-gold-600 text-white px-10 py-4 rounded-full font-semibold text-lg transition-all shadow-xl hover:shadow-gold-500/50 hover:-translate-y-1 active:scale-95"
+              >
+                {activeSlide.button_text}
+                <i className="ri-arrow-right-line transition-transform duration-300 group-hover:translate-x-1"></i>
+              </Link>
+            </div>
+          )}
         </div>
 
-        {/* Content */}
-        <div className="relative h-full flex flex-col items-center justify-end pb-16 lg:pb-24 px-4 text-center">
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-7xl text-white leading-tight mb-4 drop-shadow-lg animate-fade-in-up">
-            {config.hero.headline}
-          </h1>
-          <p className="text-lg lg:text-xl text-white/90 max-w-xl mb-8 drop-shadow-md animate-fade-in-up delay-100">
-            {config.hero.subheadline}
-          </p>
-          <div className="animate-fade-in-up delay-200">
-            <Link
-              href={config.hero.primaryButtonLink}
-              className="group inline-flex items-center gap-3 bg-gold-500 hover:bg-gold-600 text-white px-10 py-4 rounded-full font-semibold text-lg transition-all shadow-xl hover:shadow-gold-500/50 hover:-translate-y-1 active:scale-95"
+        {/* Slider controls */}
+        {isMultiSlide && (
+          <>
+            <button
+              type="button"
+              onClick={() => setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length)}
+              className="hidden sm:flex absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 z-30 w-11 h-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/25 backdrop-blur-sm border border-white/20 text-white transition-all opacity-0 group-hover:opacity-100"
+              aria-label="Previous slide"
             >
-              {config.hero.primaryButtonText}
-              <i className="ri-arrow-right-line transition-transform duration-300 group-hover:translate-x-1"></i>
-            </Link>
-          </div>
-        </div>
+              <i className="ri-arrow-left-s-line text-xl" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentSlide((prev) => (prev + 1) % heroSlides.length)}
+              className="hidden sm:flex absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 z-30 w-11 h-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/25 backdrop-blur-sm border border-white/20 text-white transition-all opacity-0 group-hover:opacity-100"
+              aria-label="Next slide"
+            >
+              <i className="ri-arrow-right-s-line text-xl" />
+            </button>
+
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
+              {heroSlides.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCurrentSlide(idx)}
+                  aria-label={`Go to slide ${idx + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${idx === currentSlide ? 'w-8 bg-white' : 'w-4 bg-white/40 hover:bg-white/70'}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
       {/* Shop By — Linear Stacked Design */}
@@ -293,58 +422,56 @@ export default function HomePage() {
       </section>
 
       {/* Products Section */}
-      {config.sections?.newArrivals?.enabled && (
-        <section className="py-16 lg:py-20 bg-gray-50" data-product-shop>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="flex items-end justify-between mb-10">
-              <div className="animate-fade-in-up">
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">{config.sections.newArrivals.title}</h2>
-                <p className="text-gray-500">{config.sections.newArrivals.subtitle}</p>
-              </div>
-              <Link href="/shop" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer group transition-all">
-                View All
-                <i className="ri-arrow-right-line ml-2 transform group-hover:translate-x-1 transition-transform"></i>
-              </Link>
+      <section className="py-16 lg:py-20 bg-gray-50" data-product-shop>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-end justify-between mb-10">
+            <div className="animate-fade-in-up">
+              <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Trending Now</h2>
+              <p className="text-gray-500">Our most loved styles this season</p>
             </div>
-
-            {loading ? (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                {[1, 2, 3, 4].map(idx => (
-                  <div key={idx} className="bg-white rounded-xl overflow-hidden shadow-sm h-96 animate-pulse">
-                    <div className="h-64 bg-gray-200"></div>
-                    <div className="p-4 space-y-3">
-                      <div className="h-4 bg-gray-200 w-3/4"></div>
-                      <div className="h-4 bg-gray-200 w-1/2"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : featuredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                {featuredProducts.map((product, idx) => (
-                  <div key={product.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
-                    <ProductCard {...product} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-500">No products found. Start adding products from the Admin Dashboard!</p>
-              </div>
-            )}
-
-            <div className="text-center mt-10">
-              <Link
-                href="/shop"
-                className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gold-600 text-white px-8 py-3.5 rounded-full font-medium transition-all hover:shadow-lg hover:-translate-y-1 whitespace-nowrap cursor-pointer group"
-              >
-                View All Products
-                <i className="ri-arrow-right-line transform group-hover:translate-x-1 transition-transform"></i>
-              </Link>
-            </div>
+            <Link href="/shop" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer group transition-all">
+              View All
+              <i className="ri-arrow-right-line ml-2 transform group-hover:translate-x-1 transition-transform"></i>
+            </Link>
           </div>
-        </section>
-      )}
+
+          {loading ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              {[1, 2, 3, 4].map(idx => (
+                <div key={idx} className="bg-white rounded-xl overflow-hidden shadow-sm h-96 animate-pulse">
+                  <div className="h-64 bg-gray-200"></div>
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-gray-200 w-3/4"></div>
+                    <div className="h-4 bg-gray-200 w-1/2"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : featuredProducts.length > 0 ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              {featuredProducts.map((product, idx) => (
+                <div key={product.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
+                  <ProductCard {...product} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No products found. Start adding products from the Admin Dashboard!</p>
+            </div>
+          )}
+
+          <div className="text-center mt-10">
+            <Link
+              href="/shop"
+              className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gold-600 text-white px-8 py-3.5 rounded-full font-medium transition-all hover:shadow-lg hover:-translate-y-1 whitespace-nowrap cursor-pointer group"
+            >
+              View All Products
+              <i className="ri-arrow-right-line transform group-hover:translate-x-1 transition-transform"></i>
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {/* Discounted Items */}
       {discountedProducts.length > 0 && (

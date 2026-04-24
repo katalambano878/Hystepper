@@ -18,6 +18,27 @@ interface DeliveryZone {
     is_active: boolean;
 }
 
+interface HeroSlide {
+    id: string;
+    image: string;
+    title: string;
+    subtitle: string;
+    button_text: string;
+    button_link: string;
+}
+
+const DEFAULT_HERO_SLIDE: Omit<HeroSlide, 'id'> = {
+    image: '/hero-new.jpeg',
+    title: 'Stay Sleek in Style',
+    subtitle: 'Elevate your look with our exclusive collection of footwear and bags — made for the modern woman.',
+    button_text: 'Shop Now',
+    button_link: '/shop',
+};
+
+function makeSlideId() {
+    return `slide-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState('general');
     const [settings, setSettings] = useState<Record<string, any>>({});
@@ -28,6 +49,10 @@ export default function SettingsPage() {
     // Delivery Zone Edit State
     const [editingZone, setEditingZone] = useState<DeliveryZone | null>(null);
     const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
+
+    // Hero slides state
+    const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
+    const [uploadingSlideId, setUploadingSlideId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -49,6 +74,29 @@ export default function SettingsPage() {
                 settingsMap[s.key] = s.value;
             });
             setSettings(settingsMap);
+
+            // Hydrate hero slides (stored as JSON array under hero_slides).
+            // Supports legacy rows where value was double-encoded as a string.
+            const rawSlides = settingsMap.hero_slides;
+            let parsed: HeroSlide[] = [];
+            if (Array.isArray(rawSlides)) {
+                parsed = rawSlides;
+            } else if (typeof rawSlides === 'string') {
+                try {
+                    const maybe = JSON.parse(rawSlides);
+                    if (Array.isArray(maybe)) parsed = maybe;
+                } catch { /* ignore */ }
+            }
+            setHeroSlides(
+                parsed.map((s, i) => ({
+                    id: s.id || `slide-${i}`,
+                    image: s.image || '',
+                    title: s.title || '',
+                    subtitle: s.subtitle || '',
+                    button_text: s.button_text || '',
+                    button_link: s.button_link || '',
+                }))
+            );
 
             // Fetch Delivery Zones
             const { data: zonesData, error: zonesError } = await supabase
@@ -95,6 +143,120 @@ export default function SettingsPage() {
 
     const updateSetting = (key: string, value: any) => {
         setSettings(prev => ({ ...prev, [key]: value }));
+    };
+
+    // ---------------------------------------------------------------
+    // Hero Slides handlers
+    // ---------------------------------------------------------------
+    const addHeroSlide = () => {
+        setHeroSlides(prev => [
+            ...prev,
+            { id: makeSlideId(), ...DEFAULT_HERO_SLIDE },
+        ]);
+    };
+
+    const updateHeroSlide = (id: string, patch: Partial<HeroSlide>) => {
+        setHeroSlides(prev => prev.map(s => (s.id === id ? { ...s, ...patch } : s)));
+    };
+
+    const removeHeroSlide = (id: string) => {
+        if (!confirm('Remove this slide?')) return;
+        setHeroSlides(prev => prev.filter(s => s.id !== id));
+    };
+
+    const moveHeroSlide = (id: string, direction: 'up' | 'down') => {
+        setHeroSlides(prev => {
+            const idx = prev.findIndex(s => s.id === id);
+            if (idx === -1) return prev;
+            const target = direction === 'up' ? idx - 1 : idx + 1;
+            if (target < 0 || target >= prev.length) return prev;
+            const next = [...prev];
+            [next[idx], next[target]] = [next[target], next[idx]];
+            return next;
+        });
+    };
+
+    const handleUploadSlideImage = async (slideId: string, file: File) => {
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file');
+            return;
+        }
+        const maxMb = 5;
+        if (file.size > maxMb * 1024 * 1024) {
+            toast.error(`Image must be smaller than ${maxMb}MB`);
+            return;
+        }
+
+        setUploadingSlideId(slideId);
+        try {
+            const ext = file.name.split('.').pop() || 'jpg';
+            const filePath = `hero/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('products')
+                .upload(filePath, file, { upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('products')
+                .getPublicUrl(filePath);
+
+            updateHeroSlide(slideId, { image: publicUrl });
+            toast.success('Image uploaded');
+        } catch (err: any) {
+            console.error('Error uploading slide image:', err);
+            toast.error(err?.message || 'Upload failed');
+        } finally {
+            setUploadingSlideId(null);
+        }
+    };
+
+    const handleSaveHero = async () => {
+        setSaving(true);
+        try {
+            const cleaned = heroSlides
+                .map(s => ({
+                    id: s.id,
+                    image: (s.image || '').trim(),
+                    title: (s.title || '').trim(),
+                    subtitle: (s.subtitle || '').trim(),
+                    button_text: (s.button_text || '').trim(),
+                    button_link: (s.button_link || '').trim(),
+                }))
+                .filter(s => s.image || s.title || s.subtitle);
+
+            const autoplay = Number(settings.hero_autoplay_seconds);
+            const safeAutoplay = Number.isFinite(autoplay) && autoplay >= 2 && autoplay <= 30 ? autoplay : 6;
+
+            const payload = [
+                {
+                    key: 'hero_slides',
+                    value: cleaned,
+                    updated_at: new Date().toISOString(),
+                },
+                {
+                    key: 'hero_autoplay_seconds',
+                    value: safeAutoplay,
+                    updated_at: new Date().toISOString(),
+                },
+            ];
+
+            const { error } = await supabase.from('store_settings').upsert(payload);
+            if (error) throw error;
+
+            toast.success('Hero section saved');
+            setSettings(prev => ({ ...prev, hero_slides: cleaned, hero_autoplay_seconds: safeAutoplay }));
+            try {
+                sessionStorage.removeItem('hy_cms_settings');
+            } catch { /* ignore */ }
+        } catch (err: any) {
+            console.error('Error saving hero:', err);
+            toast.error(err?.message || 'Failed to save hero');
+        } finally {
+            setSaving(false);
+        }
     };
 
     // Delivery Zone Handlers
@@ -171,6 +333,7 @@ export default function SettingsPage() {
                     <nav className="flex flex-col">
                         {[
                             { id: 'general', label: 'General Info', icon: 'ri-store-2-line' },
+                            { id: 'hero', label: 'Hero Section', icon: 'ri-image-2-line' },
                             { id: 'contact', label: 'Contact & Social', icon: 'ri-contacts-line' },
                             { id: 'store', label: 'Store Config', icon: 'ri-settings-4-line' },
                             { id: 'delivery', label: 'Delivery Zones', icon: 'ri-truck-line' },
@@ -307,6 +470,218 @@ export default function SettingsPage() {
                                     </button>
                                 </div>
                             </form>
+                        )}
+
+                        {/* Hero Section Tab */}
+                        {activeTab === 'hero' && (
+                            <div className="space-y-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 pb-4 mb-6">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-gray-900">Homepage Hero</h2>
+                                        <p className="text-sm text-gray-500">Manage the slider at the top of your homepage. Add one slide for a static hero, or multiple slides for a rotating banner.</p>
+                                    </div>
+                                    <button
+                                        onClick={addHeroSlide}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+                                    >
+                                        <i className="ri-add-line"></i> Add Slide
+                                    </button>
+                                </div>
+
+                                {/* Autoplay settings */}
+                                <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <div>
+                                        <p className="font-medium text-gray-900 text-sm">Autoplay Interval</p>
+                                        <p className="text-xs text-gray-500">Seconds each slide stays visible before the next one appears (only applies when you have more than one slide).</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            min={2}
+                                            max={30}
+                                            value={settings.hero_autoplay_seconds ?? 6}
+                                            onChange={(e) => updateSetting('hero_autoplay_seconds', Number(e.target.value))}
+                                            className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-center"
+                                        />
+                                        <span className="text-sm text-gray-500">seconds</span>
+                                    </div>
+                                </div>
+
+                                {/* Slide list */}
+                                {heroSlides.length === 0 && (
+                                    <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
+                                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <i className="ri-image-2-line text-2xl text-gray-400"></i>
+                                        </div>
+                                        <p className="text-gray-700 font-medium">No slides yet</p>
+                                        <p className="text-sm text-gray-500 mb-4">Add your first hero slide to customize the homepage banner.</p>
+                                        <button
+                                            onClick={addHeroSlide}
+                                            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                        >
+                                            <i className="ri-add-line"></i> Add Slide
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="space-y-5">
+                                    {heroSlides.map((slide, index) => (
+                                        <div key={slide.id} className="border border-gray-200 rounded-xl p-4 sm:p-5 bg-white">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-50 text-emerald-700 font-semibold text-sm">
+                                                        {index + 1}
+                                                    </span>
+                                                    <span className="font-medium text-gray-900 text-sm">Slide {index + 1}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => moveHeroSlide(slide.id, 'up')}
+                                                        disabled={index === 0}
+                                                        title="Move up"
+                                                        className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                    >
+                                                        <i className="ri-arrow-up-line"></i>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => moveHeroSlide(slide.id, 'down')}
+                                                        disabled={index === heroSlides.length - 1}
+                                                        title="Move down"
+                                                        className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                    >
+                                                        <i className="ri-arrow-down-line"></i>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeHeroSlide(slide.id)}
+                                                        title="Remove slide"
+                                                        className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                    >
+                                                        <i className="ri-delete-bin-line"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
+                                                {/* Image preview + upload */}
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Image</label>
+                                                    <div className="relative w-full aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                                        {slide.image ? (
+                                                            // eslint-disable-next-line @next/next/no-img-element
+                                                            <img src={slide.image} alt={`Slide ${index + 1}`} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                                <i className="ri-image-line text-4xl"></i>
+                                                            </div>
+                                                        )}
+                                                        {uploadingSlideId === slide.id && (
+                                                            <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                                                                <i className="ri-loader-4-line text-2xl text-emerald-600 animate-spin"></i>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="mt-2 flex gap-2">
+                                                        <label className="flex-1 cursor-pointer inline-flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors">
+                                                            <i className="ri-upload-cloud-line"></i>
+                                                            <span>Upload</span>
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="hidden"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) handleUploadSlideImage(slide.id, file);
+                                                                    e.target.value = '';
+                                                                }}
+                                                            />
+                                                        </label>
+                                                        {slide.image && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => updateHeroSlide(slide.id, { image: '' })}
+                                                                className="px-3 py-2 bg-gray-50 hover:bg-red-50 hover:text-red-600 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 transition-colors"
+                                                            >
+                                                                <i className="ri-close-line"></i>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <input
+                                                        type="url"
+                                                        placeholder="Or paste image URL"
+                                                        value={slide.image}
+                                                        onChange={(e) => updateHeroSlide(slide.id, { image: e.target.value })}
+                                                        className="mt-2 w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                    />
+                                                </div>
+
+                                                {/* Text fields */}
+                                                <div className="md:col-span-3 space-y-3">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                                                        <input
+                                                            type="text"
+                                                            value={slide.title}
+                                                            onChange={(e) => updateHeroSlide(slide.id, { title: e.target.value })}
+                                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                            placeholder="Stay Sleek in Style"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">Subtitle</label>
+                                                        <textarea
+                                                            rows={2}
+                                                            value={slide.subtitle}
+                                                            onChange={(e) => updateHeroSlide(slide.id, { subtitle: e.target.value })}
+                                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                                                            placeholder="A short line that sells the collection."
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-1">Button Text</label>
+                                                            <input
+                                                                type="text"
+                                                                value={slide.button_text}
+                                                                onChange={(e) => updateHeroSlide(slide.id, { button_text: e.target.value })}
+                                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                                placeholder="Shop Now"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-1">Button Link</label>
+                                                            <input
+                                                                type="text"
+                                                                value={slide.button_link}
+                                                                onChange={(e) => updateHeroSlide(slide.id, { button_link: e.target.value })}
+                                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                                placeholder="/shop or https://..."
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="pt-6 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+                                    <p className="text-xs text-gray-500">
+                                        Changes go live as soon as you save. Slides with no image, title or subtitle are removed on save.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveHero}
+                                        disabled={saving}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {saving && <i className="ri-loader-4-line animate-spin"></i>}
+                                        Save Hero Section
+                                    </button>
+                                </div>
+                            </div>
                         )}
 
                         {/* Contact & Social Tab */}

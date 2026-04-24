@@ -400,13 +400,19 @@ export default function POSPage() {
         const itemsHtml = (completedOrder.items || [])
             .map((item: CartItem) => {
                 const lineTotal = item.price * item.cartQuantity;
+                // Show SKU on the receipt. Fall back to a short product-id
+                // code if a SKU isn't set so nothing ever prints blank.
+                const codeDisplay =
+                    item.sku && item.sku.trim().length > 0
+                        ? item.sku
+                        : `ITEM-${String(item.productId).slice(0, 6).toUpperCase()}`;
                 const variantLine = item.variantLabel
                     ? `<div class="variant">${esc(item.variantLabel)}</div>`
                     : '';
                 return `
                 <tr class="item-row">
                     <td class="name">
-                        <div class="title">${esc(item.name)}</div>
+                        <div class="title">${esc(codeDisplay)}</div>
                         ${variantLine}
                         <div class="qty-line">${item.cartQuantity} × ${fmtMoney(item.price)}</div>
                     </td>
@@ -524,8 +530,10 @@ export default function POSPage() {
 
     <div class="footer">
         <div class="thanks">Thank you for shopping with us!</div>
-        <div class="muted">Exchanges accepted within 7 days with receipt.</div>
-        <div class="muted">hystepper.com</div>
+        <div class="muted">Faulty items: report within 48 hours of delivery.</div>
+        <div class="muted">Other issues: report within 24 hours.</div>
+        <div class="muted">Items must be unused, unworn and in original packaging.</div>
+        <div class="muted">Full policy: hystepper.com/policy</div>
     </div>
 </div>
 <script>

@@ -280,7 +280,7 @@ export default function StaffPage() {
               {role === 'admin' && 'Full access to all features and settings.'}
               {role === 'manager' && 'Access to orders, products, customers and analytics.'}
               {role === 'staff' && 'Basic access: dashboard, orders and POS only.'}
-              {role === 'rider' && 'Orders view only. Can mark orders as delivered or completed.'}
+              {role === 'rider' && 'Rider app: mark delivered, completed, or could not deliver (returned).'}
             </p>
           </div>
         ))}

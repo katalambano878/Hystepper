@@ -63,6 +63,7 @@ export default function AdminOrdersPage() {
     { label: 'Processing', count: 0, status: 'processing' },
     { label: 'Shipped', count: 0, status: 'shipped' },
     { label: 'Delivered', count: 0, status: 'delivered' },
+    { label: 'Returned', count: 0, status: 'returned' },
     { label: 'Cancelled', count: 0, status: 'cancelled' }
   ]);
   const [showProductStats, setShowProductStats] = useState(false);
@@ -107,6 +108,7 @@ export default function AdminOrdersPage() {
       { label: 'Processing', count: sourceOrders.filter(o => o.status === 'processing').length, status: 'processing' },
       { label: 'Shipped', count: sourceOrders.filter(o => o.status === 'shipped').length, status: 'shipped' },
       { label: 'Delivered', count: sourceOrders.filter(o => o.status === 'delivered').length, status: 'delivered' },
+      { label: 'Returned', count: sourceOrders.filter(o => o.status === 'returned').length, status: 'returned' },
       { label: 'Cancelled', count: sourceOrders.filter(o => o.status === 'cancelled').length, status: 'cancelled' }
     ]);
     setStatusFilter('all');
@@ -182,6 +184,8 @@ export default function AdminOrdersPage() {
     'processing': 'bg-blue-100 text-blue-700 border-blue-200',
     'shipped': 'bg-purple-100 text-purple-700 border-purple-200',
     'delivered': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'completed': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    'returned': 'bg-orange-100 text-orange-800 border-orange-200',
     'cancelled': 'bg-red-100 text-red-700 border-red-200',
     'awaiting_payment': 'bg-gray-100 text-gray-700 border-gray-200'
   };

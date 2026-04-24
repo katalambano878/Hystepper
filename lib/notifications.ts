@@ -427,6 +427,16 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     } else if (newStatus === 'cancelled') {
         emailMessage = `Your order #${orderRef} has been cancelled.`;
         smsMessage = `Hi ${name}, order #${orderRef} was cancelled. Contact us if this was a mistake.`;
+    } else if (newStatus === 'returned') {
+        const m = metadata || {};
+        const reason = (m as { return_note?: string; rider_return_note?: string }).return_note
+            || (m as { return_note?: string; rider_return_note?: string }).rider_return_note;
+        emailMessage = reason
+            ? `We could not complete delivery for order #${orderRef}. ${reason} Our team will follow up with you.`
+            : `We could not complete delivery for order #${orderRef}. Our team will follow up with you about next steps.`;
+        smsMessage = reason
+            ? `Hi ${name}, delivery for #${orderRef} was unsuccessful (${reason}). ${BRAND.name} will contact you.`
+            : `Hi ${name}, delivery for #${orderRef} was unsuccessful. ${BRAND.name} will contact you about next steps.`;
     } else {
         smsMessage = `Hi ${name}, order #${orderRef} status: ${newStatus}. Track: ${trackingUrl}`;
     }
@@ -438,6 +448,7 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
         dispatched_to_rider: { icon: '&#128101;', color: '#4f46e5', bg: '#eef2ff' },
         out_for_delivery: { icon: '&#128666;', color: '#4f46e5', bg: '#eef2ff' },
         delivered: { icon: '&#127881;', color: '#16a34a', bg: '#f0fdf4' },
+        returned: { icon: '&#8617;', color: '#b45309', bg: '#fffbeb' },
         cancelled: { icon: '&#10060;', color: '#dc2626', bg: '#fef2f2' },
     };
     const sc = statusConfig[newStatus] || { icon: '&#128276;', color: '#6b7280', bg: '#f9fafb' };

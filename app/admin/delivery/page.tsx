@@ -32,6 +32,7 @@ const STATUS_COLORS: Record<string, string> = {
   shipped:         'bg-purple-100 text-purple-700 border-purple-200',
   delivered:       'bg-emerald-100 text-emerald-700 border-emerald-200',
   completed:       'bg-emerald-100 text-emerald-700 border-emerald-200',
+  returned:        'bg-orange-100 text-orange-800 border-orange-200',
   cancelled:       'bg-red-100 text-red-700 border-red-200',
   awaiting_payment:'bg-gray-100 text-gray-600 border-gray-200',
 };
@@ -141,8 +142,9 @@ export default function DeliveryPage() {
 
   // Stats
   const unassignedCount = orders.filter(o => !o.rider_id && ASSIGNABLE_STATUSES.includes(o.status)).length;
-  const assignedCount   = orders.filter(o => o.rider_id && !['delivered','completed'].includes(o.status)).length;
-  const doneCount       = orders.filter(o => ['delivered','completed'].includes(o.status)).length;
+  const doneStatuses = ['delivered', 'completed', 'returned'];
+  const assignedCount   = orders.filter((o) => o.rider_id && !doneStatuses.includes(o.status)).length;
+  const doneCount       = orders.filter((o) => doneStatuses.includes(o.status)).length;
 
   // Filter
   const filtered = orders.filter(o => {
@@ -152,8 +154,8 @@ export default function DeliveryPage() {
     const matchRider  = riderFilter === 'all' || o.rider_id === riderFilter;
 
     if (tab === 'unassigned') return !o.rider_id && ASSIGNABLE_STATUSES.includes(o.status) && matchSearch;
-    if (tab === 'assigned')   return !!o.rider_id && !['delivered','completed'].includes(o.status) && matchSearch && matchRider;
-    if (tab === 'done')       return ['delivered','completed'].includes(o.status) && matchSearch && matchRider;
+    if (tab === 'assigned')   return !!o.rider_id && !doneStatuses.includes(o.status) && matchSearch && matchRider;
+    if (tab === 'done')       return doneStatuses.includes(o.status) && matchSearch && matchRider;
     return false;
   });
 
@@ -316,10 +318,16 @@ export default function DeliveryPage() {
                       </td>
                     )}
                     <td className="px-5 py-4">
-                      {['delivered','completed'].includes(order.status) ? (
+                      {doneStatuses.includes(order.status) ? (
+                        order.status === 'returned' ? (
+                          <span className="text-xs text-orange-600 font-medium flex items-center gap-1">
+                            <i className="ri-arrow-go-back-line"></i> Returned
+                          </span>
+                        ) : (
                         <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
                           <i className="ri-check-double-line"></i> Done
                         </span>
+                        )
                       ) : (
                         <div className="flex items-center gap-2">
                           <select
@@ -372,7 +380,7 @@ export default function DeliveryPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {riders.map(rider => {
               const active = orders.filter(
-                o => o.rider_id === rider.user_id && !['delivered','completed','cancelled'].includes(o.status)
+                (o) => o.rider_id === rider.user_id && !doneStatuses.includes(o.status) && o.status !== 'cancelled'
               ).length;
               return (
                 <div key={rider.user_id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">

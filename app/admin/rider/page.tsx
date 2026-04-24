@@ -28,6 +28,7 @@ interface Order {
   shipping_address: any;
   payment_method: string | null;
   delivery_notes: string | null;
+  metadata?: Record<string, unknown> | null;
   order_items: OrderItem[];
 }
 
@@ -37,8 +38,12 @@ const STATUS_COLORS: Record<string, string> = {
   shipped:    'bg-purple-100 text-purple-700 border-purple-200',
   delivered:  'bg-emerald-100 text-emerald-700 border-emerald-200',
   completed:  'bg-emerald-100 text-emerald-700 border-emerald-200',
+  returned:   'bg-orange-100 text-orange-800 border-orange-200',
   cancelled:  'bg-red-100 text-red-700 border-red-200',
 };
+
+const TERMINAL_SUCCESS = ['delivered', 'completed'];
+const TERMINAL_INACTIVE = ['delivered', 'completed', 'returned', 'cancelled'];
 
 export default function RiderPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -48,6 +53,7 @@ export default function RiderPage() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [tab, setTab] = useState<'active' | 'done'>('active');
   const [toast, setToast] = useState<string | null>(null);
+  const [returnModal, setReturnModal] = useState<{ orderId: string; note: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -73,7 +79,7 @@ export default function RiderPage() {
       .select(`
         id, order_number, status, total, subtotal, shipping_total,
         created_at, assigned_at, rider_notes, phone, email,
-        shipping_address, payment_method, delivery_notes,
+        shipping_address, payment_method, delivery_notes, metadata,
         order_items (
           id, product_name, variant_name,
           quantity, unit_price, total_price, metadata
@@ -88,19 +94,6 @@ export default function RiderPage() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const updateStatus = async (orderId: string, status: 'delivered' | 'completed') => {
-    setUpdating(orderId);
-    const { error } = await supabase
-      .from('orders')
-      .update({ status })
-      .eq('id', orderId);
-    if (!error) {
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-      showToast(`Order marked as ${status}`);
-    }
-    setUpdating(null);
-  };
-
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString('en-GH', {
       day: 'numeric', month: 'short', year: 'numeric',
@@ -110,23 +103,171 @@ export default function RiderPage() {
   const getAddress = (o: Order) => {
     const a = o.shipping_address;
     if (!a) return null;
-    return [a.address, a.deliveryArea, a.city, a.region]
-      .filter(Boolean).join(', ');
+    return [
+      a.address_line1 || a.address,
+      a.address_line2,
+      a.deliveryArea,
+      a.city,
+      a.region,
+      a.state,
+    ]
+      .filter(Boolean)
+      .join(', ');
   };
 
   const getCustomerName = (o: Order) => {
     const a = o.shipping_address;
     if (a?.full_name) return a.full_name;
     if (a?.firstName || a?.lastName) return `${a.firstName || ''} ${a.lastName || ''}`.trim();
+    if (a?.first_name || a?.last_name) {
+      return `${a.first_name || ''} ${a.last_name || ''}`.trim();
+    }
     return 'Guest';
   };
 
-  const activeOrders = orders.filter(o => !['delivered', 'completed', 'cancelled'].includes(o.status));
-  const doneOrders   = orders.filter(o => ['delivered', 'completed'].includes(o.status));
+  const notifyStatusChange = async (o: Order, newStatus: string) => {
+    const shipping = o.shipping_address || {};
+    const name = getCustomerName(o);
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'order_status',
+          payload: {
+            orderNumber: o.order_number,
+            status: newStatus,
+            email: o.email,
+            name,
+            phone: o.phone || shipping.phone,
+            trackingNumber: (o.metadata as { tracking_number?: string })?.tracking_number,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.warn('[Rider] Customer notification not sent:', body?.error || res.status);
+      }
+    } catch (e) {
+      console.warn('[Rider] notification fetch failed', e);
+    }
+  };
+
+  const updateStatus = async (
+    orderId: string,
+    status: 'delivered' | 'completed' | 'returned',
+    returnNote?: string
+  ) => {
+    setUpdating(orderId);
+    const o = orders.find((x) => x.id === orderId);
+    if (!o) {
+      setUpdating(null);
+      return;
+    }
+
+    let updatePayload: { status: string; metadata?: Record<string, unknown> } = { status };
+    if (status === 'returned') {
+      const prev = (o.metadata as Record<string, unknown>) || {};
+      updatePayload = {
+        status: 'returned',
+        metadata: {
+          ...prev,
+          delivery_outcome: 'rider_returned',
+          return_note: (returnNote || '').trim(),
+          returned_at: new Date().toISOString(),
+        },
+      };
+    }
+
+    const { error } = await supabase.from('orders').update(updatePayload).eq('id', orderId);
+
+    if (error) {
+      console.error('[Rider] status update', error);
+      showToast(`Could not update: ${error.message}`);
+      setUpdating(null);
+      return;
+    }
+
+    setOrders((prev) =>
+      prev.map((ord) => {
+        if (ord.id !== orderId) return ord;
+        if (status === 'returned' && updatePayload.metadata) {
+          return { ...ord, status, metadata: updatePayload.metadata };
+        }
+        return { ...ord, status };
+      })
+    );
+    if (status === 'returned') {
+      setReturnModal(null);
+    }
+    showToast(
+      status === 'returned' ? 'Marked as delivery unsuccessful (returned)' : `Order marked as ${status}`
+    );
+
+    const forNotify: Order = {
+      ...o,
+      status,
+      metadata:
+        status === 'returned' && updatePayload.metadata
+          ? updatePayload.metadata
+          : o.metadata,
+    };
+    await notifyStatusChange(forNotify, status);
+
+    setUpdating(null);
+  };
+
+  const activeOrders = orders.filter((o) => !TERMINAL_INACTIVE.includes(o.status));
+  const doneOrders   = orders.filter((o) => TERMINAL_SUCCESS.includes(o.status) || o.status === 'returned');
   const displayed    = tab === 'active' ? activeOrders : doneOrders;
 
   return (
     <div className="space-y-6">
+
+      {/* Return / unsuccessful delivery — optional note for the customer + admin */}
+      {returnModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/50"
+          onClick={() => { if (!updating) setReturnModal(null); }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-gray-900">Could not complete delivery</h3>
+            <p className="text-sm text-gray-600">
+              The order will be marked as <strong>returned</strong>. The customer and store are notified. Add a short
+              reason (optional) to help the team follow up.
+            </p>
+            <textarea
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm min-h-[100px] focus:ring-2 focus:ring-orange-500 outline-none"
+              placeholder="e.g. No answer at the door, customer refused, wrong address…"
+              value={returnModal.note}
+              onChange={(e) => setReturnModal((m) => (m ? { ...m, note: e.target.value } : m))}
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                className="flex-1 py-3 rounded-xl border border-gray-200 font-semibold text-sm hover:bg-gray-50 cursor-pointer"
+                onClick={() => setReturnModal(null)}
+                disabled={!!updating}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="flex-1 py-3 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm cursor-pointer disabled:opacity-50"
+                onClick={() => updateStatus(returnModal.orderId, 'returned', returnModal.note)}
+                disabled={!!updating}
+              >
+                {updating ? <i className="ri-loader-4-line animate-spin" /> : 'Confirm returned'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -182,7 +323,7 @@ export default function RiderPage() {
             <i className={`ri-checkbox-circle-line text-xl ${tab === 'done' ? 'text-emerald-600' : 'text-gray-400'}`}></i>
           </div>
           <p className="text-3xl font-bold text-gray-900">{loading ? '—' : doneOrders.length}</p>
-          <p className="text-sm text-gray-500 mt-0.5">Completed Today</p>
+          <p className="text-sm text-gray-500 mt-0.5">Done (delivered or returned)</p>
         </button>
       </div>
 
@@ -196,7 +337,7 @@ export default function RiderPage() {
         <div className="bg-white border border-gray-200 rounded-2xl py-20 text-center text-gray-400">
           <i className={`${tab === 'active' ? 'ri-inbox-line' : 'ri-check-double-line text-emerald-400'} text-5xl mb-3 block`}></i>
           <p className="font-medium text-gray-600">
-            {tab === 'active' ? 'No active deliveries' : 'No completed deliveries yet'}
+            {tab === 'active' ? 'No active deliveries' : 'No past deliveries in your history yet'}
           </p>
           <p className="text-sm mt-1">
             {tab === 'active' ? 'New orders will appear here once assigned by admin' : ''}
@@ -206,18 +347,22 @@ export default function RiderPage() {
         <div className="space-y-3">
           {displayed.map(order => {
             const isExpanded = expandedId === order.id;
-            const isDone = ['delivered', 'completed'].includes(order.status);
+            const isSuccess = ['delivered', 'completed'].includes(order.status);
+            const isReturned = order.status === 'returned';
+            const isTerminal = isSuccess || isReturned || order.status === 'cancelled';
             const address = getAddress(order);
 
             return (
               <div
                 key={order.id}
                 className={`bg-white border-2 rounded-2xl overflow-hidden transition-all ${
-                  isDone
+                  isSuccess
                     ? 'border-emerald-100'
-                    : isExpanded
-                      ? 'border-sky-300 shadow-md shadow-sky-100'
-                      : 'border-gray-200 hover:border-gray-300'
+                    : isReturned
+                      ? 'border-orange-100'
+                      : isExpanded
+                        ? 'border-sky-300 shadow-md shadow-sky-100'
+                        : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 {/* Card header — always visible */}
@@ -227,7 +372,7 @@ export default function RiderPage() {
                 >
                   {/* Status dot */}
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    isDone ? 'bg-emerald-500' : 'bg-sky-500 animate-pulse'
+                    isSuccess ? 'bg-emerald-500' : isReturned ? 'bg-orange-500' : 'bg-sky-500 animate-pulse'
                   }`} />
 
                   {/* Main info */}
@@ -317,6 +462,16 @@ export default function RiderPage() {
                       </div>
                     )}
 
+                    {isReturned && (order.metadata as { return_note?: string })?.return_note && (
+                      <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+                        <i className="ri-error-warning-line text-orange-500 text-lg shrink-0 mt-0.5"></i>
+                        <div>
+                          <p className="text-xs font-semibold text-orange-800 uppercase tracking-wider mb-1">Return reason</p>
+                          <p className="text-sm text-orange-900">{(order.metadata as { return_note?: string }).return_note}</p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Customer delivery note */}
                     {order.delivery_notes && (
                       <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
@@ -386,36 +541,59 @@ export default function RiderPage() {
                       {order.assigned_at && <span>Assigned: {formatDate(order.assigned_at)}</span>}
                     </div>
 
-                    {/* Action buttons */}
-                    {!isDone && (
-                      <div className="flex gap-3 pt-1">
+                    {/* Outcomes: delivered to customer, fully completed, or could not deliver (returned) */}
+                    {!isTerminal && (
+                      <div className="space-y-3 pt-1">
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(order.id, 'delivered')}
+                            disabled={updating === order.id}
+                            className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                          >
+                            {updating === order.id
+                              ? <i className="ri-loader-4-line animate-spin"></i>
+                              : <><i className="ri-check-line"></i> Delivered to customer</>
+                            }
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(order.id, 'completed')}
+                            disabled={updating === order.id}
+                            className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                          >
+                            {updating === order.id
+                              ? <i className="ri-loader-4-line animate-spin"></i>
+                              : <><i className="ri-checkbox-circle-line"></i> Mark completed</>
+                            }
+                          </button>
+                        </div>
                         <button
-                          onClick={() => updateStatus(order.id, 'delivered')}
+                          type="button"
+                          onClick={() => setReturnModal({ orderId: order.id, note: '' })}
                           disabled={updating === order.id}
-                          className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                          className="w-full py-3 rounded-xl border-2 border-orange-300 bg-orange-50 text-orange-900 font-semibold text-sm hover:bg-orange-100 transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
                         >
-                          {updating === order.id
-                            ? <i className="ri-loader-4-line animate-spin"></i>
-                            : <><i className="ri-check-line"></i> Mark Delivered</>
-                          }
+                          <i className="ri-arrow-go-back-line"></i>
+                          Could not deliver (returned)
                         </button>
-                        <button
-                          onClick={() => updateStatus(order.id, 'completed')}
-                          disabled={updating === order.id}
-                          className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          {updating === order.id
-                            ? <i className="ri-loader-4-line animate-spin"></i>
-                            : <><i className="ri-checkbox-circle-line"></i> Mark Completed</>
-                          }
-                        </button>
+                        <p className="text-xs text-center text-gray-500">
+                          Use <strong>Delivered</strong> when the customer received the order, or
+                          <strong> Could not deliver</strong> if the package is coming back to the store.
+                        </p>
                       </div>
                     )}
 
-                    {isDone && (
-                      <div className="flex items-center justify-center gap-2 py-3 bg-emerald-50 rounded-xl text-emerald-700 font-medium text-sm">
-                        <i className="ri-check-double-line text-base"></i>
-                        Order {order.status}
+                    {isTerminal && (
+                      <div
+                        className={`flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm ${
+                          isReturned
+                            ? 'bg-orange-50 text-orange-800'
+                            : 'bg-emerald-50 text-emerald-700'
+                        }`}
+                      >
+                        <i className={`text-base ${isReturned ? 'ri-arrow-go-back-line' : 'ri-check-double-line'}`}></i>
+                        {isReturned ? 'Delivery unsuccessful — returned' : `Order ${order.status}`}
                       </div>
                     )}
                   </div>

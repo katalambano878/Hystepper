@@ -225,13 +225,15 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
     }
   };
 
-  const statusOptions = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+  const statusOptions = ['pending', 'processing', 'shipped', 'delivered', 'returned', 'cancelled'];
   const statusColors: any = {
     'pending': 'bg-amber-100 text-amber-700 border-amber-200',
     'processing': 'bg-blue-100 text-blue-700 border-blue-200',
     'shipped': 'bg-purple-100 text-purple-700 border-purple-200',
     'delivered': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'returned': 'bg-orange-100 text-orange-800 border-orange-200',
     'cancelled': 'bg-red-100 text-red-700 border-red-200',
+    'completed': 'bg-emerald-100 text-emerald-800 border-emerald-200',
     'awaiting_payment': 'bg-gray-100 text-gray-700 border-gray-200'
   };
 
@@ -390,6 +392,16 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                         )}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {currentStatus === 'returned' && (order.metadata as { return_note?: string })?.return_note && (
+                  <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-2">
+                    <i className="ri-arrow-go-back-line text-orange-600 mt-0.5" />
+                    <div className="text-sm text-orange-900">
+                      <p className="font-semibold">Rider return note</p>
+                      <p className="text-orange-800 mt-1">{(order.metadata as { return_note?: string }).return_note}</p>
+                    </div>
                   </div>
                 )}
 

@@ -181,26 +181,41 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
       const statusChanged = statusToUpdate !== order.status;
       const trackingChanged = trackingNumber !== order.metadata?.tracking_number;
 
+      let notifyWarning = '';
       if (statusChanged || (trackingChanged && trackingNumber)) {
-        fetch('/api/notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'order_status',
-            payload: {
-              email: order.email,
-              name: customerName,
-              orderId: orderId, // This might be UUID, better use order.order_number if available
-              orderNumber: order.order_number || orderId,
-              status: statusToUpdate,
-              trackingNumber: trackingNumber,
-              phone: shippingAddress.phone || order.phone // Ensure phone is passed for SMS
-            }
-          })
-        }).catch(err => console.error('Notification error:', err));
+        try {
+          const res = await fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'order_status',
+              payload: {
+                email: order.email,
+                name: customerName,
+                orderId: orderId,
+                orderNumber: order.order_number || orderId,
+                status: statusToUpdate,
+                trackingNumber: trackingNumber,
+                phone: shippingAddress.phone || order.phone,
+              },
+            }),
+          });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            notifyWarning = body?.error || `Notification failed (HTTP ${res.status})`;
+            console.error('Notification error:', notifyWarning);
+          }
+        } catch (err) {
+          notifyWarning = 'Notification request failed';
+          console.error('Notification error:', err);
+        }
       }
 
-      alert('Order updated successfully');
+      if (notifyWarning) {
+        alert(`Order updated, but notification did not send: ${notifyWarning}`);
+      } else {
+        alert('Order updated successfully');
+      }
       setShowStatusMenu(false);
     } catch (err) {
       console.error('Error updating order:', err);

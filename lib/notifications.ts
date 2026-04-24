@@ -393,7 +393,14 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     const trackingNumber = metadata?.tracking_number || '';
     const trackingUrl = trackingUrlFor(orderRef);
 
-    console.log(`[Notification] Status update #${orderRef} → ${newStatus} | Tracking: ${trackingNumber || 'none'}`);
+    // POS walk-in orders use the placeholder 'pos@store.local' as a required
+    // email column filler. Don't send customer emails to that address — it's
+    // not a real inbox.
+    const deliverableEmail = email && email !== 'pos@store.local' ? email : '';
+
+    console.log(
+        `[Status Update] #${orderRef} -> ${newStatus} | Email: ${deliverableEmail ? maskEmail(deliverableEmail) : 'skip'} | Phone: ${phone ? maskPhone(phone) : 'skip'} | Tracking: ${trackingNumber || 'none'}`
+    );
 
     const subject = `Order Update #${orderRef}`;
     let emailMessage = `Your order #${orderRef} status has been updated to ${newStatus}.`;
@@ -435,11 +442,12 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     };
     const sc = statusConfig[newStatus] || { icon: '&#128276;', color: '#6b7280', bg: '#f9fafb' };
 
-    if (email) {
-        await sendEmail({
-            to: email,
-            subject,
-            html: emailLayout(`
+    if (deliverableEmail) {
+        try {
+            await sendEmail({
+                to: deliverableEmail,
+                subject,
+                html: emailLayout(`
 <div style="text-align:center;margin-bottom:24px;">
   <div style="width:64px;height:64px;background-color:${sc.bg};border-radius:50%;margin:0 auto 16px;line-height:64px;font-size:28px;">${sc.icon}</div>
   <h2 style="margin:0 0 4px;color:#111827;font-size:22px;">Order Update</h2>
@@ -456,11 +464,18 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
 
 ${emailButton('Track Your Order', trackingUrl)}
 `, `Your order #${orderRef} is now ${newStatus}`),
-        });
+            });
+            console.log(`[Status Update] Email sent for #${orderRef}`);
+        } catch (err: any) {
+            console.error(`[Status Update] Email failed for #${orderRef}:`, err?.message || err);
+        }
     }
 
     if (phone) {
-        await sendSMS({ to: phone, message: smsMessage });
+        const result = await sendSMS({ to: phone, message: smsMessage });
+        console.log(
+            `[Status Update] SMS result for #${orderRef}: ${result?.success ? 'SUCCESS' : 'FAILED'}`
+        );
     }
 }
 

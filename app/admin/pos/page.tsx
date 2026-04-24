@@ -58,6 +58,12 @@ export default function POSPage() {
     // Variant picker modal
     const [variantProduct, setVariantProduct] = useState<Product | null>(null);
 
+    // Store contact info — printed on receipts.
+    const [storeContact, setStoreContact] = useState<{ phone: string; address: string }>({
+        phone: '',
+        address: '',
+    });
+
     // Checkout State
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -122,6 +128,21 @@ export default function POSPage() {
                 .limit(50);
 
             if (custData) setCustomers(custData);
+
+            // Pull the store's public contact info for the receipt footer.
+            const { data: settingRows } = await supabase
+                .from('store_settings')
+                .select('key, value')
+                .in('key', ['contact_phone', 'contact_address']);
+
+            if (settingRows) {
+                const map: Record<string, any> = {};
+                settingRows.forEach(r => { map[r.key] = r.value; });
+                setStoreContact({
+                    phone: typeof map.contact_phone === 'string' ? map.contact_phone : '',
+                    address: typeof map.contact_address === 'string' ? map.contact_address : '',
+                });
+            }
 
         } catch (error) {
             console.error('Error fetching POS data:', error);
@@ -397,6 +418,19 @@ export default function POSPage() {
         const storeName = 'Hy-Stepper';
         const storeTagline = 'Point of Sale Receipt';
 
+        // Store contact block — each line only renders if a value exists in
+        // admin Settings → Contact & Social. Address preserves its newlines.
+        const addressLines = (storeContact.address || '')
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(Boolean);
+        const contactHtml = [
+            ...addressLines.map(line => `<div class="contact">${esc(line)}</div>`),
+            storeContact.phone ? `<div class="contact">Tel: ${esc(storeContact.phone)}</div>` : '',
+        ]
+            .filter(Boolean)
+            .join('');
+
         const itemsHtml = (completedOrder.items || [])
             .map((item: CartItem) => {
                 const lineTotal = item.price * item.cartQuantity;
@@ -454,6 +488,7 @@ export default function POSPage() {
     .muted { color: #555; }
     .store { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
     .tagline { font-size: 11px; margin-top: 2px; }
+    .contact { font-size: 11px; margin-top: 2px; color: #333; line-height: 1.35; }
     .divider { border-top: 1px dashed #000; margin: 8px 0; }
     .meta { font-size: 11px; line-height: 1.5; }
     .meta .row { display: flex; justify-content: space-between; }
@@ -493,6 +528,7 @@ export default function POSPage() {
     <div class="center">
         <div class="store">${esc(storeName)}</div>
         <div class="tagline muted">${esc(storeTagline)}</div>
+        ${contactHtml}
     </div>
 
     <div class="divider"></div>

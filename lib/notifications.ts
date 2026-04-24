@@ -613,20 +613,37 @@ ${emailButton('Reply to ' + safeName, `mailto:${safeEmail}?subject=Re: ${encodeU
 // the customer didn't leave any contact details.
 // ---------------------------------------------------------------------------
 
-async function resolveAdminAlertPhone(): Promise<string | null> {
-    const envPhone = (process.env.ADMIN_PHONE || process.env.STORE_PHONE || '').trim();
-    if (envPhone) return envPhone;
+async function resolveAdminAlertPhone(): Promise<{ phone: string | null; source: string }> {
+    const adminEnv = (process.env.ADMIN_PHONE || '').trim();
+    if (adminEnv) return { phone: adminEnv, source: 'ADMIN_PHONE env' };
+
+    const storeEnv = (process.env.STORE_PHONE || '').trim();
+    if (storeEnv) return { phone: storeEnv, source: 'STORE_PHONE env' };
 
     try {
-        const { data } = await supabaseAdmin
+        const { data, error } = await supabaseAdmin
             .from('store_settings')
-            .select('key, value')
+            .select('value')
             .eq('key', 'contact_phone')
-            .single();
-        const raw = (data?.value ?? '').toString().trim();
-        return raw || null;
-    } catch {
-        return null;
+            .maybeSingle();
+
+        if (error) {
+            console.warn('[POS Admin Alert] store_settings lookup failed:', error.message);
+            return { phone: null, source: 'none' };
+        }
+
+        // store_settings.value is JSONB — Supabase parses it into a JS value.
+        // It can come back as a plain string ("0276558163") or occasionally a
+        // quoted string; strip leading/trailing quotes just in case.
+        const raw = data?.value;
+        const asString = typeof raw === 'string' ? raw : raw == null ? '' : JSON.stringify(raw);
+        const cleaned = asString.replace(/^"+|"+$/g, '').trim();
+        return cleaned
+            ? { phone: cleaned, source: 'store_settings.contact_phone' }
+            : { phone: null, source: 'none' };
+    } catch (err: any) {
+        console.warn('[POS Admin Alert] store_settings fallback error:', err?.message || err);
+        return { phone: null, source: 'none' };
     }
 }
 
@@ -639,7 +656,7 @@ export async function sendPosAdminAlert(alert: {
     customerName?: string;
     customerPhone?: string;
 }) {
-    const adminPhone = await resolveAdminAlertPhone();
+    const { phone: adminPhone, source } = await resolveAdminAlertPhone();
     const typeLabel = alert.orderType === 'delivery' ? 'Delivery' : 'Walk-in';
     const pay = (alert.paymentMethod || 'cash').toString().toUpperCase();
     const customerLine = alert.customerName && alert.customerName !== 'Walk-in Customer'
@@ -650,11 +667,18 @@ export async function sendPosAdminAlert(alert: {
     const message = `POS ${typeLabel} sale #${alert.orderNumber}: GH₵${Number(alert.total).toFixed(2)} via ${pay}${customerLine}${phoneLine}.`;
 
     console.log(
-        `[Notification] POS admin alert | Order #${alert.orderNumber} | AdminSMS: ${adminPhone ? 'yes' : 'no'}`
+        `[POS Admin Alert] Order #${alert.orderNumber} | Admin phone: ${adminPhone ? maskPhone(adminPhone) : 'NONE'} (source: ${source})`
     );
 
     if (adminPhone) {
-        await sendSMS({ to: adminPhone, message });
+        const result = await sendSMS({ to: adminPhone, message });
+        console.log(
+            `[POS Admin Alert] SMS result for #${alert.orderNumber}: ${result?.success ? 'SUCCESS' : 'FAILED'}`
+        );
+    } else {
+        console.warn(
+            `[POS Admin Alert] No admin phone configured. Set ADMIN_PHONE (or STORE_PHONE, or store_settings.contact_phone).`
+        );
     }
 
     // Also email the admin with a short branded summary so there's a written

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limit';
 
 /**
  * Initiate a Moolre payment. This mirrors standardecom's proven shape:
@@ -9,6 +10,15 @@ import { createClient } from '@supabase/supabase-js';
  */
 export async function POST(req: Request) {
     try {
+        const clientId = getClientIdentifier(req);
+        const rl = checkRateLimit(`moolre-init:${clientId}`, RATE_LIMITS.payment);
+        if (!rl.success) {
+            return NextResponse.json(
+                { success: false, message: 'Too many payment attempts. Please wait a moment.' },
+                { status: 429 }
+            );
+        }
+
         const body = await req.json();
         const { orderId, customerEmail, redirectUrl } = body;
 
@@ -20,12 +30,6 @@ export async function POST(req: Request) {
             console.error('[Payment] Missing Moolre credentials');
             return NextResponse.json({ success: false, message: 'Payment gateway configuration error' }, { status: 500 });
         }
-
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-        const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
-            auth: { autoRefreshToken: false, persistSession: false },
-        });
 
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
         const query = supabaseAdmin

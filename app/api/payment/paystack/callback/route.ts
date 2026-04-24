@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendOrderConfirmation } from '@/lib/notifications';
 
 /**
@@ -12,12 +12,7 @@ import { sendOrderConfirmation } from '@/lib/notifications';
  * the customer to /order-success.
  */
 export async function GET(req: Request) {
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
+    const supabase = supabaseAdmin;
     const url = new URL(req.url);
     const baseUrl = url.origin;
 

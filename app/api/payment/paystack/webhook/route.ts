@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendOrderConfirmation } from '@/lib/notifications';
+import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limit';
 
 /**
  * Paystack server-to-server webhook.
@@ -25,6 +26,13 @@ export async function POST(req: Request) {
   console.log('[Paystack Webhook] Received at', new Date().toISOString());
 
   try {
+    const clientId = getClientIdentifier(req);
+    const rl = checkRateLimit(`paystack-webhook:${clientId}`, RATE_LIMITS.callback);
+    if (!rl.success) {
+      console.warn('[Paystack Webhook] Rate limited:', clientId);
+      return NextResponse.json({ success: false, message: 'Too many requests' }, { status: 429 });
+    }
+
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) {
       console.error('[Paystack Webhook] PAYSTACK_SECRET_KEY not configured');
@@ -100,12 +108,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
 
     const { data: existingOrder, error: fetchError } = await supabaseAdmin
       .from('orders')

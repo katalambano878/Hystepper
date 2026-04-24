@@ -1,41 +1,146 @@
 import { Resend } from 'resend';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import { escapeHtml, maskPhone, maskEmail } from '@/lib/sanitize';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'missing_api_key');
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'hystepper2@gmail.com';
 
-let _adminClient: SupabaseClient | null = null;
-function getAdminClient(): SupabaseClient | null {
-    if (_adminClient) return _adminClient;
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) return null;
-    _adminClient = createClient(url, key, {
-        auth: { autoRefreshToken: false, persistSession: false },
-    });
-    return _adminClient;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'hystepper2@gmail.com';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Hy-Stepper <hystepper2@gmail.com>';
+
+const BRAND = {
+    name: 'Hy-Stepper',
+    tagline: 'Premium lifestyle & footwear',
+    color: '#b58410',
+    colorDark: '#7c5703',
+    colorLight: '#fef6e4',
+    url: (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, ''),
+    phone: process.env.STORE_PHONE || '',
+};
+
+// ---------------------------------------------------------------------------
+// Reusable branded email shell
+// ---------------------------------------------------------------------------
+
+export function emailLayout(body: string, preheader?: string): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>${BRAND.name}</title>
+  ${preheader ? `<span style="display:none;max-height:0;overflow:hidden;">${preheader}</span>` : ''}
+</head>
+<body style="margin:0;padding:0;background-color:#f4f1ea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f1ea;">
+    <tr>
+      <td align="center" style="padding:24px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.07);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,${BRAND.color},${BRAND.colorDark});padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">${BRAND.name}</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">${BRAND.tagline}</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr><td style="padding:40px 40px 32px;">${body}</td></tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#faf8f3;padding:24px 40px;border-top:1px solid #eee;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr><td style="text-align:center;">
+                  ${BRAND.phone ? `<p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Need help? Contact us at <a href="tel:${BRAND.phone}" style="color:${BRAND.color};text-decoration:none;">${BRAND.phone}</a></p>` : ''}
+                  <p style="margin:0 0 12px;color:#6b7280;font-size:13px;">
+                    <a href="${BRAND.url}" style="color:${BRAND.color};text-decoration:none;">Visit store</a> &nbsp;·&nbsp;
+                    <a href="${BRAND.url}/shop" style="color:${BRAND.color};text-decoration:none;">Shop</a> &nbsp;·&nbsp;
+                    <a href="${BRAND.url}/contact" style="color:${BRAND.color};text-decoration:none;">Support</a>
+                  </p>
+                  <p style="margin:0;color:#9ca3af;font-size:11px;">&copy; ${new Date().getFullYear()} ${BRAND.name}. All rights reserved.</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
-/**
- * Atomically claim the "confirmation sent" flag on an order. Returns true the
- * first time it succeeds for that order, false on every subsequent call.
- * Used to prevent duplicate order-confirmation emails/SMS when multiple
- * payment paths (webhook, callback, verify, etc.) all try to notify.
- */
-async function claimConfirmationSend(orderId: string | undefined): Promise<boolean> {
-    if (!orderId) return true; // no id → can't dedupe, fall through
-    const supabase = getAdminClient();
-    if (!supabase) return true; // no admin client → don't block notifications
+function emailButton(text: string, href: string, color?: string): string {
+    const bg = color || BRAND.color;
+    return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto;"><tr>
+  <td style="background-color:${bg};border-radius:8px;">
+    <a href="${href}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;letter-spacing:0.3px;">${text}</a>
+  </td>
+</tr></table>`;
+}
 
+function emailInfoRow(label: string, value: string): string {
+    return `<tr>
+  <td style="padding:10px 16px;color:#6b7280;font-size:13px;border-bottom:1px solid #f3f4f6;width:40%;">${label}</td>
+  <td style="padding:10px 16px;color:#111827;font-size:14px;font-weight:600;border-bottom:1px solid #f3f4f6;">${value}</td>
+</tr>`;
+}
+
+function emailShippingNotes(notes: string[]): string {
+    if (notes.length === 0) return '';
+    return `<div style="background-color:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:14px 16px;margin:20px 0;">
+  <p style="font-weight:600;color:#92400e;margin:0 0 6px;font-size:13px;">&#9200; Shipping Notes</p>
+  ${notes.map(n => `<p style="color:#78350f;margin:3px 0;font-size:13px;">${escapeHtml(n)}</p>`).join('')}
+</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Name resolution — used across all notifications
+// ---------------------------------------------------------------------------
+
+function resolveCustomerName(order: any): string {
+    const sa = order?.shipping_address || {};
+    if (sa.full_name) return String(sa.full_name);
+    if (sa.firstName) {
+        return sa.lastName ? `${sa.firstName} ${sa.lastName}` : String(sa.firstName);
+    }
+    const md = order?.metadata || {};
+    if (md.first_name) {
+        return md.last_name ? `${md.first_name} ${md.last_name}` : String(md.first_name);
+    }
+    return 'Customer';
+}
+
+function resolveCustomerPhone(order: any): string | undefined {
+    return order?.phone || order?.shipping_address?.phone || order?.metadata?.phone;
+}
+
+function trackingUrlFor(orderRef: string): string {
+    // Hy-Stepper order-success doubles as tracking: fetches and renders
+    // progress for any order_number, logged-in or not.
+    return `${BRAND.url}/order-success?order=${orderRef}`;
+}
+
+// ---------------------------------------------------------------------------
+// Idempotency guard — prevents duplicate SMS/email when multiple payment
+// paths (moolre callback, moolre verify, paystack webhook, paystack callback)
+// all race to confirm the same order.
+// ---------------------------------------------------------------------------
+
+async function claimConfirmationSend(orderId: string | undefined): Promise<boolean> {
+    if (!orderId) return true;
     try {
-        const { data: existing } = await supabase
+        const { data: existing } = await supabaseAdmin
             .from('orders')
             .select('metadata')
             .eq('id', orderId)
             .single();
 
         if (existing?.metadata?.confirmation_sent_at) {
-            console.log(`[Notifications] Order ${orderId} already confirmed at ${existing.metadata.confirmation_sent_at}. Skipping.`);
+            console.log(`[Notifications] Skipping duplicate confirmation for ${orderId} (already sent at ${existing.metadata.confirmation_sent_at})`);
             return false;
         }
 
@@ -43,12 +148,7 @@ async function claimConfirmationSend(orderId: string | undefined): Promise<boole
             ...(existing?.metadata || {}),
             confirmation_sent_at: new Date().toISOString(),
         };
-
-        await supabase
-            .from('orders')
-            .update({ metadata: nextMeta })
-            .eq('id', orderId);
-
+        await supabaseAdmin.from('orders').update({ metadata: nextMeta }).eq('id', orderId);
         return true;
     } catch (err: any) {
         console.error('[Notifications] claimConfirmationSend error:', err?.message || err);
@@ -56,56 +156,45 @@ async function claimConfirmationSend(orderId: string | undefined): Promise<boole
     }
 }
 
+// ---------------------------------------------------------------------------
+// Primitives: email + SMS
+// ---------------------------------------------------------------------------
+
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
     if (!process.env.RESEND_API_KEY) {
-        console.warn('RESEND_API_KEY is missing. Email not sent.');
+        console.warn('[Email] RESEND_API_KEY not configured — skipping');
         return null;
     }
     try {
         const data = await resend.emails.send({
-            from: 'Hy_stepper <hystepper2@gmail.com>', // Updated Sender
+            from: EMAIL_FROM,
             to,
             subject,
             html,
         });
-        console.log('Email sent:', data);
+        console.log('[Email] Sent to:', maskEmail(to));
         return data;
-    } catch (error) {
-        console.error('Email Error:', error);
+    } catch (error: any) {
+        console.error('[Email] Failed:', error?.message || error);
         return null;
     }
 }
 
-// ... (keep phone formatter helper same or assume it's same)
-
-// Helper to format phone number for SMS (Ghana specific for now)
+/**
+ * Ghana-specific phone formatter for Moolre SMS API.
+ * Accepts 0XX / 233XX / +233XX and returns E.164 (+233...).
+ */
 function formatPhoneNumber(phone: string): string {
-    // Remove all non-digit characters (including + for now)
     let cleaned = phone.replace(/\D/g, '');
-
-    // If starts with 0 (e.g. 024...), replace 0 with 233
-    if (cleaned.startsWith('0')) {
-        cleaned = '233' + cleaned.substring(1);
-    }
-
-    // If length is 9 (e.g. 24...), prepend 233
-    if (cleaned.length === 9) {
-        cleaned = '233' + cleaned;
-    }
-
-    // Ensure it starts with correct country code before prepending +
-    if (!cleaned.startsWith('233') && cleaned.length === 12) {
-        // Assuming it's some other format, but if it starts with 233, it's fine.
-    }
-
-    // Return with + prefix as per E.164
+    if (cleaned.startsWith('0')) cleaned = '233' + cleaned.substring(1);
+    if (cleaned.length === 9) cleaned = '233' + cleaned;
     return '+' + cleaned;
 }
 
 export async function sendSMS({ to, message }: { to: string; message: string }) {
-    // Allow distinct SMS credentials, falling back to payment credentials.
-    // If a custom SMS user is set, its pubkey must be used explicitly (don't
-    // mix a custom SMS user with the payment pubkey).
+    // Moolre SMS API can reuse the payment credentials, or use a dedicated
+    // SMS user + pubkey. If MOOLRE_SMS_API_USER is set, its pubkey must be
+    // paired with it (no mix-and-match with the payment pubkey).
     const isCustomSmsUser = !!process.env.MOOLRE_SMS_API_USER;
     const smsUser = process.env.MOOLRE_SMS_API_USER || process.env.MOOLRE_API_USER;
     const smsVasKey = process.env.MOOLRE_SMS_API_KEY || process.env.MOOLRE_API_KEY;
@@ -124,7 +213,7 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
     const senderId = process.env.MOOLRE_SMS_SENDER_ID || 'Hy-Stepper';
 
     try {
-        console.log(`[SMS] Sending to ${recipient} via ${senderId}: ${message.slice(0, 60)}...`);
+        console.log(`[SMS] Sending to ${maskPhone(recipient)} via ${senderId}`);
         const response = await fetch('https://api.moolre.com/open/sms/send', {
             method: 'POST',
             headers: {
@@ -140,8 +229,18 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
             }),
         });
 
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('[SMS] Non-JSON response:', text.slice(0, 200));
+            return { success: false, status: 0, error: text.slice(0, 200) };
+        }
+
         const result = await response.json();
-        console.log('[SMS] Result:', JSON.stringify(result).slice(0, 500));
+        console.log('[SMS] Result:', result.status === 1 ? 'Success' : 'Failed', '| code:', result.code);
+        if (result.status !== 1) {
+            console.log('[SMS] Full response:', JSON.stringify(result).slice(0, 500));
+        }
         return { success: result.status === 1, ...result };
     } catch (error: any) {
         console.error('[SMS] Error:', error?.message || error);
@@ -149,169 +248,361 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
     }
 }
 
+// ---------------------------------------------------------------------------
+// Order confirmation — email (customer + admin) + SMS
+// ---------------------------------------------------------------------------
+
 export async function sendOrderConfirmation(order: any) {
-    const { id, email, phone: orderPhone, shipping_address, total, created_at, order_number } = order;
+    if (!order) return;
+    const { id, email, total, created_at, order_number, metadata } = order;
 
-    // Try to get name from full_name, then firstName, then fallback
-    const name = shipping_address?.full_name || shipping_address?.firstName || 'Customer';
+    // Idempotency: if another path already sent the confirmation for this
+    // order, short-circuit.
+    const proceed = await claimConfirmationSend(id);
+    if (!proceed) return;
 
-    // Prefer top-level phone, then shipping address phone
-    const phone = orderPhone || shipping_address?.phone;
+    const name = resolveCustomerName(order);
+    const phone = resolveCustomerPhone(order);
 
-    // Dedupe: if we've already sent a confirmation for this order, bail.
-    // This prevents duplicate SMS/emails when webhook + callback + verify
-    // all race to notify for the same successful payment.
-    const shouldSend = await claimConfirmationSend(id);
-    if (!shouldSend) return;
+    const orderRef = order_number || id;
+    const trackingNumber = metadata?.tracking_number || '';
+    const trackingUrl = trackingUrlFor(orderRef);
 
-    console.log(`Preparing confirmation for Order #${order_number}. Phone: ${phone}, Name: ${name}`);
+    // Partial-payment awareness ("Pay Item Cost Only").
+    const payableNow = Number(metadata?.payable_now);
+    const deliveryDue = Number(metadata?.delivery_fee_due);
+    const isPartial =
+        Number.isFinite(payableNow) && payableNow > 0 &&
+        Number.isFinite(deliveryDue) && deliveryDue > 0 &&
+        Math.abs(payableNow + deliveryDue - Number(total)) < 0.01;
 
-    // 1. Email to Customer
-    const customerEmailHtml = `
-    <h1>Order Confirmation</h1>
-    <p>Hi ${name},</p>
-    <p>Thank you for your order! We've received it and are getting it ready.</p>
-    <p><strong>Order ID:</strong> ${order_number || id}</p>
-    <p><strong>Total:</strong> GH₵${total.toFixed(2)}</p>
-    <br/>
-    <p>We will notify you when your order ships.</p>
-  `;
+    console.log(
+        `[Notification] Order confirmation #${orderRef} | Phone: ${phone ? maskPhone(phone) : 'missing'} | Email: ${email ? maskEmail(email) : 'missing'} | Tracking: ${trackingNumber || 'none'}`
+    );
 
-    await sendEmail({
-        to: email,
-        subject: `Order Confirmation #${order_number || id}`,
-        html: customerEmailHtml
-    });
+    // Optional preorder/shipping notes attached to individual items.
+    let shippingNotes: string[] = [];
+    try {
+        const { data: items } = await supabase
+            .from('order_items')
+            .select('product_name, metadata')
+            .eq('order_id', id);
+        if (items) {
+            for (const item of items) {
+                const preorder = (item as any).metadata?.preorder_shipping;
+                if (preorder) shippingNotes.push(`${item.product_name}: ${preorder}`);
+            }
+        }
+    } catch {
+        /* non-critical */
+    }
 
-    // 2. Email to Admin
-    const adminEmailHtml = `
-    <h1>New Order Received</h1>
-    <p><strong>Order ID:</strong> ${order_number || id}</p>
-    <p><strong>Customer:</strong> ${name} (${email})</p>
-    <p><strong>Total:</strong> GH₵${total.toFixed(2)}</p>
-    <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/orders/${id}">View Order</a></p>
-  `;
+    // -----------------------------------------------------------------------
+    // 1. Customer email
+    // -----------------------------------------------------------------------
+    if (email) {
+        const totalRow = isPartial
+            ? `${emailInfoRow('Paid now', `<span style="color:${BRAND.color};font-weight:700;">GH₵${Number(payableNow).toFixed(2)}</span>`)}
+               ${emailInfoRow('Due on delivery', `GH₵${Number(deliveryDue).toFixed(2)}`)}`
+            : emailInfoRow('Total paid', `<span style="color:${BRAND.color};font-weight:700;">GH₵${Number(total).toFixed(2)}</span>`);
+
+        const customerHtml = emailLayout(`
+<div style="text-align:center;margin-bottom:24px;">
+  <div style="width:64px;height:64px;background-color:${BRAND.colorLight};border-radius:50%;margin:0 auto 16px;line-height:64px;font-size:28px;">&#10003;</div>
+  <h2 style="margin:0 0 4px;color:#111827;font-size:24px;">Order Confirmed!</h2>
+  <p style="margin:0;color:#6b7280;font-size:15px;">Thank you for your purchase, ${escapeHtml(name)}.</p>
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border-radius:12px;overflow:hidden;margin:20px 0;">
+  ${emailInfoRow('Order Number', `#${escapeHtml(String(orderRef))}`)}
+  ${emailInfoRow('Order Date', new Date(created_at || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }))}
+  ${trackingNumber ? emailInfoRow('Tracking', escapeHtml(String(trackingNumber))) : ''}
+  ${totalRow}
+</table>
+
+${emailShippingNotes(shippingNotes)}
+
+<p style="color:#374151;font-size:14px;line-height:1.6;margin:16px 0;">We're preparing your order. You'll receive updates as it moves through processing, packaging, and delivery.</p>
+
+${emailButton('Track Your Order', trackingUrl)}
+
+<p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">Or copy this link: <a href="${trackingUrl}" style="color:${BRAND.color};">${trackingUrl}</a></p>
+`, `Your order #${orderRef} is confirmed!`);
+
+        await sendEmail({
+            to: email,
+            subject: `Order Confirmed! #${orderRef}`,
+            html: customerHtml,
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // 2. Admin email
+    // -----------------------------------------------------------------------
+    const adminHtml = emailLayout(`
+<h2 style="margin:0 0 16px;color:#111827;font-size:20px;">&#128230; New Order Received</h2>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border-radius:12px;overflow:hidden;margin:16px 0;">
+  ${emailInfoRow('Order', `#${escapeHtml(String(orderRef))}`)}
+  ${emailInfoRow('Customer', escapeHtml(name))}
+  ${email ? emailInfoRow('Email', escapeHtml(email)) : ''}
+  ${phone ? emailInfoRow('Phone', escapeHtml(phone)) : ''}
+  ${isPartial
+            ? emailInfoRow('Paid now', `GH₵${Number(payableNow).toFixed(2)} (GH₵${Number(deliveryDue).toFixed(2)} due on delivery)`)
+            : emailInfoRow('Total', `GH₵${Number(total).toFixed(2)}`)}
+</table>
+
+${emailShippingNotes(shippingNotes)}
+
+${emailButton('View Order in Admin', `${BRAND.url}/admin/orders/${id}`)}
+`, `New order #${orderRef} from ${name}`);
 
     await sendEmail({
         to: ADMIN_EMAIL,
-        subject: `New Order #${order_number || id}`,
-        html: adminEmailHtml
+        subject: `New Order #${orderRef}`,
+        html: adminHtml,
     });
 
-    // 3. SMS to Customer (if phone exists)
+    // -----------------------------------------------------------------------
+    // 3. Customer SMS
+    // -----------------------------------------------------------------------
     if (phone) {
-        await sendSMS({
-            to: phone,
-            message: `Hi ${name}, thanks for your order #${order_number || id} at Hy_stepper! We will update you when it ships.`
-        });
+        const shippingNotesSms = shippingNotes.length > 0 ? ` Note: ${shippingNotes.join('; ')}.` : '';
+        const amountLine = isPartial
+            ? ` Paid GH₵${Number(payableNow).toFixed(2)} online; GH₵${Number(deliveryDue).toFixed(2)} due on delivery.`
+            : '';
+        const smsMessage = trackingNumber
+            ? `Hi ${name}, your ${BRAND.name} order #${orderRef} is confirmed!${amountLine} Tracking: ${trackingNumber}. Track: ${trackingUrl}${shippingNotesSms}`
+            : `Hi ${name}, your ${BRAND.name} order #${orderRef} is confirmed!${amountLine} Track: ${trackingUrl}${shippingNotesSms}`;
+
+        await sendSMS({ to: phone, message: smsMessage });
     }
 }
+
+// ---------------------------------------------------------------------------
+// Order status update — email + SMS
+// ---------------------------------------------------------------------------
 
 export async function sendOrderStatusUpdate(order: any, newStatus: string) {
-    const { id, email, phone: orderPhone, shipping_address, order_number } = order;
+    if (!order || !newStatus) return;
+    const { id, email, order_number, metadata } = order;
 
-    // Consistent name/phone extraction
-    const name = shipping_address?.full_name || shipping_address?.firstName || 'Customer';
-    const phone = orderPhone || shipping_address?.phone;
+    const orderRef = order_number || id;
+    const name = resolveCustomerName(order);
+    const phone = resolveCustomerPhone(order);
+    const trackingNumber = metadata?.tracking_number || '';
+    const trackingUrl = trackingUrlFor(orderRef);
 
-    console.log(`Sending status update for Order #${order_number} to ${newStatus}. Phone: ${phone}`);
+    console.log(`[Notification] Status update #${orderRef} → ${newStatus} | Tracking: ${trackingNumber || 'none'}`);
 
-    const subject = `Order Update #${order_number || id}`;
-    let message = `Your order #${order_number || id} status has been updated to ${newStatus}.`;
+    const subject = `Order Update #${orderRef}`;
+    let emailMessage = `Your order #${orderRef} status has been updated to ${newStatus}.`;
+    let smsMessage = emailMessage;
 
-    if (newStatus === 'shipped') {
-        message = `Good news! Your order #${order_number || id} has been shipped and is on its way.`;
+    if (newStatus === 'shipped' || newStatus === 'packaged') {
+        emailMessage = `Good news! Your order #${orderRef} has been packaged and is ready for dispatch.`;
+        smsMessage = trackingNumber
+            ? `Hi ${name}, order #${orderRef} has been packaged. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
+            : `Hi ${name}, order #${orderRef} has been packaged. Track: ${trackingUrl}`;
+    } else if (newStatus === 'dispatched_to_rider' || newStatus === 'out_for_delivery') {
+        emailMessage = `Your order #${orderRef} is with the rider and on its way to you.`;
+        smsMessage = trackingNumber
+            ? `Hi ${name}, order #${orderRef} is with the rider for delivery. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
+            : `Hi ${name}, order #${orderRef} is with the rider for delivery. Track: ${trackingUrl}`;
     } else if (newStatus === 'delivered') {
-        message = `Your order #${order_number || id} has been delivered. Enjoy!`;
+        emailMessage = `Your order #${orderRef} has been delivered. Enjoy!`;
+        smsMessage = `Hi ${name}, your order #${orderRef} has been delivered. Thanks for shopping with ${BRAND.name}!`;
+    } else if (newStatus === 'processing') {
+        emailMessage = `We're processing your order #${orderRef} now.`;
+        smsMessage = trackingNumber
+            ? `Hi ${name}, order #${orderRef} is being processed. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
+            : `Hi ${name}, order #${orderRef} is being processed. Track: ${trackingUrl}`;
+    } else if (newStatus === 'cancelled') {
+        emailMessage = `Your order #${orderRef} has been cancelled.`;
+        smsMessage = `Hi ${name}, order #${orderRef} was cancelled. Contact us if this was a mistake.`;
+    } else {
+        smsMessage = `Hi ${name}, order #${orderRef} status: ${newStatus}. Track: ${trackingUrl}`;
     }
 
-    // Email
-    await sendEmail({
-        to: email,
-        subject: subject,
-        html: `<h1>Order Update</h1><p>Hi ${name},</p><p>${message}</p>`
-    });
+    const statusConfig: Record<string, { icon: string; color: string; bg: string }> = {
+        processing: { icon: '&#9881;', color: '#2563eb', bg: '#eff6ff' },
+        packaged: { icon: '&#128230;', color: '#047857', bg: '#ecfdf5' },
+        shipped: { icon: '&#128666;', color: '#047857', bg: '#ecfdf5' },
+        dispatched_to_rider: { icon: '&#128101;', color: '#4f46e5', bg: '#eef2ff' },
+        out_for_delivery: { icon: '&#128666;', color: '#4f46e5', bg: '#eef2ff' },
+        delivered: { icon: '&#127881;', color: '#16a34a', bg: '#f0fdf4' },
+        cancelled: { icon: '&#10060;', color: '#dc2626', bg: '#fef2f2' },
+    };
+    const sc = statusConfig[newStatus] || { icon: '&#128276;', color: '#6b7280', bg: '#f9fafb' };
 
-    // SMS disabled for status updates — only order confirmation SMS is sent
-    // if (phone) {
-    //     await sendSMS({ to: phone, message: message });
-    // }
+    if (email) {
+        await sendEmail({
+            to: email,
+            subject,
+            html: emailLayout(`
+<div style="text-align:center;margin-bottom:24px;">
+  <div style="width:64px;height:64px;background-color:${sc.bg};border-radius:50%;margin:0 auto 16px;line-height:64px;font-size:28px;">${sc.icon}</div>
+  <h2 style="margin:0 0 4px;color:#111827;font-size:22px;">Order Update</h2>
+  <p style="margin:0;color:#6b7280;font-size:14px;">Hi ${escapeHtml(name)}, here's an update on your order.</p>
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border-radius:12px;overflow:hidden;margin:20px 0;">
+  ${emailInfoRow('Order Number', `#${escapeHtml(String(orderRef))}`)}
+  ${emailInfoRow('New Status', `<span style="display:inline-block;background-color:${sc.bg};color:${sc.color};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;">${escapeHtml(newStatus)}</span>`)}
+  ${trackingNumber ? emailInfoRow('Tracking Number', escapeHtml(String(trackingNumber))) : ''}
+</table>
+
+<p style="color:#374151;font-size:14px;line-height:1.6;margin:16px 0;">${escapeHtml(emailMessage)}</p>
+
+${emailButton('Track Your Order', trackingUrl)}
+`, `Your order #${orderRef} is now ${newStatus}`),
+        });
+    }
+
+    if (phone) {
+        await sendSMS({ to: phone, message: smsMessage });
+    }
 }
 
-export async function sendPaymentLink(order: any) {
-    const { id, email, phone: orderPhone, shipping_address, total, order_number } = order;
-    const name = shipping_address?.full_name || shipping_address?.firstName || 'Customer';
-    const phone = orderPhone || shipping_address?.phone;
-    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
-    const paymentUrl = `${baseUrl}/pay/${id}`;
+// ---------------------------------------------------------------------------
+// Payment link email / SMS (admin-initiated)
+// ---------------------------------------------------------------------------
 
-    await sendEmail({
-        to: email,
-        subject: `Complete Your Payment - Order #${order_number || id}`,
-        html: `
-      <h1>Complete Your Payment</h1>
-      <p>Hi ${name},</p>
-      <p>Your order <strong>#${order_number || id}</strong> is waiting for payment.</p>
-      <p><strong>Total:</strong> GH₵${Number(total || 0).toFixed(2)}</p>
-      <p>Please use the link below to complete checkout:</p>
-      <p><a href="${paymentUrl}">${paymentUrl}</a></p>
-    `
-    });
+export async function sendPaymentLink(order: any) {
+    const { id, email, total, order_number, metadata } = order;
+
+    const orderRef = order_number || id;
+    const name = resolveCustomerName(order);
+    const phone = resolveCustomerPhone(order);
+    const paymentUrl = `${BRAND.url}/pay/${id}`;
+    const payableNow = Number(metadata?.payable_now);
+    const amountDue =
+        Number.isFinite(payableNow) && payableNow > 0 ? payableNow : Number(total);
+
+    console.log(`[Notification] Payment link for #${orderRef} | Phone: ${phone ? 'yes' : 'no'}`);
+
+    if (email) {
+        await sendEmail({
+            to: email,
+            subject: `Complete Your Order #${orderRef}`,
+            html: emailLayout(`
+<div style="text-align:center;margin-bottom:24px;">
+  <div style="width:64px;height:64px;background-color:#fef3c7;border-radius:50%;margin:0 auto 16px;line-height:64px;font-size:28px;">&#128179;</div>
+  <h2 style="margin:0 0 4px;color:#111827;font-size:22px;">Complete Your Order</h2>
+  <p style="margin:0;color:#6b7280;font-size:14px;">Hi ${escapeHtml(name)}, your order is waiting for payment.</p>
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border-radius:12px;overflow:hidden;margin:20px 0;">
+  ${emailInfoRow('Order Number', `#${escapeHtml(String(orderRef))}`)}
+  ${emailInfoRow('Amount Due', `<span style="color:${BRAND.color};font-size:18px;font-weight:700;">GH₵${amountDue.toFixed(2)}</span>`)}
+</table>
+
+<p style="color:#374151;font-size:14px;line-height:1.6;margin:16px 0;">Click the button below to complete payment securely. The link stays active until the order is paid or cancelled.</p>
+
+${emailButton('Pay Now — GH₵' + amountDue.toFixed(2), paymentUrl, '#d97706')}
+
+<p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">Or copy: <a href="${paymentUrl}" style="color:${BRAND.color};">${paymentUrl}</a></p>
+`, `Complete payment for order #${orderRef}`),
+        });
+    }
 
     if (phone) {
         await sendSMS({
             to: phone,
-            message: `Hi ${name}, complete payment for order #${order_number || id}: ${paymentUrl}`
+            message: `Hi ${name}, complete order #${orderRef} (GH₵${amountDue.toFixed(2)}) here: ${paymentUrl}`,
         });
     }
 }
 
-export async function sendWelcomeMessage(user: { email: string, firstName: string, phone?: string }) {
-    const { email, firstName, phone } = user;
+// ---------------------------------------------------------------------------
+// Welcome (new signup)
+// ---------------------------------------------------------------------------
 
-    // Email
+export async function sendWelcomeMessage(user: { email: string; firstName: string; phone?: string }) {
+    const { email, firstName, phone } = user;
+    if (!email) return;
+
     await sendEmail({
         to: email,
-        subject: `Welcome to Hy_stepper!`,
-        html: `
-      <h1>Welcome, ${firstName}!</h1>
-      <p>Thank you for joining the Hy_stepper family.</p>
-      <p>We're thrilled to have you with us. Explore our collection of premium beauty products and enjoy your shopping journey.</p>
-      <br/>
-      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/shop">Start Shopping</a>
-    `
+        subject: `Welcome to ${BRAND.name}!`,
+        html: emailLayout(`
+<div style="text-align:center;margin-bottom:24px;">
+  <div style="width:64px;height:64px;background-color:${BRAND.colorLight};border-radius:50%;margin:0 auto 16px;line-height:64px;font-size:28px;">&#128075;</div>
+  <h2 style="margin:0 0 4px;color:#111827;font-size:24px;">Welcome, ${escapeHtml(firstName)}!</h2>
+  <p style="margin:0;color:#6b7280;font-size:15px;">We're thrilled to have you at ${BRAND.name}.</p>
+</div>
+
+<p style="color:#374151;font-size:14px;line-height:1.7;margin:16px 0;">Thanks for joining us. Explore our curated collection and start earning Sleek Points on every order.</p>
+
+${emailButton('Start Shopping', `${BRAND.url}/shop`)}
+`, `Welcome to ${BRAND.name}, ${firstName}!`),
     });
 
-    // SMS disabled for welcome — only order confirmation SMS is sent
+    // Welcome SMS disabled by default — order-confirmation remains the single
+    // transactional SMS. Uncomment to re-enable:
     // if (phone) {
-    //     await sendSMS({ to: phone, message: `Welcome ${firstName}! Thanks for joining Hy_stepper.` });
+    //     await sendSMS({ to: phone, message: `Welcome ${firstName}! Thanks for joining ${BRAND.name}.` });
     // }
+    void phone;
 }
 
-export async function sendContactMessage(data: { name: string, email: string, subject: string, message: string }) {
+// ---------------------------------------------------------------------------
+// Contact form
+// ---------------------------------------------------------------------------
+
+export async function sendContactMessage(data: {
+    name: string;
+    email: string;
+    subject: string;
+    message: string;
+}) {
     const { name, email, subject, message } = data;
 
-    // 1. Acknowledge to User
+    const safeName = escapeHtml(name);
+    const safeSubject = escapeHtml(subject);
+    const safeMessage = escapeHtml(message);
+    const safeEmail = escapeHtml(email);
+
     await sendEmail({
         to: email,
         subject: `We received your message: ${subject}`,
-        html: `
-      <p>Hi ${name},</p>
-      <p>Thanks for contacting Hy_stepper.</p>
-      <p>We have received your message regarding "${subject}" and will get back to you shortly.</p>
-    `
+        html: emailLayout(`
+<div style="text-align:center;margin-bottom:24px;">
+  <div style="width:64px;height:64px;background-color:${BRAND.colorLight};border-radius:50%;margin:0 auto 16px;line-height:64px;font-size:28px;">&#128172;</div>
+  <h2 style="margin:0 0 4px;color:#111827;font-size:22px;">Message Received</h2>
+  <p style="margin:0;color:#6b7280;font-size:14px;">We'll get back to you shortly.</p>
+</div>
+
+<p style="color:#374151;font-size:14px;line-height:1.7;margin:16px 0;">Hi ${safeName},</p>
+<p style="color:#374151;font-size:14px;line-height:1.7;margin:0 0 16px;">Thanks for contacting ${BRAND.name}. We've received your message about <strong>"${safeSubject}"</strong> and our team will respond as soon as possible.</p>
+
+<div style="background-color:#faf8f3;border-left:4px solid ${BRAND.color};border-radius:0 8px 8px 0;padding:16px 20px;margin:20px 0;">
+  <p style="color:#6b7280;font-size:12px;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Your message</p>
+  <p style="color:#374151;font-size:14px;margin:0;line-height:1.6;">${safeMessage}</p>
+</div>
+
+<p style="color:#6b7280;font-size:13px;margin:16px 0 0;">We typically respond within 24 hours.</p>
+`, `Thanks for contacting us, ${safeName}`),
     });
 
-    // 2. Alert Admin
     await sendEmail({
         to: ADMIN_EMAIL,
         subject: `Contact: ${subject}`,
-        html: `
-      <h1>New Contact Message</h1>
-      <p><strong>From:</strong> ${name} (${email})</p>
-      <p><strong>Subject:</strong> ${subject}</p>
-      <p><strong>Message:</strong></p>
-      <p>${message}</p>
-    `
+        html: emailLayout(`
+<h2 style="margin:0 0 16px;color:#111827;font-size:20px;">&#128233; New Contact Message</h2>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border-radius:12px;overflow:hidden;margin:16px 0;">
+  ${emailInfoRow('From', safeName)}
+  ${emailInfoRow('Email', `<a href="mailto:${safeEmail}" style="color:${BRAND.color};">${safeEmail}</a>`)}
+  ${emailInfoRow('Subject', safeSubject)}
+</table>
+
+<div style="background-color:#faf8f3;border-left:4px solid ${BRAND.color};border-radius:0 8px 8px 0;padding:16px 20px;margin:20px 0;">
+  <p style="color:#6b7280;font-size:12px;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Message</p>
+  <p style="color:#374151;font-size:14px;margin:0;line-height:1.6;">${safeMessage}</p>
+</div>
+
+${emailButton('Reply to ' + safeName, `mailto:${safeEmail}?subject=Re: ${encodeURIComponent(subject)}`)}
+`, `New contact from ${safeName}: ${safeSubject}`),
     });
 }

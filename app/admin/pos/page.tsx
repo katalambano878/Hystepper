@@ -73,7 +73,14 @@ export default function POSPage() {
     const [processing, setProcessing] = useState(false);
     const [completedOrder, setCompletedOrder] = useState<any>(null);
     const [orderType, setOrderType] = useState<'walk_in' | 'delivery'>('walk_in');
-    const [deliveryFee, setDeliveryFee] = useState<string>('');
+    // Delivery zones — same source the public checkout uses, so prices stay in sync.
+    const [deliveryZones, setDeliveryZones] = useState<any[]>([]);
+    const [regionType, setRegionType] = useState<'' | 'greater_accra' | 'other_regions'>('');
+    const [selectedZoneId, setSelectedZoneId] = useState<string>('');
+    // Manual fee override — only used when item count rules block automatic pricing
+    // (3+ items outside Accra). Public site asks customers to contact support; in
+    // the POS we let the admin type a quoted price so the sale can still close.
+    const [manualDeliveryFee, setManualDeliveryFee] = useState<string>('');
     const [guestDetails, setGuestDetails] = useState({
         firstName: '',
         lastName: '',
@@ -148,6 +155,15 @@ export default function POSPage() {
                     address: typeof map.contact_address === 'string' ? map.contact_address : '',
                 });
             }
+
+            // Active delivery zones (same data source as the public checkout).
+            const { data: zonesData } = await supabase
+                .from('delivery_zones')
+                .select('*')
+                .eq('is_active', true)
+                .order('name');
+
+            if (zonesData) setDeliveryZones(zonesData);
 
         } catch (error) {
             console.error('Error fetching POS data:', error);
@@ -248,8 +264,39 @@ export default function POSPage() {
     }, [products, searchQuery, activeCategory]);
 
     const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
-    const parsedDeliveryFee = Math.max(0, Number.parseFloat(deliveryFee || '0') || 0);
-    const appliedDeliveryFee = orderType === 'delivery' ? parsedDeliveryFee : 0;
+
+    // Delivery zone helpers — mirror public checkout pricing.
+    const accraZones = useMemo(
+        () => deliveryZones.filter((z: any) => z.is_accra).sort((a: any, b: any) => a.name.localeCompare(b.name)),
+        [deliveryZones]
+    );
+    const outsideZones = useMemo(
+        () => deliveryZones.filter((z: any) => !z.is_accra).sort((a: any, b: any) => a.name.localeCompare(b.name)),
+        [deliveryZones]
+    );
+    const selectedZone = useMemo(
+        () => deliveryZones.find((z: any) => z.id === selectedZoneId) || null,
+        [deliveryZones, selectedZoneId]
+    );
+    const totalCartItems = cart.reduce((sum, item) => sum + item.cartQuantity, 0);
+    const isAccraSelected = !!selectedZone?.is_accra;
+    // Mirror the public site's outside-Accra rule: 3+ items needs a manual quote.
+    const outsideAccraTooManyItems = !!selectedZone && !selectedZone.is_accra && totalCartItems >= 3;
+
+    const computedZoneFee = (() => {
+        if (!selectedZone) return 0;
+        const baseFee = Number(selectedZone.base_fee) || 0;
+        const perItem = Number(selectedZone.per_item_fee) || 0;
+        if (selectedZone.is_accra) return baseFee;
+        if (totalCartItems <= 1) return baseFee;
+        if (totalCartItems === 2) return baseFee + perItem;
+        return 0; // 3+ items outside Accra → manual quote required
+    })();
+
+    const parsedManualFee = Math.max(0, Number.parseFloat(manualDeliveryFee || '0') || 0);
+    const appliedDeliveryFee = orderType === 'delivery'
+        ? (outsideAccraTooManyItems ? parsedManualFee : computedZoneFee)
+        : 0;
     const grandTotal = cartTotal + appliedDeliveryFee;
     const changeDue = amountTendered ? (parseFloat(amountTendered) - grandTotal) : 0;
 
@@ -279,6 +326,14 @@ export default function POSPage() {
                 alert('Please enter a delivery address.');
                 return;
             }
+            if (!selectedZone) {
+                alert('Please select a delivery area so the fee can be applied.');
+                return;
+            }
+            if (outsideAccraTooManyItems && parsedManualFee <= 0) {
+                alert('3+ items outside Accra require a manual delivery quote. Please enter the agreed delivery fee.');
+                return;
+            }
         }
 
         setProcessing(true);
@@ -286,6 +341,9 @@ export default function POSPage() {
         try {
             // Build a shipping_address using the same shape as online orders so the
             // admin order details screen renders correctly (address_line1, city, etc.)
+            // Use the zone for region/city (same shape the public checkout writes),
+            // and treat the free-text "city" input as a more specific landmark/area.
+            const zoneName = selectedZone?.name || '';
             const deliveryAddress = {
                 full_name: resolvedFullName || 'Walk-in Customer',
                 first_name: resolvedFirstName,
@@ -293,10 +351,13 @@ export default function POSPage() {
                 email: resolvedEmail,
                 phone: resolvedPhone,
                 address_line1: guestDetails.address,
-                city: guestDetails.city,
-                state: guestDetails.region,
+                city: guestDetails.city || zoneName,
+                state: zoneName,
+                region: zoneName,
                 country: 'Ghana',
                 notes: guestDetails.notes,
+                delivery_zone_id: selectedZone?.id || null,
+                delivery_zone_name: zoneName,
             };
             const walkInAddress = {
                 full_name: resolvedFullName || 'Walk-in Customer',
@@ -675,7 +736,9 @@ export default function POSPage() {
         setAmountTendered('');
         setSelectedCustomer(null);
         setOrderType('walk_in');
-        setDeliveryFee('');
+        setRegionType('');
+        setSelectedZoneId('');
+        setManualDeliveryFee('');
         setGuestDetails({
             firstName: '',
             lastName: '',
@@ -1129,22 +1192,61 @@ export default function POSPage() {
                                                 rows={2}
                                                 className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
                                             />
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <input
-                                                    type="text"
-                                                    placeholder="City / Town"
-                                                    value={guestDetails.city}
-                                                    onChange={(e) => setGuestDetails({ ...guestDetails, city: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
-                                                />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Region"
-                                                    value={guestDetails.region}
-                                                    onChange={(e) => setGuestDetails({ ...guestDetails, region: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
-                                                />
+
+                                            {/* Region + Zone — same source as the public checkout */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-amber-900 mb-1 uppercase tracking-wide">
+                                                        Region *
+                                                    </label>
+                                                    <select
+                                                        value={regionType}
+                                                        onChange={(e) => {
+                                                            const next = e.target.value as '' | 'greater_accra' | 'other_regions';
+                                                            setRegionType(next);
+                                                            setSelectedZoneId('');
+                                                            setManualDeliveryFee('');
+                                                        }}
+                                                        className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
+                                                    >
+                                                        <option value="">Select region</option>
+                                                        <option value="greater_accra">Greater Accra</option>
+                                                        <option value="other_regions">Other Regions</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-amber-900 mb-1 uppercase tracking-wide">
+                                                        {regionType === 'other_regions' ? 'City *' : 'Delivery Area *'}
+                                                    </label>
+                                                    <select
+                                                        value={selectedZoneId}
+                                                        onChange={(e) => {
+                                                            setSelectedZoneId(e.target.value);
+                                                            setManualDeliveryFee('');
+                                                        }}
+                                                        disabled={!regionType}
+                                                        className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white disabled:bg-amber-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        <option value="">
+                                                            {regionType ? 'Select an area' : 'Pick a region first'}
+                                                        </option>
+                                                        {(regionType === 'greater_accra' ? accraZones : regionType === 'other_regions' ? outsideZones : []).map((z: any) => (
+                                                            <option key={z.id} value={z.id}>
+                                                                {z.name} — GH₵{Number(z.base_fee || 0).toFixed(0)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             </div>
+
+                                            <input
+                                                type="text"
+                                                placeholder="Landmark / Specific area (optional)"
+                                                value={guestDetails.city}
+                                                onChange={(e) => setGuestDetails({ ...guestDetails, city: e.target.value })}
+                                                className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
+                                            />
+
                                             <textarea
                                                 placeholder="Delivery Notes (Optional) — landmarks, rider instructions"
                                                 value={guestDetails.notes}
@@ -1152,29 +1254,55 @@ export default function POSPage() {
                                                 rows={2}
                                                 className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
                                             />
-                                            <div>
-                                                <label className="block text-xs font-semibold text-amber-900 mb-1 uppercase tracking-wide">
-                                                    Delivery Fee
-                                                </label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-700 font-semibold text-sm">
-                                                        GH₵
-                                                    </span>
-                                                    <input
-                                                        type="number"
-                                                        inputMode="decimal"
-                                                        min="0"
-                                                        step="0.01"
-                                                        placeholder="0.00"
-                                                        value={deliveryFee}
-                                                        onChange={(e) => setDeliveryFee(e.target.value)}
-                                                        className="w-full pl-12 pr-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white font-semibold"
-                                                    />
+
+                                            {/* Delivery fee summary */}
+                                            {selectedZone && !outsideAccraTooManyItems && (
+                                                <div className="flex items-center justify-between bg-white border border-amber-300 rounded-md px-3 py-2">
+                                                    <div className="text-xs text-amber-900">
+                                                        <p className="font-semibold uppercase tracking-wide">Delivery fee</p>
+                                                        <p className="text-[11px] text-amber-700">
+                                                            {selectedZone.name}
+                                                            {!isAccraSelected && totalCartItems === 2 ? ' · 2-item rate' : ''}
+                                                        </p>
+                                                    </div>
+                                                    <p className="text-base font-extrabold text-amber-900">
+                                                        GH₵{computedZoneFee.toFixed(2)}
+                                                    </p>
                                                 </div>
-                                                <p className="text-[11px] text-amber-800 mt-1">
-                                                    Added on top of the subtotal and included in the order total.
-                                                </p>
-                                            </div>
+                                            )}
+
+                                            {/* Outside Accra: 3+ items needs a quoted price */}
+                                            {selectedZone && outsideAccraTooManyItems && (
+                                                <div className="space-y-2 bg-white border-2 border-amber-400 rounded-md p-3">
+                                                    <div className="flex items-start gap-2">
+                                                        <i className="ri-information-line text-amber-700 mt-0.5"></i>
+                                                        <p className="text-xs text-amber-900">
+                                                            <strong>Manual quote needed.</strong> 3+ items outside Accra are
+                                                            priced individually. Enter the agreed delivery fee below.
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-amber-900 mb-1 uppercase tracking-wide">
+                                                            Quoted delivery fee
+                                                        </label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-700 font-semibold text-sm">
+                                                                GH₵
+                                                            </span>
+                                                            <input
+                                                                type="number"
+                                                                inputMode="decimal"
+                                                                min="0"
+                                                                step="0.01"
+                                                                placeholder="0.00"
+                                                                value={manualDeliveryFee}
+                                                                onChange={(e) => setManualDeliveryFee(e.target.value)}
+                                                                className="w-full pl-12 pr-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white font-semibold"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -1226,7 +1354,12 @@ export default function POSPage() {
                                         disabled={
                                             processing ||
                                             (paymentMethod === 'cash' && parseFloat(amountTendered || '0') < grandTotal) ||
-                                            (orderType === 'delivery' && (!guestDetails.address.trim() || !((guestDetails.phone || selectedCustomer?.phone || '').trim())))
+                                            (orderType === 'delivery' && (
+                                                !guestDetails.address.trim() ||
+                                                !((guestDetails.phone || selectedCustomer?.phone || '').trim()) ||
+                                                !selectedZone ||
+                                                (outsideAccraTooManyItems && parsedManualFee <= 0)
+                                            ))
                                         }
                                         className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center space-x-2"
                                     >

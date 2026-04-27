@@ -73,6 +73,7 @@ export default function POSPage() {
     const [processing, setProcessing] = useState(false);
     const [completedOrder, setCompletedOrder] = useState<any>(null);
     const [orderType, setOrderType] = useState<'walk_in' | 'delivery'>('walk_in');
+    const [deliveryFee, setDeliveryFee] = useState<string>('');
     const [guestDetails, setGuestDetails] = useState({
         firstName: '',
         lastName: '',
@@ -247,7 +248,9 @@ export default function POSPage() {
     }, [products, searchQuery, activeCategory]);
 
     const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
-    const grandTotal = cartTotal;
+    const parsedDeliveryFee = Math.max(0, Number.parseFloat(deliveryFee || '0') || 0);
+    const appliedDeliveryFee = orderType === 'delivery' ? parsedDeliveryFee : 0;
+    const grandTotal = cartTotal + appliedDeliveryFee;
     const changeDue = amountTendered ? (parseFloat(amountTendered) - grandTotal) : 0;
 
     const handleCheckout = async () => {
@@ -325,7 +328,8 @@ export default function POSPage() {
                     email: resolvedEmail || 'pos@store.local',
                     phone: resolvedPhone || null,
                     total: grandTotal,
-                    subtotal: grandTotal,
+                    subtotal: cartTotal,
+                    shipping_total: appliedDeliveryFee,
                     // Walk-in sales are completed instantly; deliveries start in
                     // processing so they flow through the normal fulfilment queue.
                     status: orderType === 'delivery' ? 'processing' : 'delivered',
@@ -403,6 +407,9 @@ export default function POSPage() {
                 id: order.id,
                 order_number: order.order_number,
                 total: grandTotal,
+                subtotal: cartTotal,
+                deliveryFee: appliedDeliveryFee,
+                orderType,
                 items: cart,
                 paymentMethod,
                 amountTendered: paymentMethod === 'cash' ? parseFloat(amountTendered || '0') : grandTotal,
@@ -614,7 +621,10 @@ export default function POSPage() {
     <div class="divider"></div>
 
     <div class="totals">
-        <div class="row"><span>Subtotal</span><span>${fmtMoney(completedOrder.total)}</span></div>
+        <div class="row"><span>Subtotal</span><span>${fmtMoney(completedOrder.subtotal ?? completedOrder.total)}</span></div>
+        ${completedOrder.deliveryFee && completedOrder.deliveryFee > 0
+            ? `<div class="row"><span>Delivery fee</span><span>${fmtMoney(completedOrder.deliveryFee)}</span></div>`
+            : ''}
         <div class="row grand"><span>TOTAL</span><span>${fmtMoney(completedOrder.total)}</span></div>
         ${
             completedOrder.paymentMethod === 'cash'
@@ -665,6 +675,7 @@ export default function POSPage() {
         setAmountTendered('');
         setSelectedCustomer(null);
         setOrderType('walk_in');
+        setDeliveryFee('');
         setGuestDetails({
             firstName: '',
             lastName: '',
@@ -851,6 +862,12 @@ export default function POSPage() {
                             <span>Subtotal</span>
                             <span>GH₵{cartTotal.toFixed(2)}</span>
                         </div>
+                        {appliedDeliveryFee > 0 && (
+                            <div className="flex justify-between text-gray-600">
+                                <span>Delivery fee</span>
+                                <span>GH₵{appliedDeliveryFee.toFixed(2)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between text-gray-600">
                             <span>Tax (0%)</span>
                             <span>GH₵0.00</span>
@@ -996,6 +1013,11 @@ export default function POSPage() {
                                     <div className="text-center py-4 bg-emerald-50 rounded-xl border border-emerald-100">
                                         <p className="text-sm text-emerald-800 uppercase tracking-wide font-semibold">Amount to Pay</p>
                                         <p className="text-4xl font-extrabold text-emerald-700 mt-1">GH₵{grandTotal.toFixed(2)}</p>
+                                        {appliedDeliveryFee > 0 && (
+                                            <p className="text-xs text-emerald-800 mt-1">
+                                                Items GH₵{cartTotal.toFixed(2)} + Delivery GH₵{appliedDeliveryFee.toFixed(2)}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div>
@@ -1130,6 +1152,29 @@ export default function POSPage() {
                                                 rows={2}
                                                 className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
                                             />
+                                            <div>
+                                                <label className="block text-xs font-semibold text-amber-900 mb-1 uppercase tracking-wide">
+                                                    Delivery Fee
+                                                </label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-700 font-semibold text-sm">
+                                                        GH₵
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        inputMode="decimal"
+                                                        min="0"
+                                                        step="0.01"
+                                                        placeholder="0.00"
+                                                        value={deliveryFee}
+                                                        onChange={(e) => setDeliveryFee(e.target.value)}
+                                                        className="w-full pl-12 pr-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white font-semibold"
+                                                    />
+                                                </div>
+                                                <p className="text-[11px] text-amber-800 mt-1">
+                                                    Added on top of the subtotal and included in the order total.
+                                                </p>
+                                            </div>
                                         </div>
                                     )}
 

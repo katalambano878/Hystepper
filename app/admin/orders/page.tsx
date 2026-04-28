@@ -314,8 +314,304 @@ export default function AdminOrdersPage() {
     window.URL.revokeObjectURL(url);
   };
 
-  const handlePrintInvoice = (orderId: string) => {
-    window.open(`/admin/orders/${orderId}?print=true`, '_blank');
+  // Open a clean, printable invoice/receipt in a new window and auto-fire
+  // window.print(). We fetch the full order + items here (the list view only
+  // pulls quantities) so the receipt has SKUs, sizes/colours and totals.
+  const handlePrintInvoice = async (orderId: string) => {
+    // Open the popup synchronously (Safari/Chrome block popups opened from
+    // an async chain). We'll write into it after the data loads.
+    const win = window.open('', '_blank', 'width=820,height=900');
+    if (!win) {
+      alert('Please allow pop-ups to print order receipts.');
+      return;
+    }
+
+    // Lightweight loading shim so the user sees feedback while we fetch.
+    win.document.open();
+    win.document.write(`<!DOCTYPE html><html><head><title>Loading invoice…</title>
+      <meta charset="utf-8" /><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#374151;}</style>
+      </head><body>Loading invoice…</body></html>`);
+    win.document.close();
+
+    try {
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          id, order_number, email, phone, status, payment_status,
+          payment_method, payment_provider, shipping_method, created_at,
+          subtotal, shipping_total, tax_amount, discount_amount, total,
+          notes, shipping_address, billing_address, metadata,
+          order_items (
+            id, product_name, variant_name, sku, quantity,
+            unit_price, total_price, metadata,
+            products ( sku, product_code )
+          )
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (orderError || !order) throw orderError || new Error('Order not found');
+
+      const { data: settings } = await supabase
+        .from('store_settings')
+        .select('store_name, contact_phone, contact_email, contact_address, logo_url')
+        .maybeSingle();
+
+      const esc = (s: any) =>
+        String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+
+      const fmtMoney = (n: any) => `GH₵ ${Number(n || 0).toFixed(2)}`;
+
+      const dt = new Date(order.created_at || Date.now());
+      const dateStr = dt.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const ship = order.shipping_address || {};
+      const customerName =
+        ship.full_name ||
+        [ship.first_name, ship.last_name].filter(Boolean).join(' ').trim() ||
+        getCustomerName(order as any);
+      const customerEmail = order.email || ship.email || '';
+      const customerPhone = order.phone || ship.phone || '';
+      const addressLines = [
+        ship.address_line1 || ship.address || '',
+        ship.address_line2 || '',
+        [ship.city, ship.state || ship.region].filter(Boolean).join(', '),
+        ship.country || '',
+      ]
+        .map((l) => (l || '').toString().trim())
+        .filter(Boolean);
+
+      const isPos =
+        order.metadata?.pos_sale === true ||
+        order.payment_provider === 'pos' ||
+        (order.order_number || '').startsWith('POS-');
+
+      const docTitle = isPos ? 'Sales Receipt' : 'Order Invoice';
+
+      const itemsHtml = (order.order_items || [])
+        .map((item: any) => {
+          const meta = item.metadata || {};
+          const variantParts = (item.variant_name || '')
+            .split('/')
+            .map((part: string) => part.trim())
+            .filter(Boolean);
+          const sizeLabel = (meta.size || variantParts[0] || '').toString().trim();
+          const colorLabel = (meta.color || variantParts[1] || '').toString().trim();
+          const sku = (item.sku || item.products?.sku || item.products?.product_code || '').toString().trim();
+          const pills = [
+            sizeLabel ? `<span class="pill pill-size">Size ${esc(sizeLabel)}</span>` : '',
+            colorLabel ? `<span class="pill pill-color">${esc(colorLabel)}</span>` : '',
+            sku ? `<span class="pill pill-sku">SKU ${esc(sku)}</span>` : '',
+          ]
+            .filter(Boolean)
+            .join('');
+          return `
+            <tr>
+              <td class="prod">
+                <div class="prod-name">${esc(item.product_name)}</div>
+                <div class="pills">${pills}</div>
+              </td>
+              <td class="num">${item.quantity}</td>
+              <td class="num">${fmtMoney(item.unit_price)}</td>
+              <td class="num">${fmtMoney(item.total_price)}</td>
+            </tr>`;
+        })
+        .join('');
+
+      const storeName = settings?.store_name || 'Hy_stepper';
+      const storePhone = settings?.contact_phone || '';
+      const storeEmail = settings?.contact_email || '';
+      const storeAddress = (settings?.contact_address || '')
+        .split(/\r?\n/)
+        .map((l: string) => l.trim())
+        .filter(Boolean);
+
+      const paymentLabel = (() => {
+        const m = (order.payment_method || '').toString().toLowerCase();
+        if (m === 'cash') return 'Cash';
+        if (m === 'mobile_money' || m === 'momo') return 'Mobile Money';
+        if (m === 'card') return 'Card';
+        if (order.payment_provider) return order.payment_provider.toString();
+        return order.payment_method || 'Paid';
+      })();
+
+      const payable = Number(order.metadata?.payable_now ?? order.total) || 0;
+      const dueLater = Number(order.metadata?.delivery_fee_due ?? 0) || 0;
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${esc(docTitle)} ${esc(order.order_number || order.id.slice(0, 8))}</title>
+<style>
+  @page { size: A4; margin: 18mm 14mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: #111827;
+    margin: 0;
+    padding: 24px 28px;
+    background: #f3f4f6;
+  }
+  .sheet {
+    background: #fff;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 32px 36px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    border-radius: 8px;
+  }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 18px; border-bottom: 2px solid #111827; }
+  .brand .name { font-size: 22px; font-weight: 800; letter-spacing: 0.3px; }
+  .brand .meta { margin-top: 6px; font-size: 12px; color: #4b5563; line-height: 1.5; }
+  .doc { text-align: right; }
+  .doc .title { font-size: 22px; font-weight: 800; color: #111827; }
+  .doc .num { font-size: 13px; color: #4b5563; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .doc .date { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 22px; }
+  .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 16px; }
+  .card .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 6px; }
+  .card .body { font-size: 13px; line-height: 1.55; color: #111827; }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  table.items thead th { background: #111827; color: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 12px; text-align: left; }
+  table.items thead th.num { text-align: right; }
+  table.items tbody td { padding: 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; vertical-align: top; }
+  table.items tbody td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .prod-name { font-weight: 600; color: #111827; }
+  .pills { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid; }
+  .pill-size { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
+  .pill-color { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
+  .pill-sku { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; font-family: ui-monospace, monospace; }
+  .totals { margin-top: 18px; display: flex; justify-content: flex-end; }
+  .totals table { border-collapse: collapse; min-width: 280px; }
+  .totals td { padding: 6px 8px; font-size: 13px; }
+  .totals td.label { color: #4b5563; }
+  .totals td.value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #111827; }
+  .totals tr.grand td { font-size: 16px; font-weight: 800; padding-top: 10px; border-top: 2px solid #111827; }
+  .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .badge-paid { background: #d1fae5; color: #065f46; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .footer { margin-top: 32px; padding-top: 18px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #6b7280; line-height: 1.6; text-align: center; }
+  .thanks { font-weight: 700; color: #111827; font-size: 13px; margin-bottom: 4px; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .sheet { box-shadow: none; max-width: none; padding: 0; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="header">
+      <div class="brand">
+        <div class="name">${esc(storeName)}</div>
+        <div class="meta">
+          ${storeAddress.map((l: string) => esc(l)).join('<br />')}
+          ${storePhone ? `<br />Tel: ${esc(storePhone)}` : ''}
+          ${storeEmail ? `<br />${esc(storeEmail)}` : ''}
+        </div>
+      </div>
+      <div class="doc">
+        <div class="title">${esc(docTitle)}</div>
+        <div class="num">#${esc(order.order_number || order.id.slice(0, 8))}</div>
+        <div class="date">${esc(dateStr)}</div>
+        <div style="margin-top:8px;">
+          <span class="badge ${order.payment_status === 'paid' ? 'badge-paid' : 'badge-pending'}">${order.payment_status === 'paid' ? 'Paid' : (order.payment_status || 'Unpaid')}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div class="card">
+        <div class="label">Bill To</div>
+        <div class="body">
+          <strong>${esc(customerName)}</strong>
+          ${customerEmail ? `<br />${esc(customerEmail)}` : ''}
+          ${customerPhone ? `<br />${esc(customerPhone)}` : ''}
+          ${addressLines.length ? `<br />${addressLines.map((l: string) => esc(l)).join('<br />')}` : ''}
+        </div>
+      </div>
+      <div class="card">
+        <div class="label">Order Info</div>
+        <div class="body">
+          <strong>Status:</strong> ${esc(formatStatus(order.status))}<br />
+          <strong>Payment:</strong> ${esc(paymentLabel)}<br />
+          <strong>Source:</strong> ${isPos ? 'POS / In-store' : 'Online Store'}<br />
+          ${order.shipping_method ? `<strong>Delivery:</strong> ${esc(order.shipping_method)}` : ''}
+        </div>
+      </div>
+    </div>
+
+    <table class="items">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th class="num">Qty</th>
+          <th class="num">Price</th>
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml || '<tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">No items found</td></tr>'}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <table>
+        <tbody>
+          ${order.subtotal != null ? `<tr><td class="label">Subtotal</td><td class="value">${fmtMoney(order.subtotal)}</td></tr>` : ''}
+          ${order.shipping_total ? `<tr><td class="label">Shipping</td><td class="value">${fmtMoney(order.shipping_total)}</td></tr>` : ''}
+          ${order.tax_amount ? `<tr><td class="label">Tax</td><td class="value">${fmtMoney(order.tax_amount)}</td></tr>` : ''}
+          ${order.discount_amount ? `<tr><td class="label">Discount</td><td class="value">- ${fmtMoney(order.discount_amount)}</td></tr>` : ''}
+          <tr class="grand"><td class="label">Total</td><td class="value">${fmtMoney(order.total)}</td></tr>
+          ${dueLater > 0 ? `
+            <tr><td class="label">Paid online</td><td class="value">${fmtMoney(payable)}</td></tr>
+            <tr><td class="label">Due on delivery</td><td class="value">${fmtMoney(dueLater)}</td></tr>
+          ` : ''}
+        </tbody>
+      </table>
+    </div>
+
+    ${order.notes ? `<div style="margin-top:24px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e;"><strong>Notes:</strong> ${esc(order.notes)}</div>` : ''}
+
+    <div class="footer">
+      <div class="thanks">Thank you for shopping with ${esc(storeName)}!</div>
+      <div>Faulty items: report within 48 hours of delivery.</div>
+      <div>Other issues: report within 24 hours. Items must be unused, unworn and in original packaging.</div>
+      ${storePhone || storeEmail ? `<div style="margin-top:6px;">Questions? ${storePhone ? `Call ${esc(storePhone)}` : ''}${storePhone && storeEmail ? ' · ' : ''}${storeEmail ? `Email ${esc(storeEmail)}` : ''}</div>` : ''}
+    </div>
+  </div>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.focus(); window.print(); }, 200);
+    });
+    window.addEventListener('afterprint', function () { window.close(); });
+  </script>
+</body>
+</html>`;
+
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } catch (err) {
+      console.error('Failed to build invoice:', err);
+      win.document.open();
+      win.document.write(`<!DOCTYPE html><html><body style="font-family:system-ui;padding:40px;color:#991b1b;">
+        <h2>Couldn't load invoice</h2>
+        <p>${(err as Error)?.message || 'Unknown error'}</p>
+        <button onclick="window.close()">Close</button>
+      </body></html>`);
+      win.document.close();
+    }
   };
 
   const handleResendPaymentLink = async (order: Order) => {

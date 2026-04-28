@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { compareSizes } from '@/lib/sort-sizes';
 
 interface Variant {
     id: string;
@@ -1009,7 +1010,12 @@ export default function POSPage() {
 
                         <div className="p-5 overflow-y-auto">
                             <div className="grid grid-cols-3 gap-2">
-                                {variantProduct.variants.map(v => {
+                                {[...variantProduct.variants]
+                                    .sort((a, b) => compareSizes(
+                                        (a.option1 || a.name || '').toString(),
+                                        (b.option1 || b.name || '').toString(),
+                                    ))
+                                    .map(v => {
                                     const inCart = cart.find(c => c.key === `${variantProduct.id}:${v.id}`);
                                     const outOfStock = v.quantity <= 0;
                                     return (

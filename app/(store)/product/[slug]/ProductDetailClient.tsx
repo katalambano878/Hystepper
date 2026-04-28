@@ -10,6 +10,7 @@ const ProductReviews = dynamic(() => import('@/components/ProductReviews'), { ss
 import { StructuredData, generateProductSchema, generateBreadcrumbSchema } from '@/components/SEOHead';
 import { notFound } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
+import { sortSizes } from '@/lib/sort-sizes';
 
 function isLightColor(hex: string | null): boolean {
   if (!hex || typeof hex !== 'string') return false;
@@ -122,9 +123,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 const size = name.includes(' / ') ? name.split(' / ')[0].trim() : name;
                 if (size) sizeSet.add(size);
               });
-              return [...sizeSet];
+              return sortSizes([...sizeSet]);
             }
-            return [...new Set(variants.map((v: any) => v.name || v.option1).filter(Boolean))];
+            return sortSizes([
+              ...new Set(variants.map((v: any) => v.name || v.option1).filter(Boolean) as string[]),
+            ]);
           })(),
           variants: productData.product_variants || [],
           totalVariantStock: (productData.product_variants || []).reduce((sum: number, v: any) => sum + (Number(v?.quantity) || 0), 0),

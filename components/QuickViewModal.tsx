@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { sortSizes } from '@/lib/sort-sizes';
 
 interface Product {
   id: string;
@@ -159,7 +160,7 @@ export default function QuickViewModal({ product, isOpen, onClose }: QuickViewMo
                       Size: {selectedSize}
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {product.sizes.map((size) => (
+                      {sortSizes(product.sizes).map((size) => (
                         <button
                           key={size}
                           onClick={() => setSelectedSize(size)}

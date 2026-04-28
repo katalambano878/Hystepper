@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { compareSizes } from '@/lib/sort-sizes';
 
 interface CartItem {
     id: string;
@@ -280,20 +281,25 @@ export default function CreateOrderPage() {
                                     Select variant for: <span className="text-blue-700">{selectedProduct.name}</span>
                                 </h3>
                                 <div className="flex flex-wrap gap-2 mb-3">
-                                    {selectedProduct.product_variants?.map((v: any) => (
-                                        <button
-                                            key={v.id}
-                                            onClick={() => setSelectedVariant(v.id)}
-                                            className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer ${
-                                                selectedVariant === v.id
-                                                    ? 'border-blue-600 bg-blue-100 text-blue-800'
-                                                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                                            }`}
-                                        >
-                                            {[v.name || v.option1, v.option2].filter(Boolean).join(' / ')}
-                                            <span className="text-gray-400 ml-1">(GH₵ {v.price})</span>
-                                        </button>
-                                    ))}
+                                    {[...(selectedProduct.product_variants || [])]
+                                        .sort((a: any, b: any) => compareSizes(
+                                            (a.option1 || a.name || '').toString(),
+                                            (b.option1 || b.name || '').toString(),
+                                        ))
+                                        .map((v: any) => (
+                                            <button
+                                                key={v.id}
+                                                onClick={() => setSelectedVariant(v.id)}
+                                                className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer ${
+                                                    selectedVariant === v.id
+                                                        ? 'border-blue-600 bg-blue-100 text-blue-800'
+                                                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                                                }`}
+                                            >
+                                                {[v.name || v.option1, v.option2].filter(Boolean).join(' / ')}
+                                                <span className="text-gray-400 ml-1">(GH₵ {v.price})</span>
+                                            </button>
+                                        ))}
                                 </div>
                                 <div className="flex gap-2">
                                     <button

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import NotificationsBell from '@/components/admin/NotificationsBell';
 
 // Maps each admin URL prefix to the permission key that grants access.
 // Keys are matched longest-prefix-first; a value of null means "no permission
@@ -427,10 +428,7 @@ export default function AdminLayout({
             </button>
 
             <div className="flex items-center space-x-2 lg:space-x-4">
-              <button className="relative w-10 h-10 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
-                <i className="ri-notification-3-line text-xl"></i>
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
+              <NotificationsBell />
 
               <div className="relative user-menu-container">
                 <button

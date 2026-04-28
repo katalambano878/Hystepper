@@ -24,6 +24,9 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
+  // Status the admin has *picked* in the dropdown but not yet committed.
+  // The order's actual status only changes when "Update Status" is clicked.
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   // NOTE: Manual "Mark as paid" intentionally disabled. We only trust Moolre's verify
   // endpoint to mark payments; see handleReconcile below.
   // const [markingPaid, setMarkingPaid] = useState(false);
@@ -78,6 +81,8 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
             total_price,
             metadata,
             products (
+              sku,
+              product_code,
               product_images (url)
             )
           )
@@ -103,6 +108,8 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               total_price,
               metadata,
               products (
+                sku,
+                product_code,
                 product_images (url)
               )
             )
@@ -122,6 +129,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
       setOrder(data);
       setTrackingNumber(data.metadata?.tracking_number || '');
       setAdminNotes(data.notes || '');
+      setPendingStatus(null);
 
     } catch (err: any) {
       console.error('Error fetching order:', err);
@@ -217,6 +225,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
         alert('Order updated successfully');
       }
       setShowStatusMenu(false);
+      setPendingStatus(null);
     } catch (err) {
       console.error('Error updating order:', err);
       alert('Failed to update order');
@@ -241,6 +250,8 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   if (error || !order) return <div className="p-8 text-center text-red-500">{error || 'Order not found'}</div>;
 
   const currentStatus = order.status || 'pending';
+  const displayStatus = pendingStatus || currentStatus;
+  const hasPendingChange = !!pendingStatus && pendingStatus !== currentStatus;
   const shippingAddress = order.shipping_address || {};
   const customerName = shippingAddress.full_name || order.email.split('@')[0];
 
@@ -279,7 +290,23 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               </div>
 
               <div className="space-y-4">
-                {order.order_items?.map((item: any) => (
+                {order.order_items?.map((item: any) => {
+                  // Show whatever SKU we can find: stored on the order_item first
+                  // (correct for variants), then fall back to the parent product
+                  // SKU/code for older orders that didn't capture it on insert.
+                  const displaySku = (item.sku || item.products?.sku || item.products?.product_code || '').toString().trim();
+                  // Resolve Size / Colour. New orders store them on metadata.
+                  // Legacy orders only have the joined `variant_name` like
+                  // "38" or "38 / Black" — split that as a fallback so the
+                  // packer always sees a clear size pill.
+                  const meta = item.metadata || {};
+                  const variantParts = (item.variant_name || '')
+                    .split('/')
+                    .map((part: string) => part.trim())
+                    .filter(Boolean);
+                  const sizeLabel = (meta.size || variantParts[0] || '').toString().trim();
+                  const colorLabel = (meta.color || variantParts[1] || '').toString().trim();
+                  return (
                   <div key={item.id} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
                     <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center relative shrink-0">
                       {item.products?.product_images?.[0]?.url ? (
@@ -294,15 +321,51 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-900 mb-1 text-sm sm:text-base truncate">{item.product_name}</h3>
-                      <p className="text-sm text-gray-600 mb-1">{item.variant_name}</p>
-                      <p className="text-xs text-gray-500">SKU: {item.sku}</p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {sizeLabel && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Size</span>
+                            <span className="text-xs font-semibold text-indigo-900">{sizeLabel}</span>
+                          </span>
+                        )}
+                        {colorLabel && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700">Colour</span>
+                            <span className="text-xs font-semibold text-purple-900">{colorLabel}</span>
+                          </span>
+                        )}
+                        {!sizeLabel && !colorLabel && item.variant_name && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200 text-xs font-semibold text-gray-700">
+                            {item.variant_name}
+                          </span>
+                        )}
+                        {displaySku ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">SKU</span>
+                            <span className="text-xs font-mono font-semibold text-emerald-900">{displaySku}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(displaySku).catch(() => { /* clipboard blocked */ });
+                              }}
+                              title="Copy SKU"
+                              className="text-emerald-700 hover:text-emerald-900"
+                            >
+                              <i className="ri-file-copy-line text-xs"></i>
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-gray-400 italic">No SKU on file</span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">GH₵ {item.unit_price?.toFixed(2)}</p>
                       <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
@@ -364,26 +427,27 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               <div className="relative">
                 <button
                   onClick={() => setShowStatusMenu(!showStatusMenu)}
-                  className={`w-full px-4 py-3 rounded-lg border-2 font-semibold text-left flex items-center justify-between ${statusColors[currentStatus] || 'bg-gray-100'}`}
+                  className={`w-full px-4 py-3 rounded-lg border-2 font-semibold text-left flex items-center justify-between ${statusColors[displayStatus] || 'bg-gray-100'}`}
                 >
-                  <span className="capitalize">{currentStatus}</span>
+                  <span className="capitalize">{displayStatus}</span>
                   <i className="ri-arrow-down-s-line text-xl"></i>
                 </button>
+                {hasPendingChange && (
+                  <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 flex items-center gap-1">
+                    <i className="ri-information-line"></i>
+                    Pending change — click <strong>Update Status</strong> to save.
+                  </p>
+                )}
                 {showStatusMenu && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-gray-200 rounded-lg shadow-lg overflow-hidden z-10">
                     {statusOptions.map((status) => (
                       <button
                         key={status}
                         onClick={() => {
-                          if (status === 'cancelled' && order.payment_status === 'paid') {
-                            if (confirm('This order has been paid. Cancelling will automatically initiate a refund to the original payment method. Continue?')) {
-                              handleUpdateStatus(status);
-                            }
-                          } else {
-                            handleUpdateStatus(status);
-                          }
+                          setPendingStatus(status === currentStatus ? null : status);
+                          setShowStatusMenu(false);
                         }}
-                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors capitalize ${status === currentStatus ? 'bg-emerald-50 font-semibold' : ''
+                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors capitalize ${status === displayStatus ? 'bg-emerald-50 font-semibold' : ''
                           } ${status === 'cancelled' ? 'text-red-600 hover:bg-red-50' : ''}`}
                       >
                         {status}
@@ -437,7 +501,15 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               </div>
 
               <button
-                onClick={() => handleUpdateStatus()}
+                onClick={() => {
+                  const next = pendingStatus || currentStatus;
+                  if (next === 'cancelled' && order.payment_status === 'paid') {
+                    if (!confirm('This order has been paid. Cancelling will automatically initiate a refund to the original payment method. Continue?')) {
+                      return;
+                    }
+                  }
+                  handleUpdateStatus(next);
+                }}
                 disabled={statusUpdating}
                 className="w-full mt-4 bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-semibold transition-colors whitespace-nowrap disabled:opacity-50"
               >

@@ -272,15 +272,36 @@ function OrderSuccessContent() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 truncate">{item.product_name}</p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                      {item.variant_name && (
-                        <>
-                          <span>{item.variant_name}</span>
-                          <span className="w-1 h-1 rounded-full bg-gray-300" />
-                        </>
-                      )}
-                      <span>Qty {item.quantity}</span>
-                    </div>
+                    {(() => {
+                      const meta: any = item.metadata || {};
+                      const variantParts = (item.variant_name || '')
+                        .split('/')
+                        .map((part: string) => part.trim())
+                        .filter(Boolean);
+                      const sizeLabel = (meta.size || variantParts[0] || '').toString().trim();
+                      const colorLabel = (meta.color || variantParts[1] || '').toString().trim();
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1 text-xs text-gray-500">
+                          {sizeLabel && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-800 font-semibold">
+                              Size {sizeLabel}
+                            </span>
+                          )}
+                          {colorLabel && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-800 font-semibold">
+                              {colorLabel}
+                            </span>
+                          )}
+                          {!sizeLabel && !colorLabel && item.variant_name && (
+                            <>
+                              <span>{item.variant_name}</span>
+                              <span className="w-1 h-1 rounded-full bg-gray-300" />
+                            </>
+                          )}
+                          <span>Qty {item.quantity}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <p className="font-semibold text-gray-900 text-right whitespace-nowrap">
                     GH₵{(item.unit_price * item.quantity).toFixed(2)}

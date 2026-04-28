@@ -51,7 +51,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             category_id, rating_avg, product_code, material, heel_height, style_name,
             sizing_notes, metadata,
             categories(name),
-            product_variants(id, name, option1, option2, option3, quantity, image_url),
+            product_variants(id, name, sku, option1, option2, option3, quantity, image_url),
             product_images(url, position)
           `)
           .not('product_images.url', 'ilike', 'data:video%');
@@ -257,6 +257,29 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
     if (Number.isNaN(price) || price < 0) return;
 
+    // Pick the most specific variant SKU we can — match on size + colour first,
+    // then fall back to size-only, then any matching variant. Falls through to
+    // the parent product's SKU if no variant matches (or product has none).
+    const matchedVariant = (() => {
+      const variants: any[] = product.variants || [];
+      if (!variants.length) return null;
+      const size = (selectedSize || '').toString().trim();
+      const colour = (selectedColor || '').toString().trim();
+      const byBoth = size && colour
+        ? variants.find((v: any) => `${v.option1 ?? ''}`.trim() === size && `${v.option2 ?? ''}`.trim() === colour)
+        : null;
+      if (byBoth) return byBoth;
+      const bySize = size
+        ? variants.find((v: any) => `${v.option1 ?? ''}`.trim() === size || `${v.name ?? ''}`.trim() === size)
+        : null;
+      if (bySize) return bySize;
+      const byColour = colour
+        ? variants.find((v: any) => `${v.option2 ?? ''}`.trim() === colour)
+        : null;
+      return byColour;
+    })();
+    const resolvedSku = (matchedVariant?.sku || product.sku || '').toString().trim() || undefined;
+
     addToCart({
       id: product.id,
       name: product.name ?? 'Product',
@@ -265,7 +288,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       quantity: Math.max(1, Math.min(quantity, maxStock)),
       variant: [selectedSize, selectedColor].filter(Boolean).join(' / ') || undefined,
       slug: product.slug ?? product.id,
-      maxStock
+      maxStock,
+      sku: resolvedSku,
+      variantId: matchedVariant?.id,
+      size: selectedSize || undefined,
+      color: selectedColor || undefined,
     });
   };
 

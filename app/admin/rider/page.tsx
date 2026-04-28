@@ -487,28 +487,53 @@ export default function RiderPage() {
                     <div>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Order Items</p>
                       <div className="space-y-2">
-                        {order.order_items?.map(item => (
-                          <div key={item.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
-                            {item.metadata?.image && (
-                              <img
-                                src={item.metadata.image}
-                                alt={item.product_name}
-                                className="w-12 h-12 rounded-lg object-cover shrink-0 border border-gray-200"
-                                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 text-sm">{item.product_name}</p>
-                              {item.variant_name && (
-                                <p className="text-xs text-gray-500">{item.variant_name}</p>
+                        {order.order_items?.map(item => {
+                          // Riders need to confirm the exact size at hand-off,
+                          // so render Size / Colour as their own clear pills.
+                          const meta: any = item.metadata || {};
+                          const variantParts = (item.variant_name || '')
+                            .split('/')
+                            .map((part: string) => part.trim())
+                            .filter(Boolean);
+                          const sizeLabel = (meta.size || variantParts[0] || '').toString().trim();
+                          const colorLabel = (meta.color || variantParts[1] || '').toString().trim();
+                          return (
+                            <div key={item.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+                              {item.metadata?.image && (
+                                <img
+                                  src={item.metadata.image}
+                                  alt={item.product_name}
+                                  className="w-12 h-12 rounded-lg object-cover shrink-0 border border-gray-200"
+                                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
                               )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 text-sm">{item.product_name}</p>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                  {sizeLabel && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200">
+                                      <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-700">Size</span>
+                                      <span className="text-[11px] font-semibold text-indigo-900">{sizeLabel}</span>
+                                    </span>
+                                  )}
+                                  {colorLabel && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200">
+                                      <span className="text-[9px] font-bold uppercase tracking-wider text-purple-700">Colour</span>
+                                      <span className="text-[11px] font-semibold text-purple-900">{colorLabel}</span>
+                                    </span>
+                                  )}
+                                  {!sizeLabel && !colorLabel && item.variant_name && (
+                                    <span className="text-xs text-gray-500">{item.variant_name}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-sm font-semibold text-gray-900">GH₵ {item.total_price?.toFixed(2)}</p>
+                                <p className="text-xs text-gray-400">×{item.quantity}</p>
+                              </div>
                             </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-sm font-semibold text-gray-900">GH₵ {item.total_price?.toFixed(2)}</p>
-                              <p className="text-xs text-gray-400">×{item.quantity}</p>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
 

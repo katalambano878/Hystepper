@@ -315,19 +315,27 @@ export default function CheckoutPage() {
 
       if (orderError) throw orderError;
 
-      // Create Order Items
+      // Create Order Items — carry SKU + variant_id so warehouse / POS can pack
+      // the right size/colour and admin order details show a fillable SKU.
       const orderItems = [
         ...cart.map(item => ({
           order_id: order.id,
           product_id: item.id,
           product_name: item.name,
           variant_name: item.variant,
+          sku: item.sku || null,
           quantity: item.quantity,
           unit_price: item.price,
           total_price: item.price * item.quantity,
           metadata: {
             image: item.image,
-            slug: item.slug
+            slug: item.slug,
+            variant_id: item.variantId || null,
+            // Persist picked options separately so admin order screens can
+            // render Size / Colour as their own pills (legacy orders fall
+            // back to parsing variant_name).
+            size: item.size || null,
+            color: item.color || null,
           }
         }))
       ];

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface Variant {
@@ -77,6 +77,10 @@ export default function POSPage() {
     const [deliveryZones, setDeliveryZones] = useState<any[]>([]);
     const [regionType, setRegionType] = useState<'' | 'greater_accra' | 'other_regions'>('');
     const [selectedZoneId, setSelectedZoneId] = useState<string>('');
+    // Search-as-you-type combobox for delivery areas (the list can be 60+ zones).
+    const [zoneSearch, setZoneSearch] = useState<string>('');
+    const [showZoneDropdown, setShowZoneDropdown] = useState<boolean>(false);
+    const zoneComboRef = useRef<HTMLDivElement | null>(null);
     // Manual fee override — only used when item count rules block automatic pricing
     // (3+ items outside Accra). Public site asks customers to contact support; in
     // the POS we let the admin type a quoted price so the sale can still close.
@@ -86,7 +90,6 @@ export default function POSPage() {
         lastName: '',
         email: '',
         phone: '',
-        address: '',
         city: '',
         region: '',
         notes: '',
@@ -95,6 +98,17 @@ export default function POSPage() {
     useEffect(() => {
         fetchData();
     }, []);
+
+    // Close the area combobox when clicking outside it.
+    useEffect(() => {
+        if (!showZoneDropdown) return;
+        const onDocClick = (e: MouseEvent) => {
+            if (!zoneComboRef.current) return;
+            if (!zoneComboRef.current.contains(e.target as Node)) setShowZoneDropdown(false);
+        };
+        document.addEventListener('mousedown', onDocClick);
+        return () => document.removeEventListener('mousedown', onDocClick);
+    }, [showZoneDropdown]);
 
     const fetchData = async () => {
         try {
@@ -322,10 +336,6 @@ export default function POSPage() {
                 alert('Delivery orders require a customer phone number.');
                 return;
             }
-            if (!guestDetails.address.trim()) {
-                alert('Please enter a delivery address.');
-                return;
-            }
             if (!selectedZone) {
                 alert('Please select a delivery area so the fee can be applied.');
                 return;
@@ -341,17 +351,20 @@ export default function POSPage() {
         try {
             // Build a shipping_address using the same shape as online orders so the
             // admin order details screen renders correctly (address_line1, city, etc.)
-            // Use the zone for region/city (same shape the public checkout writes),
-            // and treat the free-text "city" input as a more specific landmark/area.
+            // The zone is the primary destination; the optional "landmark" input is
+            // used to add specifics (e.g. "near the post office"), and any rider
+            // notes are appended so the rider sees them in their app.
             const zoneName = selectedZone?.name || '';
+            const landmark = guestDetails.city.trim();
+            const composedLine = [landmark, zoneName].filter(Boolean).join(', ');
             const deliveryAddress = {
                 full_name: resolvedFullName || 'Walk-in Customer',
                 first_name: resolvedFirstName,
                 last_name: resolvedLastName,
                 email: resolvedEmail,
                 phone: resolvedPhone,
-                address_line1: guestDetails.address,
-                city: guestDetails.city || zoneName,
+                address_line1: composedLine || zoneName,
+                city: landmark || zoneName,
                 state: zoneName,
                 region: zoneName,
                 country: 'Ghana',
@@ -406,17 +419,33 @@ export default function POSPage() {
 
             if (orderError) throw orderError;
 
-            const orderItems = cart.map(item => ({
-                order_id: order.id,
-                product_id: item.productId,
-                variant_id: item.variantId,
-                product_name: item.name,
-                variant_name: item.variantLabel,
-                sku: item.sku,
-                quantity: item.cartQuantity,
-                unit_price: item.price,
-                total_price: item.price * item.cartQuantity
-            }));
+            const orderItems = cart.map(item => {
+                // variantLabel is shaped like "Size" or "Size / Colour";
+                // split it so the admin order detail can show Size and
+                // Colour as their own dedicated pills.
+                const labelParts = (item.variantLabel || '')
+                    .split('/')
+                    .map((part: string) => part.trim())
+                    .filter(Boolean);
+                const sizePart = labelParts[0] || null;
+                const colorPart = labelParts[1] || null;
+                return {
+                    order_id: order.id,
+                    product_id: item.productId,
+                    variant_id: item.variantId,
+                    product_name: item.name,
+                    variant_name: item.variantLabel,
+                    sku: item.sku,
+                    quantity: item.cartQuantity,
+                    unit_price: item.price,
+                    total_price: item.price * item.cartQuantity,
+                    metadata: {
+                        size: sizePart,
+                        color: colorPart,
+                        variant_id: item.variantId,
+                    },
+                };
+            });
 
             const { error: itemsError } = await supabase
                 .from('order_items')
@@ -738,13 +767,14 @@ export default function POSPage() {
         setOrderType('walk_in');
         setRegionType('');
         setSelectedZoneId('');
+        setZoneSearch('');
+        setShowZoneDropdown(false);
         setManualDeliveryFee('');
         setGuestDetails({
             firstName: '',
             lastName: '',
             email: '',
             phone: '',
-            address: '',
             city: '',
             region: '',
             notes: '',
@@ -1185,14 +1215,6 @@ export default function POSPage() {
                                                     className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
                                                 />
                                             )}
-                                            <textarea
-                                                placeholder="Delivery Address (Required)"
-                                                value={guestDetails.address}
-                                                onChange={(e) => setGuestDetails({ ...guestDetails, address: e.target.value })}
-                                                rows={2}
-                                                className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
-                                            />
-
                                             {/* Region + Zone — same source as the public checkout */}
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 <div>
@@ -1205,6 +1227,8 @@ export default function POSPage() {
                                                             const next = e.target.value as '' | 'greater_accra' | 'other_regions';
                                                             setRegionType(next);
                                                             setSelectedZoneId('');
+                                                            setZoneSearch('');
+                                                            setShowZoneDropdown(false);
                                                             setManualDeliveryFee('');
                                                         }}
                                                         className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white"
@@ -1214,28 +1238,102 @@ export default function POSPage() {
                                                         <option value="other_regions">Other Regions</option>
                                                     </select>
                                                 </div>
-                                                <div>
+                                                <div ref={zoneComboRef} className="relative">
                                                     <label className="block text-xs font-semibold text-amber-900 mb-1 uppercase tracking-wide">
                                                         {regionType === 'other_regions' ? 'City *' : 'Delivery Area *'}
                                                     </label>
-                                                    <select
-                                                        value={selectedZoneId}
-                                                        onChange={(e) => {
-                                                            setSelectedZoneId(e.target.value);
-                                                            setManualDeliveryFee('');
-                                                        }}
-                                                        disabled={!regionType}
-                                                        className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white disabled:bg-amber-50 disabled:cursor-not-allowed"
-                                                    >
-                                                        <option value="">
-                                                            {regionType ? 'Select an area' : 'Pick a region first'}
-                                                        </option>
-                                                        {(regionType === 'greater_accra' ? accraZones : regionType === 'other_regions' ? outsideZones : []).map((z: any) => (
-                                                            <option key={z.id} value={z.id}>
-                                                                {z.name} — GH₵{Number(z.base_fee || 0).toFixed(0)}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                    {(() => {
+                                                        const zonesForType = regionType === 'greater_accra'
+                                                            ? accraZones
+                                                            : regionType === 'other_regions'
+                                                                ? outsideZones
+                                                                : [];
+                                                        const inputValue = selectedZone
+                                                            ? `${selectedZone.name} — GH₵${Number(selectedZone.base_fee || 0).toFixed(0)}`
+                                                            : zoneSearch;
+                                                        const search = zoneSearch.trim().toLowerCase();
+                                                        const filtered = search
+                                                            ? zonesForType.filter((z: any) =>
+                                                                String(z.name || '').toLowerCase().includes(search)
+                                                            )
+                                                            : zonesForType;
+                                                        return (
+                                                            <>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={inputValue}
+                                                                        readOnly={!!selectedZone}
+                                                                        disabled={!regionType}
+                                                                        placeholder={
+                                                                            regionType
+                                                                                ? regionType === 'other_regions'
+                                                                                    ? 'Search city…'
+                                                                                    : 'Search area…'
+                                                                                : 'Pick a region first'
+                                                                        }
+                                                                        onChange={(e) => {
+                                                                            setZoneSearch(e.target.value);
+                                                                            setShowZoneDropdown(true);
+                                                                        }}
+                                                                        onFocus={() => {
+                                                                            if (regionType && !selectedZone) setShowZoneDropdown(true);
+                                                                        }}
+                                                                        onClick={() => {
+                                                                            if (regionType && !selectedZone) setShowZoneDropdown(true);
+                                                                        }}
+                                                                        className="w-full pl-9 pr-9 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-sm bg-white disabled:bg-amber-50 disabled:cursor-not-allowed"
+                                                                    />
+                                                                    <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-amber-700 text-sm"></i>
+                                                                    {selectedZone ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setSelectedZoneId('');
+                                                                                setZoneSearch('');
+                                                                                setManualDeliveryFee('');
+                                                                                setShowZoneDropdown(true);
+                                                                            }}
+                                                                            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-amber-700 hover:text-amber-900"
+                                                                            title="Change area"
+                                                                        >
+                                                                            <i className="ri-close-line"></i>
+                                                                        </button>
+                                                                    ) : (
+                                                                        <i className="ri-arrow-down-s-line absolute right-3 top-1/2 -translate-y-1/2 text-amber-700"></i>
+                                                                    )}
+                                                                </div>
+                                                                {showZoneDropdown && regionType && !selectedZone && (
+                                                                    <div className="absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-y-auto bg-white border border-amber-300 rounded-md shadow-lg">
+                                                                        {filtered.length === 0 ? (
+                                                                            <div className="px-3 py-3 text-xs text-amber-700">
+                                                                                No areas match &ldquo;{zoneSearch}&rdquo;.
+                                                                            </div>
+                                                                        ) : (
+                                                                            filtered.map((z: any) => (
+                                                                                <button
+                                                                                    key={z.id}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        setSelectedZoneId(z.id);
+                                                                                        setZoneSearch('');
+                                                                                        setManualDeliveryFee('');
+                                                                                        setShowZoneDropdown(false);
+                                                                                    }}
+                                                                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-amber-50"
+                                                                                >
+                                                                                    <span className="text-gray-900">{z.name}</span>
+                                                                                    <span className="text-amber-800 font-semibold">
+                                                                                        GH₵{Number(z.base_fee || 0).toFixed(0)}
+                                                                                    </span>
+                                                                                </button>
+                                                                            ))
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
@@ -1355,7 +1453,6 @@ export default function POSPage() {
                                             processing ||
                                             (paymentMethod === 'cash' && parseFloat(amountTendered || '0') < grandTotal) ||
                                             (orderType === 'delivery' && (
-                                                !guestDetails.address.trim() ||
                                                 !((guestDetails.phone || selectedCustomer?.phone || '').trim()) ||
                                                 !selectedZone ||
                                                 (outsideAccraTooManyItems && parsedManualFee <= 0)

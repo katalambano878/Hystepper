@@ -11,6 +11,15 @@ export type CartItem = {
     variant?: string;
     slug: string;
     maxStock: number;
+    // Carried through to order_items so warehouse/POS can pack the right
+    // size/colour. Variant SKU wins over product SKU when present.
+    sku?: string;
+    variantId?: string;
+    // Picked option values, kept separate from `variant` (which is the joined
+    // display string like "38 / Black") so the admin/order screens can render
+    // them as their own prominent pills.
+    size?: string;
+    color?: string;
 };
 
 type CartContextType = {
@@ -51,6 +60,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
                             variant: item?.variant,
                             slug: item?.slug ?? item?.id ?? '',
                             maxStock,
+                            sku: typeof item?.sku === 'string' ? item.sku : undefined,
+                            variantId: typeof item?.variantId === 'string' ? item.variantId : undefined,
+                            size: typeof item?.size === 'string' ? item.size : undefined,
+                            color: typeof item?.color === 'string' ? item.color : undefined,
                         };
                     }).filter((item: any) => item.id);
                     setCart(safe);

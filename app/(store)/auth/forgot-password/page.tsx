@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -12,23 +13,37 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
 
     if (!email) {
       setError('Email is required');
-      setIsLoading(false);
       return;
     }
     if (!/\S+@\S+\.\S+/.test(email)) {
       setError('Please enter a valid email');
-      setIsLoading(false);
       return;
     }
 
-    setTimeout(() => {
-      setIsLoading(false);
+    setIsLoading(true);
+    try {
+      // Build the absolute redirect URL so the recovery link in the email
+      // brings the user back to /auth/reset-password on the right host
+      // (works in dev, preview, and production).
+      const redirectTo =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/auth/reset-password`
+          : undefined;
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+      if (resetError) throw resetError;
       setIsSubmitted(true);
-    }, 1500);
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      setError(err?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -41,14 +56,14 @@ export default function ForgotPasswordPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-3">Check Your Email</h1>
             <p className="text-gray-600 mb-6">
-              We've sent a password reset link to <strong>{email}</strong>
+              If an account exists for <strong>{email}</strong> we&apos;ve sent a password reset link.
             </p>
             <p className="text-sm text-gray-500 mb-8">
-              If you don't receive an email within a few minutes, please check your spam folder.
+              The link expires in 1 hour. Don&apos;t see the email? Check your spam folder.
             </p>
             <Link
               href="/auth/login"
-              className="inline-block bg-emerald-700 hover:bg-emerald-800 text-white px-8 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap"
+              className="inline-block bg-gold-600 hover:bg-gold-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap"
             >
               Back to Sign In
             </Link>
@@ -76,20 +91,18 @@ export default function ForgotPasswordPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 ${
                   error ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="you@example.com"
               />
-              {error && (
-                <p className="text-sm text-red-600 mt-2">{error}</p>
-              )}
+              {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
             >
               {isLoading ? 'Sending...' : 'Send Reset Link'}
             </button>
@@ -97,7 +110,10 @@ export default function ForgotPasswordPage() {
 
           <p className="mt-8 text-center text-gray-600">
             Remember your password?{' '}
-            <Link href="/auth/login" className="text-emerald-700 hover:text-emerald-900 font-semibold whitespace-nowrap">
+            <Link
+              href="/auth/login"
+              className="text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap"
+            >
               Sign in
             </Link>
           </p>

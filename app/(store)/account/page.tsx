@@ -36,11 +36,13 @@ function AccountContent() {
 
   // Password Form States
   const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
     password: '',
     confirmPassword: ''
   });
   const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
 
   useEffect(() => {
     async function checkUser() {
@@ -87,6 +89,12 @@ function AccountContent() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordMessage({ type: '', text: '' });
+
+    if (!passwordData.currentPassword) {
+      setPasswordMessage({ type: 'error', text: 'Please enter your current password' });
+      return;
+    }
     if (passwordData.password !== passwordData.confirmPassword) {
       setPasswordMessage({ type: 'error', text: 'Passwords do not match' });
       return;
@@ -95,17 +103,31 @@ function AccountContent() {
       setPasswordMessage({ type: 'error', text: 'Password must be at least 6 characters' });
       return;
     }
+    if (passwordData.password === passwordData.currentPassword) {
+      setPasswordMessage({ type: 'error', text: 'New password must be different from the current one' });
+      return;
+    }
 
     setPasswordLoading(true);
-    setPasswordMessage({ type: '', text: '' });
 
     try {
+      // Re-authenticate with the current password to confirm it really
+      // is the account owner doing the change. Supabase doesn't enforce
+      // this on updateUser, so we add the check here.
+      const email = user?.email;
+      if (!email) throw new Error('Missing account email');
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: passwordData.currentPassword,
+      });
+      if (signInError) throw new Error('Current password is incorrect');
+
       const { error } = await supabase.auth.updateUser({
-        password: passwordData.password
+        password: passwordData.password,
       });
       if (error) throw error;
       setPasswordMessage({ type: 'success', text: 'Password updated successfully!' });
-      setPasswordData({ password: '', confirmPassword: '' });
+      setPasswordData({ currentPassword: '', password: '', confirmPassword: '' });
     } catch (err: any) {
       setPasswordMessage({ type: 'error', text: err.message });
     } finally {
@@ -139,23 +161,6 @@ function AccountContent() {
       title: 'Refer & Earn',
       description: 'Invite friends and earn rewards',
       link: '/referral'
-    }
-  ];
-
-  const securityOptions = [
-    {
-      icon: 'ri-mail-check-line',
-      title: 'Verify Email',
-      description: user?.email,
-      status: user?.email_confirmed_at ? 'verified' : 'unverified',
-      link: '#' // /account/verify-email
-    },
-    {
-      icon: 'ri-phone-line',
-      title: 'Verify Phone',
-      description: user?.phone || 'No phone added',
-      status: user?.phone_confirmed_at ? 'verified' : 'unverified',
-      link: '#' // /account/verify-phone
     }
   ];
 
@@ -311,52 +316,18 @@ function AccountContent() {
                       </div>
                     </form>
 
-                    <div className="mt-12 pt-12 border-t border-gray-100">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">Change Password</h3>
-                      <p className="text-gray-500 mb-6">Ensure your account uses a strong, unique password.</p>
-
-                      {passwordMessage.text && (
-                        <div className={`mb-6 p-4 rounded-xl flex items-start gap-3 ${passwordMessage.type === 'success' ? 'bg-gold-50 text-gold-700 border border-gold-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
-                          <i className={`text-xl mt-0.5 ${passwordMessage.type === 'success' ? 'ri-checkbox-circle-line' : 'ri-error-warning-line'}`}></i>
-                          <div>{passwordMessage.text}</div>
-                        </div>
-                      )}
-
-                      <form onSubmit={handleChangePassword} className="space-y-5">
-                        <div className="grid md:grid-cols-2 gap-6">
-                          <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-900">New Password</label>
-                            <div className="relative">
-                              <i className="ri-lock-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                              <input
-                                type="password"
-                                value={passwordData.password}
-                                onChange={e => setPasswordData({ ...passwordData, password: e.target.value })}
-                                className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-gold-50 focus:border-gold-500 transition-all bg-gray-50 focus:bg-white"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-900">Confirm Password</label>
-                            <div className="relative">
-                              <i className="ri-lock-check-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                              <input
-                                type="password"
-                                value={passwordData.confirmPassword}
-                                onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                                className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-gold-50 focus:border-gold-500 transition-all bg-gray-50 focus:bg-white"
-                              />
-                            </div>
-                          </div>
-                        </div>
+                    <div className="mt-8 pt-8 border-t border-gray-100">
+                      <p className="text-sm text-gray-500">
+                        Want to change your password? Head over to{' '}
                         <button
-                          type="submit"
-                          disabled={passwordLoading}
-                          className="px-8 py-3 bg-gray-900 hover:bg-black text-white rounded-xl font-semibold transition-all shadow-lg shadow-gray-900/10 active:scale-95 disabled:opacity-50 disabled:shadow-none"
+                          type="button"
+                          onClick={() => setActiveTab('security')}
+                          className="font-semibold text-gold-600 hover:text-gold-700 underline-offset-2 hover:underline"
                         >
-                          {passwordLoading ? 'Updating...' : 'Update Password'}
+                          Security
                         </button>
-                      </form>
+                        .
+                      </p>
                     </div>
                   </div>
                 )}
@@ -366,39 +337,96 @@ function AccountContent() {
                 {activeTab === 'addresses' && <AddressBook />}
 
                 {activeTab === 'security' && (
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Security Settings</h2>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {securityOptions.map((option, index) => (
-                        <Link
-                          key={index}
-                          href={option.link}
-                          className="flex items-center justify-between p-5 border border-gray-200 rounded-2xl hover:border-gold-500 hover:shadow-md transition-all group bg-white"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-gold-100 group-hover:text-gold-700 transition-colors">
-                              <i className={`${option.icon} text-xl`}></i>
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-gray-900">{option.title}</h3>
-                              <p className="text-sm text-gray-500">{option.description}</p>
-                            </div>
+                  <div className="max-w-2xl">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Change Password</h2>
+                    <p className="text-gray-500 mb-8">
+                      Use a strong password you don&apos;t reuse anywhere else. We&apos;ll
+                      ask for your current password to confirm it&apos;s really you.
+                    </p>
+
+                    {passwordMessage.text && (
+                      <div className={`mb-6 p-4 rounded-xl flex items-start gap-3 ${passwordMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                        <i className={`text-xl mt-0.5 ${passwordMessage.type === 'success' ? 'ri-checkbox-circle-line' : 'ri-error-warning-line'}`}></i>
+                        <div>{passwordMessage.text}</div>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleChangePassword} className="space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-900">Current Password</label>
+                        <div className="relative">
+                          <i className="ri-lock-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                          <input
+                            type={showPasswords ? 'text' : 'password'}
+                            value={passwordData.currentPassword}
+                            onChange={e => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                            autoComplete="current-password"
+                            className="w-full pl-11 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-gold-50 focus:border-gold-500 transition-all bg-gray-50 focus:bg-white"
+                            placeholder="Enter your current password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswords(s => !s)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
+                          >
+                            <i className={`${showPasswords ? 'ri-eye-off-line' : 'ri-eye-line'} text-lg`}></i>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-gray-900">New Password</label>
+                          <div className="relative">
+                            <i className="ri-key-2-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input
+                              type={showPasswords ? 'text' : 'password'}
+                              value={passwordData.password}
+                              onChange={e => setPasswordData({ ...passwordData, password: e.target.value })}
+                              autoComplete="new-password"
+                              className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-gold-50 focus:border-gold-500 transition-all bg-gray-50 focus:bg-white"
+                              placeholder="At least 6 characters"
+                            />
                           </div>
-                          <div className="flex items-center gap-3">
-                            {option.status === 'verified' && (
-                              <span className="text-xs font-bold px-3 py-1 bg-gold-100 text-gold-700 rounded-full flex items-center gap-1">
-                                <i className="ri-verified-badge-fill"></i> Verified
-                              </span>
-                            )}
-                            {option.status === 'unverified' && (
-                              <span className="text-xs font-bold px-3 py-1 bg-amber-100 text-amber-700 rounded-full flex items-center gap-1">
-                                <i className="ri-error-warning-fill"></i> Verify
-                              </span>
-                            )}
-                            <i className="ri-arrow-right-line text-gray-300 group-hover:text-gold-500 transition-colors"></i>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-gray-900">Confirm New Password</label>
+                          <div className="relative">
+                            <i className="ri-lock-check-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input
+                              type={showPasswords ? 'text' : 'password'}
+                              value={passwordData.confirmPassword}
+                              onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                              autoComplete="new-password"
+                              className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-gold-50 focus:border-gold-500 transition-all bg-gray-50 focus:bg-white"
+                              placeholder="Re-enter new password"
+                            />
                           </div>
-                        </Link>
-                      ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={passwordLoading}
+                        className="px-8 py-3 bg-gray-900 hover:bg-black text-white rounded-xl font-semibold transition-all shadow-lg shadow-gray-900/10 active:scale-95 disabled:opacity-50 disabled:shadow-none"
+                      >
+                        {passwordLoading ? 'Updating…' : 'Update Password'}
+                      </button>
+                    </form>
+
+                    <div className="mt-12 pt-8 border-t border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Forgot your password?</h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        We can email you a secure reset link.
+                      </p>
+                      <Link
+                        href="/auth/forgot-password"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-gray-200 rounded-xl font-medium text-gray-700 hover:border-gold-500 hover:text-gold-700 transition-colors"
+                      >
+                        <i className="ri-mail-send-line"></i>
+                        Email me a reset link
+                      </Link>
                     </div>
                   </div>
                 )}

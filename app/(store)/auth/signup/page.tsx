@@ -23,7 +23,6 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,13 +38,11 @@ export default function SignupPage() {
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email';
     }
-    if (!formData.phone) {
-      newErrors.phone = 'Phone number is required';
-    }
+    // Phone is optional at signup; we collect it again at checkout.
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
     }
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
@@ -68,35 +65,46 @@ export default function SignupPage() {
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
-            phone: formData.phone,
-            newsletter: formData.newsletter
-          }
-        }
+            phone: formData.phone || null,
+            newsletter: formData.newsletter,
+          },
+        },
       });
 
       if (error) throw error;
 
       if (data.user) {
-        // Send Welcome Notification
+        // Fire-and-forget welcome notification.
         fetch('/api/notifications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'welcome',
-            payload: {
-              email: formData.email,
-              firstName: formData.firstName
-            }
-          })
+            payload: { email: formData.email, firstName: formData.firstName },
+          }),
         }).catch(err => console.error('Welcome notification error:', err));
-        // If Supabase confirms via email, data.session might be null initially
+
+        // We want signup to feel instant — no email verification step.
+        // If the project still has email-confirmations on, signUp returns
+        // no session; we explicitly sign in with the same credentials so
+        // the customer lands straight on /account either way.
         if (!data.session) {
-          setSuccess(true);
-        } else {
-          // Auto-login success (if email confirming is off)
-          router.push('/account');
-          router.refresh();
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
+          if (signInError) {
+            // Email-confirmation is enforced at the project level and
+            // can't be bypassed from the client. Tell the user clearly.
+            setAuthError(
+              'Account created, but email confirmation is required by the project. Disable "Confirm email" in Supabase → Auth → Sign-in/Sign-up to skip verification.'
+            );
+            setIsLoading(false);
+            return;
+          }
         }
+        router.push('/account');
+        router.refresh();
       }
     } catch (err: any) {
       console.error('Signup error:', err);
@@ -105,26 +113,6 @@ export default function SignupPage() {
       setIsLoading(false);
     }
   };
-
-  if (success) {
-    return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6">
-        <div className="max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-gold-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="ri-mail-send-line text-4xl text-gold-600"></i>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Check Your Email</h1>
-          <p className="text-gray-600 mb-8">
-            We've sent a confirmation link to <strong>{formData.email}</strong>.<br />
-            Please check your inbox to activate your account.
-          </p>
-          <Link href="/auth/login" className="inline-block bg-gold-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-gold-700 transition-colors">
-            Back to Login
-          </Link>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6">
@@ -196,19 +184,15 @@ export default function SignupPage() {
 
             <div>
               <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Phone Number
+                Phone Number <span className="text-gray-400 font-normal text-xs">(optional)</span>
               </label>
               <input
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500"
                 placeholder="+233 XX XXX XXXX"
               />
-              {errors.phone && (
-                <p className="text-sm text-red-600 mt-2">{errors.phone}</p>
-              )}
             </div>
 
             <div>
@@ -222,7 +206,7 @@ export default function SignupPage() {
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className={`w-full px-4 py-3 pr-12 border-2 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
                     }`}
-                  placeholder="At least 8 characters"
+                  placeholder="At least 6 characters"
                 />
                 <button
                   type="button"
@@ -300,34 +284,6 @@ export default function SignupPage() {
               ) : 'Create Account'}
             </button>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Or sign up with</span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-4">
-              <button
-                disabled
-                className="flex items-center justify-center space-x-2 border-2 border-gray-200 bg-gray-50 py-3 rounded-lg cursor-not-allowed opacity-60"
-              >
-                <i className="ri-google-fill text-xl text-red-600 grayscale opacity-50"></i>
-                <span className="font-medium text-gray-400">Google</span>
-              </button>
-              <button
-                disabled
-                className="flex items-center justify-center space-x-2 border-2 border-gray-200 bg-gray-50 py-3 rounded-lg cursor-not-allowed opacity-60"
-              >
-                <i className="ri-facebook-fill text-xl text-blue-600 grayscale opacity-50"></i>
-                <span className="font-medium text-gray-400">Facebook</span>
-              </button>
-            </div>
-          </div>
 
           <p className="mt-8 text-center text-gray-600">
             Already have an account?{' '}

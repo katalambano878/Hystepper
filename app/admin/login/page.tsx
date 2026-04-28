@@ -125,6 +125,15 @@ export default function AdminLoginPage() {
                 'Sign In'
               )}
             </button>
+
+            <div className="text-center pt-2">
+              <Link
+                href="/auth/forgot-password"
+                className="text-sm text-emerald-700 hover:text-emerald-900 font-medium"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </form>
 
         </div>

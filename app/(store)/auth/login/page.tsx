@@ -127,7 +127,6 @@ export default function LoginPage() {
                   type="checkbox"
                   checked={formData.rememberMe}
                   onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
-                  onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
                   className="w-4 h-4 text-gold-600 rounded focus:ring-gold-500"
                 />
                 <span className="text-sm text-gray-700">Remember me</span>
@@ -149,34 +148,6 @@ export default function LoginPage() {
               ) : 'Sign In'}
             </button>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-4">
-              <button
-                disabled
-                className="flex items-center justify-center space-x-2 border-2 border-gray-200 bg-gray-50 py-3 rounded-lg cursor-not-allowed opacity-60"
-              >
-                <i className="ri-google-fill text-xl text-red-600 grayscale opacity-50"></i>
-                <span className="font-medium text-gray-400">Google</span>
-              </button>
-              <button
-                disabled
-                className="flex items-center justify-center space-x-2 border-2 border-gray-200 bg-gray-50 py-3 rounded-lg cursor-not-allowed opacity-60"
-              >
-                <i className="ri-facebook-fill text-xl text-blue-600 grayscale opacity-50"></i>
-                <span className="font-medium text-gray-400">Facebook</span>
-              </button>
-            </div>
-          </div>
 
           <p className="mt-8 text-center text-gray-600">
             Don't have an account?{' '}

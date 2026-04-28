@@ -12,6 +12,9 @@ import NotificationsBell from '@/components/admin/NotificationsBell';
 // requiring the 'dashboard' permission.
 const PATH_PERMISSIONS: Array<[string, string | null]> = [
   ['/admin/login', null],
+  // Account settings are available to every signed-in admin/staff so they
+  // can update their own profile and password.
+  ['/admin/account', null],
   ['/admin/orders', 'orders'],
   ['/admin/delivery', 'delivery'],
   ['/admin/rider', 'order_status'],
@@ -148,8 +151,13 @@ export default function AdminLayout({
       const perms: Record<string, boolean> = staffRow.permissions || {};
       setStaffPermissions(perms);
 
-      // Riders only ever see their personal delivery queue.
-      if (staffRow.role === 'rider' && pathname !== '/admin/rider') {
+      // Riders only ever see their personal delivery queue (plus their own
+      // account settings page so they can update their password).
+      if (
+        staffRow.role === 'rider' &&
+        pathname !== '/admin/rider' &&
+        !pathname.startsWith('/admin/account')
+      ) {
         router.replace('/admin/rider');
         setIsLoading(false);
         return;
@@ -449,6 +457,14 @@ export default function AdminLayout({
 
                 {showUserMenu && (
                   <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-20">
+                    <Link
+                      href="/admin/account"
+                      onClick={() => setShowUserMenu(false)}
+                      className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left cursor-pointer"
+                    >
+                      <i className="ri-user-settings-line text-gray-600 w-5 h-5 flex items-center justify-center"></i>
+                      <span className="text-gray-700">Account Settings</span>
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-50 transition-colors border-t border-gray-200 text-left cursor-pointer"

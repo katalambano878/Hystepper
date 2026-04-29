@@ -339,7 +339,7 @@ export default function AdminOrdersPage() {
         .select(`
           id, order_number, email, phone, status, payment_status,
           payment_method, payment_provider, shipping_method, created_at,
-          subtotal, shipping_total, tax_amount, discount_amount, total,
+          subtotal, shipping_total, tax_total, discount_total, total,
           notes, shipping_address, billing_address, metadata,
           order_items (
             id, product_name, variant_name, sku, quantity,
@@ -570,8 +570,8 @@ export default function AdminOrdersPage() {
         <tbody>
           ${order.subtotal != null ? `<tr><td class="label">Subtotal</td><td class="value">${fmtMoney(order.subtotal)}</td></tr>` : ''}
           ${order.shipping_total ? `<tr><td class="label">Shipping</td><td class="value">${fmtMoney(order.shipping_total)}</td></tr>` : ''}
-          ${order.tax_amount ? `<tr><td class="label">Tax</td><td class="value">${fmtMoney(order.tax_amount)}</td></tr>` : ''}
-          ${order.discount_amount ? `<tr><td class="label">Discount</td><td class="value">- ${fmtMoney(order.discount_amount)}</td></tr>` : ''}
+          ${order.tax_total ? `<tr><td class="label">Tax</td><td class="value">${fmtMoney(order.tax_total)}</td></tr>` : ''}
+          ${order.discount_total ? `<tr><td class="label">Discount</td><td class="value">- ${fmtMoney(order.discount_total)}</td></tr>` : ''}
           <tr class="grand"><td class="label">Total</td><td class="value">${fmtMoney(order.total)}</td></tr>
           ${dueLater > 0 ? `
             <tr><td class="label">Paid online</td><td class="value">${fmtMoney(payable)}</td></tr>

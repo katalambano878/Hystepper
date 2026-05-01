@@ -20,6 +20,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState('active');
   const [featured, setFeatured] = useState(false);
+  const [onSale, setOnSale] = useState(false);
   const [description, setDescription] = useState('');
 
   // Pricing & Inventory
@@ -95,6 +96,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
         setCategory(product.category_id || ''); // This binds to category ID
         setStatus(product.status || 'active');
         setFeatured(product.featured || false);
+        setOnSale(product.on_sale || false);
         setDescription(product.description || '');
 
         setPrice(product.price?.toString() || '');
@@ -273,6 +275,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
         category_id: category,
         status,
         featured,
+        on_sale: onSale,
         description,
         price: parseFloat(price) || 0,
         compare_at_price: comparePrice ? parseFloat(comparePrice) : null,
@@ -575,15 +578,32 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={featured}
-                  onChange={(e) => setFeatured(e.target.checked)}
-                  className="w-5 h-5 text-emerald-700 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
-                />
-                <label className="text-gray-900 font-medium">
-                  Feature this product on homepage
+              <div className="space-y-3">
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={featured}
+                    onChange={(e) => setFeatured(e.target.checked)}
+                    className="w-5 h-5 text-emerald-700 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span className="text-gray-900 font-medium">
+                    Feature this product on homepage
+                  </span>
+                </label>
+
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={onSale}
+                    onChange={(e) => setOnSale(e.target.checked)}
+                    className="w-5 h-5 text-rose-600 border-gray-300 rounded focus:ring-rose-500 cursor-pointer"
+                  />
+                  <span className="text-gray-900 font-medium">
+                    Show on Sale page
+                    <span className="ml-2 text-xs font-normal text-gray-500">
+                      (Appears on the public /sale page)
+                    </span>
+                  </span>
                 </label>
               </div>
 

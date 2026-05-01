@@ -126,7 +126,7 @@ export default function Footer() {
               <li><Link href="/shop" className="text-gray-400 hover:text-gold-400 transition-colors">All Products</Link></li>
               <li><Link href="/categories" className="text-gray-400 hover:text-gold-400 transition-colors">Categories</Link></li>
               <li><Link href="/shop?sort=newest" className="text-gray-400 hover:text-gold-400 transition-colors">New Arrivals</Link></li>
-              <li><Link href="/shop?sort=bestsellers" className="text-gray-400 hover:text-gold-400 transition-colors">Best Sellers</Link></li>
+              <li><Link href="/sale" className="text-gray-400 hover:text-gold-400 transition-colors">Sale</Link></li>
             </ul>
           </div>
 

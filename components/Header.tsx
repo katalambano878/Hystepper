@@ -239,7 +239,7 @@ export default function Header() {
                   { label: 'Shop', href: '/categories' },
                   { label: 'Shop All', href: '/shop' },
                   { label: 'New Arrivals', href: '/shop?sort=newest' },
-                  { label: 'Best Sellers', href: '/shop?sort=best-selling' },
+                  { label: 'Sale', href: '/sale' },
                   { label: 'About Us', href: '/about' },
                   { label: 'Contact', href: '/contact' },
                 ].map((link) => (

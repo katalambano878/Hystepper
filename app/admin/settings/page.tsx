@@ -768,13 +768,14 @@ export default function SettingsPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Twitter/X URL</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">TikTok URL</label>
                                         <div className="relative">
-                                            <i className="ri-twitter-x-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                            <i className="ri-tiktok-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                                             <input
                                                 type="url"
-                                                value={settings.social_twitter || ''}
-                                                onChange={(e) => updateSetting('social_twitter', e.target.value)}
+                                                value={settings.social_tiktok || ''}
+                                                onChange={(e) => updateSetting('social_tiktok', e.target.value)}
+                                                placeholder="https://www.tiktok.com/@yourhandle"
                                                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                                             />
                                         </div>

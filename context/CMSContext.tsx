@@ -12,7 +12,7 @@ interface SiteSettings {
     contact_address: string;
     social_facebook: string;
     social_instagram: string;
-    social_twitter: string;
+    social_tiktok: string;
     primary_color: string;
     secondary_color: string;
     currency: string;
@@ -69,7 +69,7 @@ const defaultSettings: SiteSettings = {
     contact_address: 'Accra, Ghana',
     social_facebook: '',
     social_instagram: '',
-    social_twitter: '',
+    social_tiktok: '',
     primary_color: '#059669',
     secondary_color: '#0D9488',
     currency: 'GHS',
@@ -97,7 +97,7 @@ export function CMSProvider({ children }: { children: ReactNode }) {
         contact_address: 'Accra, Ghana',
         social_facebook: 'https://facebook.com/hystepper',
         social_instagram: 'https://instagram.com/hystepper',
-        social_twitter: 'https://twitter.com/hystepper',
+        social_tiktok: 'https://www.tiktok.com/@hystepper',
         primary_color: '#FBF6F2',
         secondary_color: '#A14F57',
         currency: 'GHS',

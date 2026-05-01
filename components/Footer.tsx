@@ -32,7 +32,7 @@ export default function Footer() {
   const contactPhone = getSetting('contact_phone') || '0276558163';
   const socialInstagram = 'https://www.instagram.com/hy_stepper';
   const socialFacebook = getSetting('social_facebook') || '';
-  const socialTwitter = getSetting('social_twitter') || '';
+  const socialTiktok = getSetting('social_tiktok') || '';
 
   return (
     <footer className="bg-gray-900 text-gray-300 mt-8 lg:mt-0 overflow-hidden">
@@ -105,15 +105,15 @@ export default function Footer() {
                   <i className="ri-facebook-fill text-lg"></i>
                 </a>
               )}
-              {socialTwitter && (
+              {socialTiktok && (
                 <a
-                  href={socialTwitter}
+                  href={socialTiktok}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-gray-400 hover:bg-gold-500 hover:text-white transition-all"
-                  aria-label="Twitter"
+                  aria-label="TikTok"
                 >
-                  <i className="ri-twitter-x-fill text-lg"></i>
+                  <i className="ri-tiktok-fill text-lg"></i>
                 </a>
               )}
             </div>

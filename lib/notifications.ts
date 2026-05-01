@@ -417,8 +417,9 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
             ? `Hi ${name}, order #${orderRef} is with the rider for delivery. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
             : `Hi ${name}, order #${orderRef} is with the rider for delivery. Track: ${trackingUrl}`;
     } else if (newStatus === 'delivered') {
-        emailMessage = `Your order #${orderRef} has been delivered. Enjoy!`;
-        smsMessage = `Hi ${name}, your order #${orderRef} has been delivered. Thanks for shopping with ${BRAND.name}!`;
+        emailMessage = `Your order #${orderRef} has been delivered. Enjoy! When you have a moment, we'd love your feedback — tap the button below to leave a review.`;
+        const reviewUrl = `${BRAND.url}/review/order/${encodeURIComponent(String(orderRef))}`;
+        smsMessage = `Hi ${name}, your order #${orderRef} has been delivered. Thanks for shopping with ${BRAND.name}! Loved it? Leave a quick review: ${reviewUrl}`;
     } else if (newStatus === 'processing') {
         emailMessage = `We're processing your order #${orderRef} now.`;
         smsMessage = trackingNumber
@@ -473,7 +474,9 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
 
 <p style="color:#374151;font-size:14px;line-height:1.6;margin:16px 0;">${escapeHtml(emailMessage)}</p>
 
-${emailButton('Track Your Order', trackingUrl)}
+${newStatus === 'delivered'
+    ? emailButton('Leave a Review', `${BRAND.url}/review/order/${encodeURIComponent(String(orderRef))}`)
+    : emailButton('Track Your Order', trackingUrl)}
 `, `Your order #${orderRef} is now ${newStatus}`),
             });
             console.log(`[Status Update] Email sent for #${orderRef}`);

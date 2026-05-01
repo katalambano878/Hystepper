@@ -153,7 +153,13 @@ function OrderSuccessContent() {
 
   const orderDate = new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const estimatedDelivery = new Date(new Date(order.created_at).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const pointsEarned = Math.floor(order.total / 10);
+  // Sleek Points: 5 points per item (matches the DB trigger that credits
+  // them when the order moves to 'delivered'). Min redemption is 15 pts.
+  const totalItemsForPoints = (order.order_items || []).reduce(
+    (sum: number, item: any) => sum + (Number(item.quantity) || 0),
+    0
+  );
+  const pointsEarned = totalItemsForPoints * 5;
 
   const shippingAddr = order.shipping_address || {};
   const recipientName = [shippingAddr.firstName, shippingAddr.lastName].filter(Boolean).join(' ').trim() || 'Customer';
@@ -595,29 +601,47 @@ function OrderSuccessContent() {
           </div>
         </div>
 
-        {isPaid && pointsEarned > 0 && (
-          <div className="mt-6 relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-900 to-gold-900 p-6 sm:p-8 text-white">
-            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-gold-500/20 blur-3xl" />
-            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-400 to-amber-500 flex items-center justify-center flex-shrink-0">
-                  <i className="ri-sparkling-2-fill text-white text-xl" />
+        {isPaid && pointsEarned > 0 && (() => {
+          const fulfilment = (order.status || '').toLowerCase();
+          const alreadyDelivered = fulfilment === 'delivered';
+          const isGuestOrder = !order.user_id;
+          const headline = alreadyDelivered
+            ? `You earned ${pointsEarned} Sleek Points`
+            : `You'll earn ${pointsEarned} Sleek Points`;
+          const sub = alreadyDelivered
+            ? isGuestOrder
+              ? 'Create an account to claim them and redeem on your next order (15 pts minimum).'
+              : 'Already added to your account — redeem on your next order (15 pts minimum).'
+            : isGuestOrder
+              ? "We'll add them to your account once your order is delivered. Sign up now so you don't miss out."
+              : "We'll add them to your account once your order is delivered. Redeem any time you have 15+ points.";
+          const ctaLabel = isGuestOrder ? 'Create account' : 'View my account';
+          const ctaHref = isGuestOrder ? '/auth/signup' : '/account?tab=orders';
+
+          return (
+            <div className="mt-6 relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-900 to-gold-900 p-6 sm:p-8 text-white">
+              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-gold-500/20 blur-3xl" />
+              <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-400 to-amber-500 flex items-center justify-center flex-shrink-0">
+                    <i className="ri-sparkling-2-fill text-white text-xl" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg">{headline}</p>
+                    <p className="text-sm text-white/70">{sub}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-bold text-lg">You earned {pointsEarned} Sleek Points</p>
-                  <p className="text-sm text-white/70">Create an account to redeem on your next order.</p>
-                </div>
+                <Link
+                  href={ctaHref}
+                  className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-white text-gray-900 text-sm font-semibold hover:bg-gold-50 transition-colors whitespace-nowrap"
+                >
+                  {ctaLabel}
+                  <i className="ri-arrow-right-line ml-1.5" />
+                </Link>
               </div>
-              <Link
-                href="/register"
-                className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-white text-gray-900 text-sm font-semibold hover:bg-gold-50 transition-colors whitespace-nowrap"
-              >
-                Claim points
-                <i className="ri-arrow-right-line ml-1.5" />
-              </Link>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div className="mt-10 text-center">
           <p className="text-sm text-gray-500 mb-3">Need a hand with your order?</p>

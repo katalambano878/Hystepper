@@ -124,8 +124,8 @@ export default function FAQsPage() {
     },
     {
       category: 'account',
-      question: 'What are loyalty points and how do they work?',
-      answer: 'Earn 1 point for every GHS 10 spent. 100 points = GHS 10 discount on your next purchase. Points are automatically added to your account after each order. Check your points balance in your account dashboard.'
+      question: 'How do Sleek Points work?',
+      answer: 'Earn 5 Sleek Points for every item you buy. Points land in your account once the order is delivered. Once you have 15 points or more (3 items), you can redeem them at checkout — 1 point = GH₵1 off your next order. Points expire 6 months after your last activity.'
     }
   ];
 

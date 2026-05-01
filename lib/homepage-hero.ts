@@ -9,6 +9,13 @@ export type HeroSlide = {
   button_link: string;
 };
 
+/** Hero CTAs saved as `/shop` (legacy default) go to category browsing instead. */
+export function normalizeHeroButtonLink(link: string): string {
+  const t = link.trim();
+  if (t === '/shop' || t.toLowerCase() === 'shop') return '/categories';
+  return t;
+}
+
 /** Normalise the hero_slides value from store_settings into a clean array. */
 export function parseHeroSlidesFromStoreValue(raw: unknown): HeroSlide[] {
   let slides: unknown[] = [];
@@ -29,7 +36,7 @@ export function parseHeroSlidesFromStoreValue(raw: unknown): HeroSlide[] {
       title: (s?.title ?? '').toString().trim(),
       subtitle: (s?.subtitle ?? '').toString().trim(),
       button_text: (s?.button_text ?? '').toString().trim(),
-      button_link: (s?.button_link ?? '').toString().trim(),
+      button_link: normalizeHeroButtonLink((s?.button_link ?? '').toString()),
     }))
     .filter((s) => s.image || s.title || s.subtitle);
 }

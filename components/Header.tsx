@@ -90,8 +90,7 @@ export default function Header() {
               <div className="hidden lg:flex items-center justify-center space-x-10">
                 {[
                   { label: 'Home', href: '/' },
-                  { label: 'Shop', href: '/shop' },
-                  { label: 'Categories', href: '/categories' },
+                  { label: 'Shop', href: '/categories' },
                   { label: 'New Arrivals', href: '/shop?sort=newest' },
                   { label: 'About', href: '/about' },
                   { label: 'Contact', href: '/contact' },
@@ -237,8 +236,8 @@ export default function Header() {
               <div className="space-y-4">
                 {[
                   { label: 'Home', href: '/' },
+                  { label: 'Shop', href: '/categories' },
                   { label: 'Shop All', href: '/shop' },
-                  { label: 'Categories', href: '/categories' },
                   { label: 'New Arrivals', href: '/shop?sort=newest' },
                   { label: 'Best Sellers', href: '/shop?sort=best-selling' },
                   { label: 'About Us', href: '/about' },

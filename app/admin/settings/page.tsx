@@ -32,7 +32,7 @@ const DEFAULT_HERO_SLIDE: Omit<HeroSlide, 'id'> = {
     title: 'Stay Sleek in Style',
     subtitle: 'Elevate your look with our exclusive collection of footwear and bags — made for the modern woman.',
     button_text: 'Shop Now',
-    button_link: '/shop',
+    button_link: '/categories',
 };
 
 function makeSlideId() {

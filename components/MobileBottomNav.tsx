@@ -27,7 +27,7 @@ export default function MobileBottomNav() {
         </Link>
 
         <Link
-          href="/shop"
+          href="/categories"
           className={`flex flex-col items-center justify-center space-y-1 transition-colors ${isActive('/shop') ? 'text-gold-600' : 'text-gray-600'
             }`}
         >

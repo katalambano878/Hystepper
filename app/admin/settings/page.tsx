@@ -479,6 +479,7 @@ export default function SettingsPage() {
                                     <div>
                                         <h2 className="text-lg font-semibold text-gray-900">Homepage Hero</h2>
                                         <p className="text-sm text-gray-500">Manage the slider at the top of your homepage. Add one slide for a static hero, or multiple slides for a rotating banner.</p>
+                                        <p className="text-xs text-gray-500 mt-2">For the best fit on all screens, use a <strong className="font-medium text-gray-700">wide landscape</strong> image (around <strong className="font-medium text-gray-700">1920×1080</strong> or 16∶9). Images are cropped to fill the hero and kept centred.</p>
                                     </div>
                                     <button
                                         onClick={addHeroSlide}

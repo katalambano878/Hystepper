@@ -10,6 +10,7 @@ const ProductReviews = dynamic(() => import('@/components/ProductReviews'), { ss
 import { StructuredData, generateProductSchema, generateBreadcrumbSchema } from '@/components/SEOHead';
 import { notFound } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
+import { useWishlist } from '@/context/WishlistContext';
 import { sortSizes } from '@/lib/sort-sizes';
 
 function isLightColor(hex: string | null): boolean {
@@ -32,7 +33,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [colorOverrideImage, setColorOverrideImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
-  const [isWishlisted, setIsWishlisted] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [notifyEmail, setNotifyEmail] = useState('');
   const [notifySubmitted, setNotifySubmitted] = useState(false);
@@ -40,6 +40,31 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [mainImageError, setMainImageError] = useState(false);
 
   const { addToCart } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const isWishlisted = product ? isInWishlist(product.id) : false;
+
+  const handleToggleWishlist = () => {
+    if (!product) return;
+    if (isInWishlist(product.id)) {
+      removeFromWishlist(product.id);
+      return;
+    }
+    const stockCount = Number(product.totalVariantStock ?? product.stockCount ?? product.quantity ?? 0);
+    addToWishlist({
+      id: product.id,
+      name: product.name,
+      price: Number(product.price) || 0,
+      originalPrice:
+        product.compare_at_price && Number(product.compare_at_price) > Number(product.price)
+          ? Number(product.compare_at_price)
+          : undefined,
+      image: (Array.isArray(product.images) && product.images[0]) || '',
+      rating: Number(product.rating) || 0,
+      reviewCount: Number(product.reviewCount) || 0,
+      inStock: stockCount > 0 || product.isPreorder === true,
+      slug: product.slug || product.id,
+    });
+  };
 
   useEffect(() => {
     async function fetchProduct() {
@@ -518,9 +543,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   <div className="flex items-start justify-between mb-2">
                     <p className="text-sm text-gold-600 font-bold tracking-wider uppercase tracking-widest">{product.category}</p>
                     <button
-                      onClick={() => setIsWishlisted(!isWishlisted)}
+                      onClick={handleToggleWishlist}
                       className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-red-50 rounded-full transition-colors cursor-pointer group"
-                      aria-label="Add to wishlist"
+                      aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+                      title={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
                     >
                       <i className={`${isWishlisted ? 'ri-heart-fill text-red-600' : 'ri-heart-line text-gray-400 group-hover:text-red-500'} text-xl transition-colors`}></i>
                     </button>

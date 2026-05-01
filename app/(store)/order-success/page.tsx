@@ -93,6 +93,37 @@ function OrderSuccessContent() {
     };
   }, [orderNumber, paymentSuccessFlag]);
 
+  // Light background poll while the order is still pending so the page
+  // flips to "Payment received" automatically once admin/webhook updates
+  // it. Stops polling as soon as the order moves out of pending.
+  useEffect(() => {
+    if (!order || !orderNumber) return;
+    const status = (order.payment_status || 'pending').toLowerCase();
+    if (status !== 'pending') return;
+
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('orders')
+          .select('*, order_items(*)')
+          .eq('order_number', orderNumber)
+          .single();
+        if (cancelled || !data) return;
+        if ((data.payment_status || '').toLowerCase() !== 'pending') {
+          setOrder(data);
+        }
+      } catch {
+        // ignore — try again next tick
+      }
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [order, orderNumber]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -126,22 +157,115 @@ function OrderSuccessContent() {
 
   const shippingAddr = order.shipping_address || {};
   const recipientName = [shippingAddr.firstName, shippingAddr.lastName].filter(Boolean).join(' ').trim() || 'Customer';
+  const firstName = recipientName.split(' ')[0] || 'there';
   const addressLines = [
     shippingAddr.address,
     [shippingAddr.city, shippingAddr.region].filter(Boolean).join(', '),
     shippingAddr.postalCode,
   ].filter(Boolean);
 
+  const isPosPlaceholderEmail =
+    typeof order.email === 'string' && order.email.toLowerCase() === 'pos@store.local';
+  const customerEmail = isPosPlaceholderEmail ? '' : order.email || '';
+
+  const paymentState = (order.payment_status || 'pending').toLowerCase();
+  const isPaid = paymentState === 'paid';
+  const isFailed = paymentState === 'failed';
+  const isRefunded = paymentState === 'refunded' || paymentState === 'partially_refunded';
+  const isPending = !isPaid && !isFailed && !isRefunded;
+
+  // Visual treatment that adapts to the actual payment outcome instead of
+  // unconditionally celebrating. "PAYMENT RECEIVED" with confetti for an
+  // unpaid POS order is misleading — that's exactly the bug we're fixing.
+  const statusBadge = (() => {
+    if (isPaid) {
+      return {
+        label: 'Payment received',
+        className: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+        dotClass: 'bg-emerald-500 animate-pulse',
+      };
+    }
+    if (isPending) {
+      return {
+        label: 'Awaiting payment',
+        className: 'bg-amber-50 border-amber-200 text-amber-700',
+        dotClass: 'bg-amber-500 animate-pulse',
+      };
+    }
+    if (isFailed) {
+      return {
+        label: 'Payment failed',
+        className: 'bg-red-50 border-red-200 text-red-700',
+        dotClass: 'bg-red-500',
+      };
+    }
+    return {
+      label: 'Order refunded',
+      className: 'bg-gray-100 border-gray-200 text-gray-700',
+      dotClass: 'bg-gray-500',
+    };
+  })();
+
+  const heroIcon = (() => {
+    if (isPaid) return { icon: 'ri-check-line', tone: 'from-gold-500 to-amber-600', shadow: 'shadow-gold-200' };
+    if (isFailed) return { icon: 'ri-close-line', tone: 'from-red-500 to-rose-600', shadow: 'shadow-red-200' };
+    if (isRefunded) return { icon: 'ri-arrow-go-back-line', tone: 'from-gray-500 to-gray-700', shadow: 'shadow-gray-200' };
+    return { icon: 'ri-time-line', tone: 'from-amber-500 to-orange-500', shadow: 'shadow-amber-200' };
+  })();
+
+  const headline = (() => {
+    if (isPaid) return `Thank you, ${firstName}.`;
+    if (isFailed) return `Payment didn't go through, ${firstName}.`;
+    if (isRefunded) return `Order refunded, ${firstName}.`;
+    return `Order received, ${firstName}.`;
+  })();
+
+  const subline = (() => {
+    if (isPaid) {
+      return customerEmail
+        ? `Your order ${order.order_number} is confirmed. A receipt is on its way to ${customerEmail}.`
+        : `Your order ${order.order_number} is confirmed.`;
+    }
+    if (isPending) {
+      return `Your order ${order.order_number} has been recorded. We're awaiting payment confirmation — once it lands you'll see this update automatically.`;
+    }
+    if (isFailed) {
+      return `We weren't able to confirm payment for ${order.order_number}. No worries — try again or contact us and we'll sort it out.`;
+    }
+    return `Your order ${order.order_number} has been refunded.`;
+  })();
+
+  const showConfettiNow = showConfetti && isPaid;
+
+  // Steps reflect both fulfilment status and payment state so the timeline
+  // doesn't claim the order is "Confirmed" when payment is still pending.
+  const fulfilmentStatus = (order.status || '').toLowerCase();
+  const fulfilmentRank: Record<string, number> = {
+    pending: 0,
+    confirmed: 1,
+    processing: 2,
+    packaged: 2,
+    dispatched_to_rider: 3,
+    out_for_delivery: 3,
+    shipped: 3,
+    delivered: 4,
+  };
+  const currentStage = isPending ? 0 : (fulfilmentRank[fulfilmentStatus] ?? 1);
   const steps = [
-    { key: 'confirmed', label: 'Confirmed', icon: 'ri-checkbox-circle-line', done: true },
-    { key: 'processing', label: 'Processing', icon: 'ri-loader-4-line', done: false, current: true },
-    { key: 'shipped', label: 'Shipped', icon: 'ri-truck-line', done: false },
-    { key: 'delivered', label: 'Delivered', icon: 'ri-home-smile-2-line', done: false },
-  ];
+    { key: 'paid', label: isPaid ? 'Paid' : 'Payment', icon: isPaid ? 'ri-checkbox-circle-line' : 'ri-bank-card-line' },
+    { key: 'processing', label: 'Processing', icon: 'ri-loader-4-line' },
+    { key: 'shipped', label: 'Shipped', icon: 'ri-truck-line' },
+    { key: 'delivered', label: 'Delivered', icon: 'ri-home-smile-2-line' },
+  ].map((s, idx) => ({
+    ...s,
+    done: idx < currentStage,
+    current: idx === currentStage,
+  }));
+  const progressPct = `${Math.min(100, (currentStage / (steps.length - 1)) * 100)}%`;
 
   return (
     <main className="min-h-screen bg-[#fafaf7]">
-      {showConfetti && (
+      {showConfettiNow && (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
           {[...Array(36)].map((_, i) => (
             <div
@@ -161,25 +285,41 @@ function OrderSuccessContent() {
       )}
 
       <section className="relative overflow-hidden">
-        <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-gold-50 via-amber-50/40 to-transparent pointer-events-none" />
+        <div className={`absolute inset-x-0 top-0 h-72 pointer-events-none ${
+          isPaid
+            ? 'bg-gradient-to-b from-gold-50 via-amber-50/40 to-transparent'
+            : isFailed
+            ? 'bg-gradient-to-b from-red-50 via-rose-50/40 to-transparent'
+            : isRefunded
+            ? 'bg-gradient-to-b from-gray-100 via-gray-50/40 to-transparent'
+            : 'bg-gradient-to-b from-amber-50 via-orange-50/40 to-transparent'
+        }`} />
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-14 pb-10">
           <div className="text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold tracking-wide uppercase mb-5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Payment received
+            <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-semibold tracking-wide uppercase mb-5 ${statusBadge.className}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dotClass}`} />
+              {statusBadge.label}
             </div>
             <div className="relative w-20 h-20 mx-auto mb-5">
-              <div className="absolute inset-0 rounded-full bg-gold-100 animate-ping opacity-60" />
-              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-gold-500 to-amber-600 flex items-center justify-center shadow-lg shadow-gold-200">
-                <i className="ri-check-line text-white text-4xl font-bold" />
+              {isPaid && <div className="absolute inset-0 rounded-full bg-gold-100 animate-ping opacity-60" />}
+              <div className={`relative w-20 h-20 rounded-full bg-gradient-to-br ${heroIcon.tone} flex items-center justify-center shadow-lg ${heroIcon.shadow}`}>
+                <i className={`${heroIcon.icon} text-white text-4xl font-bold`} />
               </div>
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 tracking-tight">
-              Thank you, {recipientName.split(' ')[0]}.
+              {headline}
             </h1>
             <p className="text-base sm:text-lg text-gray-600 max-w-xl mx-auto">
-              Your order <span className="font-semibold text-gray-900">{order.order_number}</span> is confirmed. A receipt is on its way to <span className="text-gray-900">{order.email}</span>.
+              {subline}
             </p>
+            {isPending && (
+              <div className="mt-6 inline-flex items-start gap-3 max-w-xl text-left bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3">
+                <i className="ri-information-line text-xl mt-0.5" />
+                <p className="text-sm leading-relaxed">
+                  This page will refresh automatically once payment is confirmed. If you've already paid in cash or in-store, our team will mark this order as paid shortly.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -228,7 +368,10 @@ function OrderSuccessContent() {
           </div>
           <div className="relative">
             <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-200" />
-            <div className="absolute top-5 left-0 h-0.5 bg-gradient-to-r from-gold-500 to-amber-500" style={{ width: '25%' }} />
+            <div
+              className="absolute top-5 left-0 h-0.5 bg-gradient-to-r from-gold-500 to-amber-500 transition-all"
+              style={{ width: progressPct }}
+            />
             <div className="relative grid grid-cols-4 gap-2">
               {steps.map((step) => (
                 <div key={step.key} className="flex flex-col items-center text-center">
@@ -241,7 +384,7 @@ function OrderSuccessContent() {
                         : 'bg-white border-gray-200 text-gray-300'
                     }`}
                   >
-                    <i className={`${step.icon} text-lg ${step.current ? 'animate-spin-slow' : ''}`} />
+                    <i className={`${step.icon} text-lg ${step.current && step.key === 'processing' ? 'animate-spin-slow' : ''}`} />
                   </div>
                   <p className={`mt-2 text-xs font-semibold ${step.done || step.current ? 'text-gray-900' : 'text-gray-400'}`}>
                     {step.label}
@@ -333,7 +476,9 @@ function OrderSuccessContent() {
                     {isPartial ? (
                       <>
                         <div className="flex justify-between pt-3 mt-2 border-t border-gray-100">
-                          <span className="text-base font-bold text-gray-900">Paid now</span>
+                          <span className="text-base font-bold text-gray-900">
+                            {isPaid ? 'Paid now' : 'To pay now'}
+                          </span>
                           <span className="text-lg font-bold text-gold-700">
                             GH₵{payableNow.toFixed(2)}
                           </span>
@@ -347,8 +492,10 @@ function OrderSuccessContent() {
                       </>
                     ) : (
                       <div className="flex justify-between pt-3 mt-2 border-t border-gray-100">
-                        <span className="text-base font-bold text-gray-900">Total paid</span>
-                        <span className="text-lg font-bold text-gold-700">
+                        <span className="text-base font-bold text-gray-900">
+                          {isPaid ? 'Total paid' : isRefunded ? 'Order total' : 'Total due'}
+                        </span>
+                        <span className={`text-lg font-bold ${isPaid ? 'text-gold-700' : isRefunded ? 'text-gray-700' : 'text-amber-700'}`}>
                           GH₵{order.total.toFixed(2)}
                         </span>
                       </div>
@@ -369,14 +516,18 @@ function OrderSuccessContent() {
                     <p key={i} className="text-gray-600">{line}</p>
                   ))}
                 </div>
-                <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-                  <i className="ri-phone-line text-gray-400" />
-                  <span className="text-gray-700">{order.phone}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <i className="ri-mail-line text-gray-400" />
-                  <span className="text-gray-700 truncate">{order.email}</span>
-                </div>
+                {order.phone && (
+                  <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                    <i className="ri-phone-line text-gray-400" />
+                    <span className="text-gray-700">{order.phone}</span>
+                  </div>
+                )}
+                {customerEmail && (
+                  <div className="flex items-center gap-2">
+                    <i className="ri-mail-line text-gray-400" />
+                    <span className="text-gray-700 truncate">{customerEmail}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -384,59 +535,89 @@ function OrderSuccessContent() {
               <h2 className="text-lg font-bold text-gray-900 mb-5">What happens next</h2>
               <ol className="relative space-y-5">
                 <div className="absolute left-[15px] top-6 bottom-6 w-px bg-gray-100" />
-                <li className="relative flex gap-4">
-                  <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
-                    <i className="ri-mail-send-line text-gold-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Email confirmation</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Sent to {order.email}</p>
-                  </div>
-                </li>
-                <li className="relative flex gap-4">
-                  <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
-                    <i className="ri-box-3-line text-gold-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">We pack with care</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Dispatched within 24 hours</p>
-                  </div>
-                </li>
-                <li className="relative flex gap-4">
-                  <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
-                    <i className="ri-truck-line text-gold-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Live tracking</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Updates via email & SMS</p>
-                  </div>
-                </li>
+                {isPending && (
+                  <li className="relative flex gap-4">
+                    <div className="relative w-8 h-8 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
+                      <i className="ri-bank-card-line text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Payment confirmation</p>
+                      <p className="text-xs text-gray-500 mt-0.5">We'll mark this order as paid as soon as payment lands.</p>
+                    </div>
+                  </li>
+                )}
+                {customerEmail && isPaid && (
+                  <li className="relative flex gap-4">
+                    <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
+                      <i className="ri-mail-send-line text-gold-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Email confirmation</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Sent to {customerEmail}</p>
+                    </div>
+                  </li>
+                )}
+                {!isFailed && !isRefunded && (
+                  <>
+                    <li className="relative flex gap-4">
+                      <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
+                        <i className="ri-box-3-line text-gold-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">We pack with care</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Dispatched within 24 hours</p>
+                      </div>
+                    </li>
+                    <li className="relative flex gap-4">
+                      <div className="relative w-8 h-8 rounded-full bg-gold-50 border border-gold-200 flex items-center justify-center flex-shrink-0">
+                        <i className="ri-truck-line text-gold-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Live tracking</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Updates via {customerEmail ? 'email & ' : ''}SMS</p>
+                      </div>
+                    </li>
+                  </>
+                )}
+                {isFailed && (
+                  <li className="relative flex gap-4">
+                    <div className="relative w-8 h-8 rounded-full bg-red-50 border border-red-200 flex items-center justify-center flex-shrink-0">
+                      <i className="ri-customer-service-2-line text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">We're here to help</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Try checkout again or contact us so we can complete your order.</p>
+                    </div>
+                  </li>
+                )}
               </ol>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-900 to-gold-900 p-6 sm:p-8 text-white">
-          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-gold-500/20 blur-3xl" />
-          <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-400 to-amber-500 flex items-center justify-center flex-shrink-0">
-                <i className="ri-sparkling-2-fill text-white text-xl" />
+        {isPaid && pointsEarned > 0 && (
+          <div className="mt-6 relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-900 to-gold-900 p-6 sm:p-8 text-white">
+            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-gold-500/20 blur-3xl" />
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-400 to-amber-500 flex items-center justify-center flex-shrink-0">
+                  <i className="ri-sparkling-2-fill text-white text-xl" />
+                </div>
+                <div>
+                  <p className="font-bold text-lg">You earned {pointsEarned} Sleek Points</p>
+                  <p className="text-sm text-white/70">Create an account to redeem on your next order.</p>
+                </div>
               </div>
-              <div>
-                <p className="font-bold text-lg">You earned {pointsEarned} Sleek Points</p>
-                <p className="text-sm text-white/70">Create an account to redeem on your next order.</p>
-              </div>
+              <Link
+                href="/register"
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-white text-gray-900 text-sm font-semibold hover:bg-gold-50 transition-colors whitespace-nowrap"
+              >
+                Claim points
+                <i className="ri-arrow-right-line ml-1.5" />
+              </Link>
             </div>
-            <Link
-              href="/register"
-              className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-white text-gray-900 text-sm font-semibold hover:bg-gold-50 transition-colors whitespace-nowrap"
-            >
-              Claim points
-              <i className="ri-arrow-right-line ml-1.5" />
-            </Link>
           </div>
-        </div>
+        )}
 
         <div className="mt-10 text-center">
           <p className="text-sm text-gray-500 mb-3">Need a hand with your order?</p>

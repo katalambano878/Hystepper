@@ -15,22 +15,16 @@ interface HeroSlide {
   button_link: string;
 }
 
-const FALLBACK_HERO_SLIDE: HeroSlide = {
-  image: '/hero-new.jpeg',
-  title: 'Stay Sleek in Style',
-  subtitle: 'Elevate your look with our exclusive collection of footwear and bags — made for the modern woman.',
-  button_text: 'Shop Now',
-  button_link: '/shop',
-};
-
 export default function HomePage() {
 
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [discountedProducts, setDiscountedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Hero CMS state
-  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([FALLBACK_HERO_SLIDE]);
+  // Hero CMS state — strictly admin-driven. We start empty and only render
+  // the section after the CMS load resolves with at least one slide.
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
+  const [heroLoaded, setHeroLoaded] = useState(false);
   const [autoplaySeconds, setAutoplaySeconds] = useState<number>(6);
   const [currentSlide, setCurrentSlide] = useState(0);
   const hoverRef = useRef(false);
@@ -190,14 +184,18 @@ export default function HomePage() {
           }))
           .filter(s => s.image || s.title || s.subtitle);
 
-        if (cleaned.length > 0) setHeroSlides(cleaned);
+        // Always set what the CMS gave us, even if the array is empty.
+        // An empty CMS = no hero rendered. No silent fallback.
+        setHeroSlides(cleaned);
 
         const autoplay = Number(map.hero_autoplay_seconds);
         if (Number.isFinite(autoplay) && autoplay >= 2 && autoplay <= 30) {
           setAutoplaySeconds(autoplay);
         }
       } catch (err) {
-        console.warn('Hero CMS fetch failed, using defaults:', err);
+        console.warn('Hero CMS fetch failed:', err);
+      } finally {
+        if (!cancelled) setHeroLoaded(true);
       }
     })();
     return () => { cancelled = true; };
@@ -218,13 +216,16 @@ export default function HomePage() {
     if (currentSlide >= heroSlides.length) setCurrentSlide(0);
   }, [heroSlides.length, currentSlide]);
 
-  const activeSlide = heroSlides[currentSlide] || FALLBACK_HERO_SLIDE;
+  const activeSlide = heroSlides[currentSlide];
   const isMultiSlide = heroSlides.length > 1;
+  const showHero = heroLoaded && heroSlides.length > 0 && !!activeSlide;
 
   return (
     <main className="min-h-screen bg-white">
 
-      {/* Hero Section — CMS-driven slider */}
+      {/* Hero Section — CMS-driven slider. Renders nothing if no slides
+          have been configured in admin (no fallback hero). */}
+      {showHero && (
       <section
         className="relative h-[70vh] lg:h-[85vh] overflow-hidden group"
         onMouseEnter={() => { hoverRef.current = true; }}
@@ -233,7 +234,8 @@ export default function HomePage() {
         {/* Slides — stacked & cross-faded */}
         {heroSlides.map((slide, idx) => {
           const isActive = idx === currentSlide;
-          const imgSrc = slide.image || FALLBACK_HERO_SLIDE.image;
+          const imgSrc = slide.image;
+          if (!imgSrc) return null;
           return (
             <div
               key={slide.id || `${imgSrc}-${idx}`}
@@ -326,6 +328,7 @@ export default function HomePage() {
           </>
         )}
       </section>
+      )}
 
       {/* Shop By — Linear Stacked Design */}
       <section className="relative overflow-hidden">

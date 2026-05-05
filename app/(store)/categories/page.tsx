@@ -3,7 +3,10 @@ import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import PageHero from '@/components/PageHero';
 
-export const revalidate = 300; // Revalidate every 5 minutes
+// Always fresh: the catalogue is small, admins can reorder categories
+// at any time, and a stale ISR cache here was causing reorders to take
+// up to 5 minutes to surface. Render cost is negligible.
+export const dynamic = 'force-dynamic';
 
 export default async function CategoriesPage() {
   const { data: categoriesData } = await supabase

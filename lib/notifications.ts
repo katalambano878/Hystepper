@@ -124,6 +124,42 @@ function trackingUrlFor(orderRef: string): string {
     return `${BRAND.url}/order-success?order=${orderRef}`;
 }
 
+// Build the review URL we send to a customer once an order is delivered.
+// If the order contains a single product (the common POS case), link them
+// straight to that product's reviews tab so they can leave a review in one
+// tap. Multi-item orders get a per-order chooser at /review/order/[ref].
+async function resolveReviewUrl(orderId: string, orderRef: string): Promise<string> {
+    const fallback = `${BRAND.url}/review/order/${encodeURIComponent(String(orderRef))}`;
+    if (!orderId) return fallback;
+
+    try {
+        const { data: items } = await supabase
+            .from('order_items')
+            .select('product_id, products:product_id(slug)')
+            .eq('order_id', orderId);
+
+        if (!items || items.length === 0) return fallback;
+
+        const distinctProducts = new Map<string, string>();
+        for (const it of items as any[]) {
+            const pid = it?.product_id;
+            const prod = Array.isArray(it?.products) ? it.products[0] : it?.products;
+            const slug = prod?.slug;
+            if (pid && slug && !distinctProducts.has(pid)) {
+                distinctProducts.set(pid, slug);
+            }
+        }
+
+        if (distinctProducts.size === 1) {
+            const [slug] = distinctProducts.values();
+            return `${BRAND.url}/product/${slug}#reviews`;
+        }
+        return fallback;
+    } catch {
+        return fallback;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Idempotency guard — prevents duplicate SMS/email when multiple payment
 // paths (moolre callback, moolre verify, paystack webhook, paystack callback)
@@ -418,8 +454,7 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
             : `Hi ${name}, order #${orderRef} is with the rider for delivery. Track: ${trackingUrl}`;
     } else if (newStatus === 'delivered') {
         emailMessage = `Your order #${orderRef} has been delivered. Enjoy! When you have a moment, we'd love your feedback — tap the button below to leave a review.`;
-        const reviewUrl = `${BRAND.url}/review/order/${encodeURIComponent(String(orderRef))}`;
-        smsMessage = `Hi ${name}, your order #${orderRef} has been delivered. Thanks for shopping with ${BRAND.name}! Loved it? Leave a quick review: ${reviewUrl}`;
+        smsMessage = `Hi ${name}, your order #${orderRef} has been delivered. Thanks for shopping with ${BRAND.name}!`;
     } else if (newStatus === 'processing') {
         emailMessage = `We're processing your order #${orderRef} now.`;
         smsMessage = trackingNumber
@@ -454,6 +489,15 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     };
     const sc = statusConfig[newStatus] || { icon: '&#128276;', color: '#6b7280', bg: '#f9fafb' };
 
+    // Resolve the review URL once for the delivered status so SMS + email use
+    // the same destination (single-product link when possible).
+    const reviewUrl = newStatus === 'delivered'
+        ? await resolveReviewUrl(id, String(orderRef))
+        : '';
+    if (newStatus === 'delivered') {
+        smsMessage = `${smsMessage} Loved it? Leave a quick review: ${reviewUrl}`;
+    }
+
     if (deliverableEmail) {
         try {
             await sendEmail({
@@ -475,7 +519,7 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
 <p style="color:#374151;font-size:14px;line-height:1.6;margin:16px 0;">${escapeHtml(emailMessage)}</p>
 
 ${newStatus === 'delivered'
-    ? emailButton('Leave a Review', `${BRAND.url}/review/order/${encodeURIComponent(String(orderRef))}`)
+    ? emailButton('Leave a Review', reviewUrl)
     : emailButton('Track Your Order', trackingUrl)}
 `, `Your order #${orderRef} is now ${newStatus}`),
             });

@@ -81,7 +81,7 @@ export default async function CategoriesPage() {
                   <p className="text-gray-600 leading-relaxed text-sm mb-4 line-clamp-2">
                     {category.description || 'Explore our exclusive collection in this category.'}
                   </p>
-                  <div className="flex items-center text-emerald-700 font-medium text-sm group-hover:gap-2 transition-all">
+                  <div className="flex items-center text-gold-600 font-medium text-sm group-hover:gap-2 transition-all">
                     <span>Browse Collection</span>
                     <i className="ri-arrow-right-line ml-2"></i>
                   </div>
@@ -97,23 +97,24 @@ export default async function CategoriesPage() {
         )}
       </div>
 
-      <div className="bg-gradient-to-br from-emerald-700 to-emerald-900 py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">Can't Find What You're Looking For?</h2>
-          <p className="text-xl text-emerald-100 mb-8 leading-relaxed">
+      <div className="relative bg-gray-900 overflow-hidden py-16">
+        <div className="absolute inset-0 opacity-10 bg-[linear-gradient(45deg,rgba(255,255,255,.05)_25%,transparent_25%,transparent_75%,rgba(255,255,255,.05)_75%)] bg-[length:20px_20px]"></div>
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Can&apos;t Find What You&apos;re Looking For?</h2>
+          <p className="text-lg md:text-xl text-gold-100 mb-8 leading-relaxed">
             Try our advanced search or contact our team for personalised product recommendations
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link
               href="/shop"
-              className="inline-flex items-center gap-2 bg-white text-emerald-700 px-8 py-4 rounded-full font-medium hover:bg-emerald-50 transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-2 bg-white text-gray-900 px-8 py-4 rounded-full font-semibold hover:bg-gold-50 transition-colors whitespace-nowrap"
             >
               <i className="ri-search-line"></i>
               Search All Products
             </Link>
             <Link
               href="/contact"
-              className="inline-flex items-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-full font-medium hover:bg-emerald-500 transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-2 bg-gold-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-gold-700 transition-colors whitespace-nowrap"
             >
               <i className="ri-customer-service-line"></i>
               Contact Support

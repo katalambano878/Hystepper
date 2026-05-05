@@ -35,7 +35,8 @@ export default function AdminCategoriesPage() {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('position', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       if (data) setCategories(data);
@@ -43,6 +44,38 @@ export default function AdminCategoriesPage() {
       console.error('Error fetching categories:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Swap a category with its neighbour (up or down) by updating the position
+  // column for both rows. Sort on the public /categories page is by position.
+  const handleMove = async (categoryId: string, direction: 'up' | 'down') => {
+    const idx = categories.findIndex((c) => c.id === categoryId);
+    if (idx === -1) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= categories.length) return;
+
+    const a = categories[idx];
+    const b = categories[swapIdx];
+    const aPos = Number.isFinite(a.position) ? a.position : idx;
+    const bPos = Number.isFinite(b.position) ? b.position : swapIdx;
+
+    // Optimistic UI swap
+    const next = [...categories];
+    next[idx] = { ...a, position: bPos };
+    next[swapIdx] = { ...b, position: aPos };
+    next.sort((x, y) => (x.position ?? 0) - (y.position ?? 0));
+    setCategories(next);
+
+    try {
+      await Promise.all([
+        supabase.from('categories').update({ position: bPos }).eq('id', a.id),
+        supabase.from('categories').update({ position: aPos }).eq('id', b.id),
+      ]);
+    } catch (err: any) {
+      console.error('Reorder failed', err);
+      alert('Failed to reorder: ' + err.message);
+      fetchCategories();
     }
   };
 
@@ -203,6 +236,7 @@ export default function AdminCategoriesPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Order</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Category</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Slug</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Parent</th>
@@ -213,12 +247,33 @@ export default function AdminCategoriesPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="p-8 text-center text-gray-500">Loading categories...</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-gray-500">Loading categories...</td></tr>
               ) : categories.length === 0 ? (
-                <tr><td colSpan={6} className="p-8 text-center text-gray-500">No categories found. Create one to get started!</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-gray-500">No categories found. Create one to get started!</td></tr>
               ) : (
-                categories.map((category) => (
+                categories.map((category, idx) => (
                   <tr key={category.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleMove(category.id, 'up')}
+                          disabled={idx === 0}
+                          aria-label="Move up"
+                          className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          <i className="ri-arrow-up-s-line text-xl"></i>
+                        </button>
+                        <button
+                          onClick={() => handleMove(category.id, 'down')}
+                          disabled={idx === categories.length - 1}
+                          aria-label="Move down"
+                          className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          <i className="ri-arrow-down-s-line text-xl"></i>
+                        </button>
+                        <span className="text-xs text-gray-400 ml-1 tabular-nums w-6">{idx + 1}</span>
+                      </div>
+                    </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">

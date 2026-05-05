@@ -377,6 +377,21 @@ export default function CheckoutPage() {
 
       // Handle Payment
       if (payableNow <= 0) {
+        // Fully covered by points / coupon — nothing to charge online. Mark the
+        // order as paid and decrement stock right away (no payment webhook will
+        // fire for this path).
+        await supabase
+          .from('orders')
+          .update({ payment_status: 'paid', status: 'processing' })
+          .eq('id', order.id);
+
+        const { error: stockError } = await supabase.rpc('decrement_order_stock', {
+          order_ref: order.id,
+        });
+        if (stockError) {
+          console.error('decrement_order_stock failed for', orderNumber, stockError);
+        }
+
         clearCart();
         router.push(`/order-success?order=${orderNumber}`);
         return;

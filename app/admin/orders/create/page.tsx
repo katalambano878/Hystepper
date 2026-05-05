@@ -229,6 +229,14 @@ export default function CreateOrderPage() {
             const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
             if (itemsError) throw itemsError;
 
+            const { error: stockError } = await supabase.rpc('decrement_order_stock', {
+                order_ref: order.id,
+            });
+            if (stockError) {
+                console.error('decrement_order_stock failed for', orderNumber, stockError);
+                toast.error('Order saved but stock could not be reduced. Adjust manually.');
+            }
+
             toast.success('Order created successfully');
             router.push(`/admin/orders/${order.id}`);
 

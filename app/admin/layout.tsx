@@ -8,8 +8,8 @@ import NotificationsBell from '@/components/admin/NotificationsBell';
 
 // Maps each admin URL prefix to the permission key that grants access.
 // Keys are matched longest-prefix-first; a value of null means "no permission
-// required" (e.g. login). Any admin path not listed here falls back to
-// requiring the 'dashboard' permission.
+// required" (e.g. login). The dashboard (/admin) is intentionally NOT in this
+// list — it is locked to super-admins only and handled separately below.
 const PATH_PERMISSIONS: Array<[string, string | null]> = [
   ['/admin/login', null],
   // Account settings are available to every signed-in admin/staff so they
@@ -33,10 +33,15 @@ const PATH_PERMISSIONS: Array<[string, string | null]> = [
   ['/admin/modules', 'modules'],
   ['/admin/staff', 'staff'],
   ['/admin/settings', 'settings'],
-  ['/admin', 'dashboard'],
 ];
 
+// Special sentinel used by the route + menu logic to indicate the dashboard
+// is super-admin-only.
+const SUPER_ADMIN_ONLY = '__super_admin__';
+
 function requiredPermissionFor(pathname: string): string | null | undefined {
+  // The dashboard root ('/admin' exactly) is always super-admin only.
+  if (pathname === '/admin') return SUPER_ADMIN_ONLY;
   for (const [prefix, perm] of PATH_PERMISSIONS) {
     if (pathname === prefix || pathname.startsWith(prefix + '/')) return perm;
   }
@@ -174,7 +179,12 @@ export default function AdminLayout({
       // Enforce per-page permissions. If the user typed a URL they don't have
       // access to, send them back to the first page they can see.
       const required = requiredPermissionFor(pathname);
-      if (required && !perms[required]) {
+      // Dashboard is super-admin-only; staff must never see business KPIs.
+      const blocked =
+        required === SUPER_ADMIN_ONLY
+          ? true
+          : (!!required && !perms[required]);
+      if (blocked) {
         const next = firstAllowedPath(perms, staffRow.role);
         if (next === '/admin/login') {
           // Staff with zero allowed pages — sign them out cleanly.
@@ -290,6 +300,9 @@ export default function AdminLayout({
   // while the redirect is in flight.
   if (!isSuperAdmin && staffPermissions && pathname !== '/admin/login') {
     const required = requiredPermissionFor(pathname);
+    if (required === SUPER_ADMIN_ONLY) {
+      return <div className="min-h-screen bg-gray-50" />;
+    }
     if (required && !staffPermissions[required]) {
       return <div className="min-h-screen bg-gray-50" />;
     }
@@ -299,7 +312,7 @@ export default function AdminLayout({
   }
 
   const menuItems = [
-    { title: 'Dashboard',        icon: 'ri-dashboard-line',      path: '/admin',                  exact: true,  permKey: 'dashboard' },
+    { title: 'Dashboard',        icon: 'ri-dashboard-line',      path: '/admin',                  exact: true,  permKey: SUPER_ADMIN_ONLY },
     { title: 'Orders',           icon: 'ri-shopping-bag-line',   path: '/admin/orders',            badge: '',    permKey: 'orders' },
     { title: 'Delivery',         icon: 'ri-truck-line',          path: '/admin/delivery',                        permKey: 'delivery' },
     { title: 'My Deliveries',    icon: 'ri-e-bike-line',         path: '/admin/rider',                           permKey: 'order_status' },
@@ -322,6 +335,8 @@ export default function AdminLayout({
 
   const visibleMenuItems = menuItems.filter(item => {
     if ((item as any).moduleId && !enabledModules.includes((item as any).moduleId)) return false;
+    // Super-admin-only items (e.g. Dashboard) never show for staff.
+    if ((item as any).permKey === SUPER_ADMIN_ONLY) return isSuperAdmin;
     if (isSuperAdmin || staffPermissions === null) return true;
     if (staffRole === 'rider') return (item as any).permKey === 'order_status';
     // Non-riders never see the rider-only "My Deliveries" item.

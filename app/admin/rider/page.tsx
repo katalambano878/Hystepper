@@ -566,33 +566,20 @@ export default function RiderPage() {
                       {order.assigned_at && <span>Assigned: {formatDate(order.assigned_at)}</span>}
                     </div>
 
-                    {/* Outcomes: delivered to customer, fully completed, or could not deliver (returned) */}
+                    {/* Outcomes: delivered to customer, or could not deliver (returned) */}
                     {!isTerminal && (
                       <div className="space-y-3 pt-1">
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <button
-                            type="button"
-                            onClick={() => updateStatus(order.id, 'delivered')}
-                            disabled={updating === order.id}
-                            className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                          >
-                            {updating === order.id
-                              ? <i className="ri-loader-4-line animate-spin"></i>
-                              : <><i className="ri-check-line"></i> Delivered to customer</>
-                            }
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateStatus(order.id, 'completed')}
-                            disabled={updating === order.id}
-                            className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                          >
-                            {updating === order.id
-                              ? <i className="ri-loader-4-line animate-spin"></i>
-                              : <><i className="ri-checkbox-circle-line"></i> Mark completed</>
-                            }
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => updateStatus(order.id, 'delivered')}
+                          disabled={updating === order.id}
+                          className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          {updating === order.id
+                            ? <i className="ri-loader-4-line animate-spin"></i>
+                            : <><i className="ri-check-line"></i> Delivered to customer</>
+                          }
+                        </button>
                         <button
                           type="button"
                           onClick={() => setReturnModal({ orderId: order.id, note: '' })}

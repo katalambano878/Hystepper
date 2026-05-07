@@ -152,7 +152,9 @@ async function resolveReviewUrl(orderId: string, orderRef: string): Promise<stri
 
         if (distinctProducts.size === 1) {
             const [slug] = distinctProducts.values();
-            return `${BRAND.url}/product/${slug}#reviews`;
+            // ?review=write tells the product page to auto-open the review
+            // form; #reviews scrolls past the listing so the form is in view.
+            return `${BRAND.url}/product/${slug}?review=write#reviews`;
         }
         return fallback;
     } catch {

@@ -165,7 +165,7 @@ export default async function ReviewOrderPage({
                 'https://via.placeholder.com/120?text=Item';
 
               const reviewable = Boolean(slug);
-              const href = reviewable ? `/product/${slug}#reviews` : '#';
+              const href = reviewable ? `/product/${slug}?review=write#reviews` : '#';
 
               const Wrapper = reviewable ? Link : 'div';
 

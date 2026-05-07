@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 interface Review {
@@ -20,12 +21,18 @@ interface ProductReviewsProps {
 }
 
 export default function ProductReviews({ productId }: ProductReviewsProps) {
+  const searchParams = useSearchParams();
   const [filter, setFilter] = useState('all');
-  const [showReviewForm, setShowReviewForm] = useState(false);
+  // Honour ?review=write (sent in delivered-order SMS / email links) so the
+  // customer lands directly on the form instead of having to scroll past
+  // existing reviews to find the "Write a Review" button.
+  const autoOpenReview = searchParams?.get('review') === 'write';
+  const [showReviewForm, setShowReviewForm] = useState(autoOpenReview);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const [reviewForm, setReviewForm] = useState({
     rating: 5,
@@ -41,6 +48,17 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
 
     fetchReviews();
   }, [productId]);
+
+  // Once the form is mounted (either via auto-open or manual click), scroll
+  // it into view. Runs after `loading` flips so the form actually exists.
+  useEffect(() => {
+    if (!showReviewForm || loading) return;
+    // Defer to next frame so the DOM has the form node painted.
+    const id = requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [showReviewForm, loading]);
 
   const fetchReviews = async () => {
     try {
@@ -226,7 +244,7 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
       )}
 
       {showReviewForm && (
-        <form onSubmit={handleSubmitReview} className="bg-gray-50 rounded-xl p-6 mb-8">
+        <form ref={formRef} onSubmit={handleSubmitReview} className="bg-gray-50 rounded-xl p-6 mb-8 scroll-mt-24">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Write Your Review</h3>
 
           <div className="mb-4">

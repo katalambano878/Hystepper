@@ -27,6 +27,7 @@ interface Order {
   email: string | null;
   shipping_address: any;
   payment_method: string | null;
+  payment_status: string | null;
   delivery_notes: string | null;
   metadata?: Record<string, unknown> | null;
   order_items: OrderItem[];
@@ -79,7 +80,8 @@ export default function RiderPage() {
       .select(`
         id, order_number, status, total, subtotal, shipping_total,
         created_at, assigned_at, rider_notes, phone, email,
-        shipping_address, payment_method, delivery_notes, metadata,
+        shipping_address, payment_method, payment_status,
+        delivery_notes, metadata,
         order_items (
           id, product_name, variant_name,
           quantity, unit_price, total_price, metadata
@@ -165,7 +167,28 @@ export default function RiderPage() {
       return;
     }
 
-    let updatePayload: { status: string; metadata?: Record<string, unknown> } = { status };
+    let updatePayload: {
+      status: string;
+      payment_status?: string;
+      metadata?: Record<string, unknown>;
+    } = { status };
+
+    // Pay-on-delivery POS orders: the rider collects cash at the door, so a
+    // successful delivery doubles as payment confirmation. Flip the payment
+    // status to 'paid' in the same write so the customer's tracking page
+    // stops showing "Awaiting payment" the moment the order is delivered.
+    const wasUnpaidPOD =
+      (status === 'delivered' || status === 'completed') &&
+      (o.payment_status || '').toLowerCase() !== 'paid' &&
+      (
+        o.payment_method === 'pay_on_delivery' ||
+        Boolean((o.metadata as Record<string, unknown> | null)?.pay_on_delivery)
+      );
+
+    if (wasUnpaidPOD) {
+      updatePayload = { ...updatePayload, payment_status: 'paid' };
+    }
+
     if (status === 'returned') {
       const prev = (o.metadata as Record<string, unknown>) || {};
       updatePayload = {
@@ -194,6 +217,9 @@ export default function RiderPage() {
         if (status === 'returned' && updatePayload.metadata) {
           return { ...ord, status, metadata: updatePayload.metadata };
         }
+        if (wasUnpaidPOD) {
+          return { ...ord, status, payment_status: 'paid' };
+        }
         return { ...ord, status };
       })
     );
@@ -201,7 +227,11 @@ export default function RiderPage() {
       setReturnModal(null);
     }
     showToast(
-      status === 'returned' ? 'Marked as delivery unsuccessful (returned)' : `Order marked as ${status}`
+      status === 'returned'
+        ? 'Marked as delivery unsuccessful (returned)'
+        : wasUnpaidPOD
+          ? `Delivered & payment received — order #${o.order_number}`
+          : `Order marked as ${status}`
     );
 
     const forNotify: Order = {

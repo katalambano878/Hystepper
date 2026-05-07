@@ -380,11 +380,19 @@ export default function POSPage() {
             };
             const addressData = orderType === 'delivery' ? deliveryAddress : walkInAddress;
 
+            // Pay on delivery is only valid for delivery orders. The cashier
+            // hasn't collected cash yet — the rider will at the doorstep.
+            const isPayOnDelivery = paymentMethod === 'pay_on_delivery' && orderType === 'delivery';
+            const resolvedPaymentStatus = isPayOnDelivery ? 'pending' : 'paid';
+
             const orderMeta: any = {
                 pos_sale: true,
                 pos_order_type: orderType,
                 stock_reduced: true,
             };
+            if (isPayOnDelivery) {
+                orderMeta.pay_on_delivery = true;
+            }
             if (!selectedCustomer) {
                 orderMeta.guest_checkout = true;
                 orderMeta.first_name = resolvedFirstName;
@@ -408,7 +416,7 @@ export default function POSPage() {
                     // Walk-in sales are completed instantly; deliveries start in
                     // processing so they flow through the normal fulfilment queue.
                     status: orderType === 'delivery' ? 'processing' : 'delivered',
-                    payment_status: 'paid',
+                    payment_status: resolvedPaymentStatus,
                     payment_method: paymentMethod,
                     payment_provider: 'pos',
                     shipping_address: addressData,
@@ -619,10 +627,12 @@ export default function POSPage() {
         const paymentLabel =
             completedOrder.paymentMethod === 'cash'
                 ? 'Cash'
-                : completedOrder.paymentMethod === 'mobile_money'
+                : completedOrder.paymentMethod === 'mobile_money' || completedOrder.paymentMethod === 'momo'
                 ? 'Mobile Money'
                 : completedOrder.paymentMethod === 'card'
                 ? 'Card'
+                : completedOrder.paymentMethod === 'pay_on_delivery'
+                ? 'Pay on Delivery (UNPAID)'
                 : String(completedOrder.paymentMethod || 'Paid');
 
         const receiptRef = completedOrder.order_number || completedOrder.id.slice(0, 8);
@@ -1078,18 +1088,35 @@ export default function POSPage() {
                     <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                         {completedOrder ? (
                             <div className="p-8 text-center flex flex-col items-center justify-center space-y-6 overflow-y-auto">
-                                <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
-                                    <i className="ri-checkbox-circle-fill text-5xl text-emerald-600"></i>
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-900">Payment Successful!</h2>
-                                    <p className="text-gray-500 mt-1">Order #{completedOrder.order_number || completedOrder.id.slice(0, 8)} completed.</p>
-                                    {completedOrder.paymentMethod === 'cash' && (
-                                        <p className="text-lg font-semibold text-gray-900 mt-2">
-                                            Change Due: GH₵{(completedOrder.changeDue || 0).toFixed(2)}
-                                        </p>
-                                    )}
-                                </div>
+                                {completedOrder.paymentMethod === 'pay_on_delivery' ? (
+                                    <>
+                                        <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center">
+                                            <i className="ri-time-line text-5xl text-amber-600"></i>
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-gray-900">Order Saved — Payment Pending</h2>
+                                            <p className="text-gray-500 mt-1">Order #{completedOrder.order_number || completedOrder.id.slice(0, 8)} is awaiting payment.</p>
+                                            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+                                                Cash will be collected at the door. Once the rider confirms delivery, this order will be marked paid automatically.
+                                            </p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
+                                            <i className="ri-checkbox-circle-fill text-5xl text-emerald-600"></i>
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-gray-900">Payment Successful!</h2>
+                                            <p className="text-gray-500 mt-1">Order #{completedOrder.order_number || completedOrder.id.slice(0, 8)} completed.</p>
+                                            {completedOrder.paymentMethod === 'cash' && (
+                                                <p className="text-lg font-semibold text-gray-900 mt-2">
+                                                    Change Due: GH₵{(completedOrder.changeDue || 0).toFixed(2)}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                                 <div className="grid grid-cols-2 gap-4 w-full">
                                     <button onClick={printReceipt} className="py-3 px-4 border border-gray-300 rounded-xl font-semibold hover:bg-gray-50">
                                         Print Receipt
@@ -1124,7 +1151,10 @@ export default function POSPage() {
                                         <div className="grid grid-cols-2 gap-3">
                                             <button
                                                 type="button"
-                                                onClick={() => setOrderType('walk_in')}
+                                                onClick={() => {
+                                                    setOrderType('walk_in');
+                                                    if (paymentMethod === 'pay_on_delivery') setPaymentMethod('cash');
+                                                }}
                                                 className={`py-3 rounded-lg font-medium border transition-all flex items-center justify-center space-x-2 ${
                                                     orderType === 'walk_in'
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600'
@@ -1426,6 +1456,25 @@ export default function POSPage() {
                                                 </button>
                                             ))}
                                         </div>
+                                        {orderType === 'delivery' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentMethod('pay_on_delivery')}
+                                                className={`mt-3 w-full py-3 rounded-lg font-medium border transition-all flex items-center justify-center gap-2 ${
+                                                    paymentMethod === 'pay_on_delivery'
+                                                        ? 'border-amber-600 bg-amber-50 text-amber-800 ring-1 ring-amber-600'
+                                                        : 'border-dashed border-gray-300 hover:border-amber-400 text-gray-600'
+                                                }`}
+                                            >
+                                                <i className="ri-time-line"></i>
+                                                <span>Pay on delivery (collect cash at door)</span>
+                                            </button>
+                                        )}
+                                        {paymentMethod === 'pay_on_delivery' && (
+                                            <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                                The order will be saved as <strong>Awaiting payment</strong>. The rider will mark it paid automatically when they confirm delivery.
+                                            </p>
+                                        )}
                                     </div>
 
                                     {paymentMethod === 'cash' && (

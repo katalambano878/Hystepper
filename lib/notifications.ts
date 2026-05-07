@@ -731,13 +731,20 @@ export async function sendPosAdminAlert(alert: {
 }) {
     const { phone: adminPhone, source } = await resolveAdminAlertPhone();
     const typeLabel = alert.orderType === 'delivery' ? 'Delivery' : 'Walk-in';
-    const pay = (alert.paymentMethod || 'cash').toString().toUpperCase();
+    const rawMethod = (alert.paymentMethod || 'cash').toString().toLowerCase();
+    const isPayOnDelivery = rawMethod === 'pay_on_delivery';
+    // Friendlier method label so the admin SMS doesn't read "via PAY_ON_DELIVERY".
+    const payLabel = isPayOnDelivery
+        ? 'PAY ON DELIVERY (UNPAID)'
+        : rawMethod === 'momo' || rawMethod === 'mobile_money'
+            ? 'MOMO'
+            : rawMethod.toUpperCase();
     const customerLine = alert.customerName && alert.customerName !== 'Walk-in Customer'
         ? ` for ${alert.customerName}`
         : '';
     const phoneLine = alert.customerPhone ? ` (${alert.customerPhone})` : '';
 
-    const message = `POS ${typeLabel} sale #${alert.orderNumber}: GH₵${Number(alert.total).toFixed(2)} via ${pay}${customerLine}${phoneLine}.`;
+    const message = `POS ${typeLabel} sale #${alert.orderNumber}: GH₵${Number(alert.total).toFixed(2)} via ${payLabel}${customerLine}${phoneLine}.`;
 
     console.log(
         `[POS Admin Alert] Order #${alert.orderNumber} | Admin phone: ${adminPhone ? maskPhone(adminPhone) : 'NONE'} (source: ${source})`

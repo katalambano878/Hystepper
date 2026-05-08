@@ -1166,7 +1166,17 @@ export default function POSPage() {
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => setOrderType('delivery')}
+                                                onClick={() => {
+                                                    setOrderType('delivery');
+                                                    // Default delivery sales to "Pay on delivery" so the
+                                                    // cashier can't accidentally mark a doorstep-cash order
+                                                    // as already paid. They can still flip back to
+                                                    // Cash/Card/Momo if they actually collected at the
+                                                    // counter.
+                                                    if (paymentMethod === 'cash' && !amountTendered) {
+                                                        setPaymentMethod('pay_on_delivery');
+                                                    }
+                                                }}
                                                 className={`py-3 rounded-lg font-medium border transition-all flex items-center justify-center space-x-2 ${
                                                     orderType === 'delivery'
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600'
@@ -1473,6 +1483,12 @@ export default function POSPage() {
                                         {paymentMethod === 'pay_on_delivery' && (
                                             <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                                                 The order will be saved as <strong>Awaiting payment</strong>. The rider will mark it paid automatically when they confirm delivery.
+                                            </p>
+                                        )}
+                                        {orderType === 'delivery' && paymentMethod !== 'pay_on_delivery' && (
+                                            <p className="mt-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                                                <i className="ri-information-line mr-1"></i>
+                                                Only choose <strong>{paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'card' ? 'Card' : 'Momo'}</strong> if you have actually collected the money <strong>now</strong>. Otherwise tap <strong>Pay on delivery</strong> above.
                                             </p>
                                         )}
                                     </div>

@@ -30,24 +30,35 @@ export default function AdminReviewsPage() {
         console.warn('Error fetching reviews:', error);
         // setReviews([]); // Keep empty
       } else if (data) {
-        const formatted = data.map((r: any) => ({
-          id: r.id,
-          customer: {
-            name: r.profiles?.full_name || 'Anonymous',
-            email: r.profiles?.email || 'N/A',
-            avatar: getInitials(r.profiles?.full_name || r.profiles?.email)
-          },
-          product: {
-            name: r.products?.name || 'Unknown Product',
-            image: r.products?.product_images?.[0]?.url || 'https://via.placeholder.com/150'
-          },
-          rating: r.rating,
-          title: r.title,
-          comment: r.content,
-          date: new Date(r.created_at).toLocaleDateString(),
-          status: r.status || 'Pending',
-          helpful: r.helpful || 0
-        }));
+        const formatted = data.map((r: any) => {
+          // Authored either by a signed-in customer (profiles join) or by
+          // a guest who left their name + optional email on the form.
+          const isGuest = !r.user_id;
+          const displayName =
+            r.profiles?.full_name ||
+            r.guest_name ||
+            (isGuest ? 'Guest reviewer' : 'Anonymous');
+          const displayEmail = r.profiles?.email || r.guest_email || 'N/A';
+          return {
+            id: r.id,
+            customer: {
+              name: displayName,
+              email: displayEmail,
+              avatar: getInitials(displayName),
+              isGuest,
+            },
+            product: {
+              name: r.products?.name || 'Unknown Product',
+              image: r.products?.product_images?.[0]?.url || 'https://via.placeholder.com/150'
+            },
+            rating: r.rating,
+            title: r.title,
+            comment: r.content,
+            date: new Date(r.created_at).toLocaleDateString(),
+            status: r.status || 'Pending',
+            helpful: r.helpful || 0
+          };
+        });
         setReviews(formatted);
       }
     } catch (error) {

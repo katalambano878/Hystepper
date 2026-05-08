@@ -13,7 +13,7 @@ interface Review {
   title: string;
   content: string;
   helpful: number;
-  user_id: string;
+  user_id: string | null;
 }
 
 interface ProductReviewsProps {
@@ -37,7 +37,9 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
   const [reviewForm, setReviewForm] = useState({
     rating: 5,
     title: '',
-    content: ''
+    content: '',
+    guestName: '',
+    guestEmail: '',
   });
 
   useEffect(() => {
@@ -73,13 +75,15 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
       if (error) throw error;
 
       if (data) {
-        // We need to fetch user names if possible. Since we don't have public profiles easily accessible 
-        // without complicated RLS/joins in client, we might fallback to generic name or metadata if stored.
-        // For this demo, we'll try to use a "clean" name or just "Verified Customer"
-
-        const formattedReviews = data.map(r => ({
+        // Author label preference:
+        //   1. guest_name (if the reviewer wasn't signed in)
+        //   2. "Verified Customer" (signed-in reviewer; we can't read profile
+        //      names from the public client without extra RLS plumbing)
+        const formattedReviews = data.map((r: any) => ({
           id: r.id,
-          author: 'Verified Customer', // or fetch from profiles if we had it joined
+          author: (r.guest_name && String(r.guest_name).trim())
+            ? String(r.guest_name).trim()
+            : 'Verified Customer',
           rating: r.rating,
           date: r.created_at,
           verified: r.verified_purchase,
@@ -116,41 +120,62 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
 
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      alert('Please login to submit a review');
+
+    // Guests must give us a name so the review has an author byline.
+    const guestNameTrimmed = reviewForm.guestName.trim();
+    if (!user && !guestNameTrimmed) {
+      alert('Please tell us your name so we can credit your review.');
+      return;
+    }
+    if (!reviewForm.title.trim() || !reviewForm.content.trim()) {
+      alert('Please add a title and a few words about your experience.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Check if user has actually ordered this product
-      const { data: purchaseCheck } = await supabase
-        .from('order_items')
-        .select('id, orders!inner(user_id, status)')
-        .eq('product_id', productId)
-        .eq('orders.user_id', user.id)
-        .eq('orders.status', 'delivered')
-        .limit(1);
+      let isVerifiedPurchase = false;
 
-      const isVerifiedPurchase = (purchaseCheck && purchaseCheck.length > 0);
+      if (user) {
+        // Authenticated reviewer — verify by user_id on a delivered order.
+        const { data: purchaseCheck } = await supabase
+          .from('order_items')
+          .select('id, orders!inner(user_id, status)')
+          .eq('product_id', productId)
+          .eq('orders.user_id', user.id)
+          .eq('orders.status', 'delivered')
+          .limit(1);
 
-      const { error } = await supabase.from('reviews').insert([{
+        isVerifiedPurchase = !!(purchaseCheck && purchaseCheck.length > 0);
+      }
+
+      const insertRow: Record<string, unknown> = {
         product_id: productId,
-        user_id: user.id,
         rating: reviewForm.rating,
-        title: reviewForm.title,
-        content: reviewForm.content,
-        status: 'pending', // Require admin approval
-        verified_purchase: isVerifiedPurchase
-      }]);
+        title: reviewForm.title.trim(),
+        content: reviewForm.content.trim(),
+        status: 'pending',
+        verified_purchase: isVerifiedPurchase,
+      };
+
+      if (user) {
+        insertRow.user_id = user.id;
+      } else {
+        insertRow.user_id = null;
+        insertRow.guest_name = guestNameTrimmed;
+        const guestEmailTrimmed = reviewForm.guestEmail.trim();
+        if (guestEmailTrimmed) insertRow.guest_email = guestEmailTrimmed;
+      }
+
+      const { error } = await supabase.from('reviews').insert([insertRow]);
 
       if (error) throw error;
 
-      alert('Review submitted! It will appear after admin approval.');
+      alert('Thanks! Your review has been submitted and will appear after a quick check.');
       setShowReviewForm(false);
-      setReviewForm({ rating: 5, title: '', content: '' });
-      fetchReviews(); // Refresh list
+      setReviewForm({ rating: 5, title: '', content: '', guestName: '', guestEmail: '' });
+      fetchReviews();
 
     } catch (err: any) {
       console.error('Submit review error:', err);
@@ -267,9 +292,37 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
           </div>
 
           {!user && (
-            <div className="mb-4 p-4 bg-amber-50 text-amber-800 rounded-lg">
-              You must be logged in to submit a review.
-            </div>
+            <>
+              <div className="mb-4 grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">Your Name *</label>
+                  <input
+                    type="text"
+                    value={reviewForm.guestName}
+                    onChange={(e) => setReviewForm({ ...reviewForm, guestName: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    placeholder="e.g. Linda D."
+                    maxLength={60}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Email <span className="text-gray-400 font-normal text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={reviewForm.guestEmail}
+                    onChange={(e) => setReviewForm({ ...reviewForm, guestEmail: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    placeholder="you@example.com"
+                  />
+                </div>
+              </div>
+              <p className="mb-4 text-xs text-gray-500">
+                We won&apos;t publish your email — it just helps us follow up if there&apos;s an issue.
+              </p>
+            </>
           )}
 
           <div className="mb-4">
@@ -280,8 +333,8 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
               onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })}
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               placeholder="Sum up your experience"
+              maxLength={120}
               required
-              disabled={!user}
             />
           </div>
 
@@ -293,15 +346,15 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
               rows={4}
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               placeholder="Share your experience with this product"
+              maxLength={2000}
               required
-              disabled={!user}
             ></textarea>
           </div>
 
           <div className="flex space-x-3">
             <button
               type="submit"
-              disabled={isSubmitting || !user}
+              disabled={isSubmitting}
               className="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap disabled:opacity-50"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Review'}

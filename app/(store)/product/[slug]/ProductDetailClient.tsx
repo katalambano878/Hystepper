@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
 import ProductCard from '@/components/ProductCard';
@@ -25,6 +26,7 @@ function isLightColor(hex: string | null): boolean {
 }
 
 export default function ProductDetailClient({ slug }: { slug: string }) {
+  const searchParams = useSearchParams();
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -33,6 +35,18 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [colorOverrideImage, setColorOverrideImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
+
+  // Customers arriving from the delivered-order SMS/email link land with
+  // ?review=write (or just #reviews). Switch to the Reviews tab on mount
+  // so the ProductReviews component is actually rendered and can auto-open
+  // the write-review form. Done in an effect (not initial state) so SSR /
+  // hydration stay consistent.
+  useEffect(() => {
+    const wantsReview =
+      searchParams?.get('review') === 'write' ||
+      (typeof window !== 'undefined' && window.location.hash === '#reviews');
+    if (wantsReview) setActiveTab('reviews');
+  }, [searchParams]);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [notifyEmail, setNotifyEmail] = useState('');
   const [notifySubmitted, setNotifySubmitted] = useState(false);

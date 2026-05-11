@@ -1,13 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
 import type { Metadata } from 'next';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const metadata: Metadata = {
   title: 'Leave a review — Hy_stepper',
   description: 'Tell us what you thought of your recent order.',
   robots: { index: false, follow: false },
 };
+
+// Always render fresh — order_items can change up until the moment the
+// customer clicks the SMS link, and we don't want the chooser cached.
+export const dynamic = 'force-dynamic';
 
 type OrderItem = {
   product_name: string;
@@ -26,16 +30,18 @@ type OrderRow = {
 };
 
 async function fetchOrder(ref: string): Promise<OrderRow | null> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
+  // The customer arrives here from an SMS we sent to *their* phone after
+  // their order was delivered. They are usually NOT signed in, so the
+  // public anon role can't read the order under existing RLS (orders
+  // belonging to a registered customer are scoped to that user). We use
+  // the service-role client server-side and only return non-sensitive
+  // fields (product names + slugs + images) needed to render the chooser.
+  // The order_number itself functions as the unguessable handle here, the
+  // same way the order-success tracking link does.
+  const supabase = supabaseAdmin;
 
-  const supabase = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  // Try by order_number first, then by id (covers both the human-readable POS-xxx
-  // numbers used in SMS and direct UUID links).
+  // Try by order_number first, then by id (covers both the human-readable
+  // POS-xxx numbers used in SMS and direct UUID links).
   let query = await supabase
     .from('orders')
     .select(

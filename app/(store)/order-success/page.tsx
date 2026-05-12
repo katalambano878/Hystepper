@@ -180,6 +180,14 @@ function OrderSuccessContent() {
   const isRefunded = paymentState === 'refunded' || paymentState === 'partially_refunded';
   const isPending = !isPaid && !isFailed && !isRefunded;
 
+  // POS orders are settled in-person — the customer doesn't need (or want)
+  // a payment-status banner or a "Paid" milestone in the delivery timeline.
+  // Detect by order_number prefix or the metadata flag we set in the POS UI.
+  const isPosOrder =
+    String(order.order_number || '').toUpperCase().startsWith('POS-') ||
+    order.metadata?.is_pos === true ||
+    order.metadata?.pos === true;
+
   // Visual treatment that adapts to the actual payment outcome instead of
   // unconditionally celebrating. "PAYMENT RECEIVED" with confetti for an
   // unpaid POS order is misleading — that's exactly the bug we're fixing.
@@ -256,18 +264,34 @@ function OrderSuccessContent() {
     shipped: 3,
     delivered: 4,
   };
-  const currentStage = isPending ? 0 : (fulfilmentRank[fulfilmentStatus] ?? 1);
-  const steps = [
+  // POS orders skip the "Paid" milestone, so we collapse the rank table
+  // by one slot to keep the timeline highlighting accurate.
+  const posFulfilmentRank: Record<string, number> = {
+    pending: 0,
+    confirmed: 0,
+    processing: 1,
+    packaged: 1,
+    dispatched_to_rider: 2,
+    out_for_delivery: 2,
+    shipped: 2,
+    delivered: 3,
+  };
+  const currentStage = isPosOrder
+    ? (posFulfilmentRank[fulfilmentStatus] ?? 0)
+    : (isPending ? 0 : (fulfilmentRank[fulfilmentStatus] ?? 1));
+  const baseSteps = [
     { key: 'paid', label: isPaid ? 'Paid' : 'Payment', icon: isPaid ? 'ri-checkbox-circle-line' : 'ri-bank-card-line' },
     { key: 'processing', label: 'Processing', icon: 'ri-loader-4-line' },
     { key: 'shipped', label: 'Shipped', icon: 'ri-truck-line' },
     { key: 'delivered', label: 'Delivered', icon: 'ri-home-smile-2-line' },
-  ].map((s, idx) => ({
+  ];
+  const visibleSteps = isPosOrder ? baseSteps.filter((s) => s.key !== 'paid') : baseSteps;
+  const steps = visibleSteps.map((s, idx) => ({
     ...s,
     done: idx < currentStage,
     current: idx === currentStage,
   }));
-  const progressPct = `${Math.min(100, (currentStage / (steps.length - 1)) * 100)}%`;
+  const progressPct = `${Math.min(100, (currentStage / Math.max(1, steps.length - 1)) * 100)}%`;
 
   return (
     <main className="min-h-screen bg-[#fafaf7]">
@@ -302,10 +326,12 @@ function OrderSuccessContent() {
         }`} />
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-14 pb-10">
           <div className="text-center">
-            <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-semibold tracking-wide uppercase mb-5 ${statusBadge.className}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dotClass}`} />
-              {statusBadge.label}
-            </div>
+            {!isPosOrder && (
+              <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-semibold tracking-wide uppercase mb-5 ${statusBadge.className}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dotClass}`} />
+                {statusBadge.label}
+              </div>
+            )}
             <div className="relative w-20 h-20 mx-auto mb-5">
               {isPaid && <div className="absolute inset-0 rounded-full bg-gold-100 animate-ping opacity-60" />}
               <div className={`relative w-20 h-20 rounded-full bg-gradient-to-br ${heroIcon.tone} flex items-center justify-center shadow-lg ${heroIcon.shadow}`}>
@@ -318,7 +344,7 @@ function OrderSuccessContent() {
             <p className="text-base sm:text-lg text-gray-600 max-w-xl mx-auto">
               {subline}
             </p>
-            {isPending && (
+            {isPending && !isPosOrder && (
               <div className="mt-6 inline-flex items-start gap-3 max-w-xl text-left bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3">
                 <i className="ri-information-line text-xl mt-0.5" />
                 <p className="text-sm leading-relaxed">
@@ -378,7 +404,10 @@ function OrderSuccessContent() {
               className="absolute top-5 left-0 h-0.5 bg-gradient-to-r from-gold-500 to-amber-500 transition-all"
               style={{ width: progressPct }}
             />
-            <div className="relative grid grid-cols-4 gap-2">
+            <div
+              className="relative grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
+            >
               {steps.map((step) => (
                 <div key={step.key} className="flex flex-col items-center text-center">
                   <div

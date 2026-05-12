@@ -137,27 +137,37 @@ export default function AdminReviewsPage() {
     }
   };
 
-  const handleBulkAction = async (action: string) => {
-    if (selectedReviews.length === 0) return;
+  const updateReviewStatus = async (ids: string[], newStatus: 'approved' | 'rejected' | 'pending') => {
+    if (ids.length === 0) return;
     try {
-      // review_status enum is lowercase: pending | approved | rejected
-      let newStatus = '';
-      if (action === 'Approve') newStatus = 'approved';
-      if (action === 'Reject') newStatus = 'rejected';
-
-      if (newStatus) {
-        const { error } = await supabase
-          .from('reviews')
-          .update({ status: newStatus })
-          .in('id', selectedReviews);
-
-        if (error) throw error;
-        fetchReviews();
-        setSelectedReviews([]);
-      }
+      const { error } = await supabase
+        .from('reviews')
+        .update({ status: newStatus })
+        .in('id', ids);
+      if (error) throw error;
+      fetchReviews();
+      setSelectedReviews((prev) => prev.filter((id) => !ids.includes(id)));
     } catch (err: any) {
       console.error('Error updating reviews', err);
       alert('Failed to update reviews: ' + (err?.message || 'Unknown error'));
+    }
+  };
+
+  const handleBulkAction = async (action: string) => {
+    if (selectedReviews.length === 0) return;
+    if (action === 'Approve') return updateReviewStatus(selectedReviews, 'approved');
+    if (action === 'Reject') return updateReviewStatus(selectedReviews, 'rejected');
+  };
+
+  const handleDeleteReview = async (id: string) => {
+    if (!confirm('Delete this review permanently? This cannot be undone.')) return;
+    try {
+      const { error } = await supabase.from('reviews').delete().eq('id', id);
+      if (error) throw error;
+      fetchReviews();
+    } catch (err: any) {
+      console.error('Error deleting review', err);
+      alert('Failed to delete review: ' + (err?.message || 'Unknown error'));
     }
   };
 
@@ -273,13 +283,14 @@ export default function AdminReviewsPage() {
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700 w-1/3">Review</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Date</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Status</th>
+                <th className="text-right py-4 px-4 text-sm font-semibold text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="p-8 text-center text-gray-500">Loading reviews...</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-gray-500">Loading reviews...</td></tr>
               ) : filteredReviews.length === 0 ? (
-                <tr><td colSpan={6} className="p-8 text-center text-gray-500">No reviews found in this category.</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-gray-500">No reviews found in this category.</td></tr>
               ) : (
                 filteredReviews.map((review) => (
                   <tr key={review.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
@@ -323,6 +334,45 @@ export default function AdminReviewsPage() {
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${statusColors[String(review.status).toLowerCase()] || 'bg-gray-100'}`}>
                         {statusLabels[String(review.status).toLowerCase()] || review.status}
                       </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                        {String(review.status).toLowerCase() !== 'approved' && (
+                          <button
+                            onClick={() => updateReviewStatus([review.id], 'approved')}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                            title="Approve review"
+                          >
+                            <i className="ri-check-line mr-1"></i>Approve
+                          </button>
+                        )}
+                        {String(review.status).toLowerCase() !== 'rejected' && (
+                          <button
+                            onClick={() => updateReviewStatus([review.id], 'rejected')}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                            title="Reject review"
+                          >
+                            <i className="ri-close-line mr-1"></i>Reject
+                          </button>
+                        )}
+                        {String(review.status).toLowerCase() !== 'pending' && (
+                          <button
+                            onClick={() => updateReviewStatus([review.id], 'pending')}
+                            className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                            title="Move back to pending"
+                          >
+                            <i className="ri-refresh-line mr-1"></i>Pending
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteReview(review.id)}
+                          className="px-2 py-1.5 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                          title="Delete review"
+                          aria-label="Delete review"
+                        >
+                          <i className="ri-delete-bin-line text-base"></i>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

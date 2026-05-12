@@ -16,51 +16,70 @@ export default function AdminReviewsPage() {
   const fetchReviews = async () => {
     try {
       setLoading(true);
+      // NOTE: reviews.user_id has its FK on auth.users(id), not public.profiles(id),
+      // so PostgREST can't auto-embed `profiles:user_id (...)`. We fetch the
+      // profiles in a second round-trip and merge in JS.
       const { data, error } = await supabase
         .from('reviews')
         .select(`
           *,
-          profiles:user_id (full_name, email),
           products:product_id (name, product_images (url))
         `)
         .order('created_at', { ascending: false });
 
       if (error) {
-        // Graceful fallback if table doesn't exist or permissions fail
         console.warn('Error fetching reviews:', error);
-        // setReviews([]); // Keep empty
-      } else if (data) {
-        const formatted = data.map((r: any) => {
-          // Authored either by a signed-in customer (profiles join) or by
-          // a guest who left their name + optional email on the form.
-          const isGuest = !r.user_id;
-          const displayName =
-            r.profiles?.full_name ||
-            r.guest_name ||
-            (isGuest ? 'Guest reviewer' : 'Anonymous');
-          const displayEmail = r.profiles?.email || r.guest_email || 'N/A';
-          return {
-            id: r.id,
-            customer: {
-              name: displayName,
-              email: displayEmail,
-              avatar: getInitials(displayName),
-              isGuest,
-            },
-            product: {
-              name: r.products?.name || 'Unknown Product',
-              image: r.products?.product_images?.[0]?.url || 'https://via.placeholder.com/150'
-            },
-            rating: r.rating,
-            title: r.title,
-            comment: r.content,
-            date: new Date(r.created_at).toLocaleDateString(),
-            status: r.status || 'Pending',
-            helpful: r.helpful || 0
-          };
-        });
-        setReviews(formatted);
+        return;
       }
+
+      const reviewRows = data || [];
+      const userIds = Array.from(
+        new Set(reviewRows.map((r: any) => r.user_id).filter(Boolean) as string[])
+      );
+
+      let profilesById: Record<string, { full_name?: string | null; email?: string | null }> = {};
+      if (userIds.length > 0) {
+        const { data: profileRows, error: profileErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+        if (profileErr) {
+          console.warn('Error fetching reviewer profiles:', profileErr);
+        } else if (profileRows) {
+          profilesById = Object.fromEntries(
+            profileRows.map((p: any) => [p.id, { full_name: p.full_name, email: p.email }])
+          );
+        }
+      }
+
+      const formatted = reviewRows.map((r: any) => {
+        const profile = r.user_id ? profilesById[r.user_id] : undefined;
+        const isGuest = !r.user_id;
+        const displayName =
+          profile?.full_name ||
+          r.guest_name ||
+          (isGuest ? 'Guest reviewer' : 'Anonymous');
+        const displayEmail = profile?.email || r.guest_email || 'N/A';
+        return {
+          id: r.id,
+          customer: {
+            name: displayName,
+            email: displayEmail,
+            avatar: getInitials(displayName),
+            isGuest,
+          },
+          product: {
+            name: r.products?.name || 'Unknown Product',
+            image: r.products?.product_images?.[0]?.url || 'https://via.placeholder.com/150'
+          },
+          rating: r.rating,
+          comment: r.content,
+          date: new Date(r.created_at).toLocaleDateString(),
+          status: r.status || 'pending',
+          helpful: r.helpful_votes || 0
+        };
+      });
+      setReviews(formatted);
     } catch (error) {
       console.error('Error fetching reviews:', error);
     } finally {
@@ -90,10 +109,16 @@ export default function AdminReviewsPage() {
     rejected: reviews.filter(r => r.status.toLowerCase() === 'rejected').length
   };
 
-  const statusColors: any = {
-    'Pending': 'bg-amber-100 text-amber-700',
-    'Approved': 'bg-emerald-100 text-emerald-700',
-    'Rejected': 'bg-red-100 text-red-700'
+  const statusColors: Record<string, string> = {
+    pending: 'bg-amber-100 text-amber-700',
+    approved: 'bg-emerald-100 text-emerald-700',
+    rejected: 'bg-red-100 text-red-700'
+  };
+
+  const statusLabels: Record<string, string> = {
+    pending: 'Pending',
+    approved: 'Approved',
+    rejected: 'Rejected'
   };
 
   const handleSelectAll = () => {
@@ -115,9 +140,10 @@ export default function AdminReviewsPage() {
   const handleBulkAction = async (action: string) => {
     if (selectedReviews.length === 0) return;
     try {
+      // review_status enum is lowercase: pending | approved | rejected
       let newStatus = '';
-      if (action === 'Approve') newStatus = 'Approved';
-      if (action === 'Reject') newStatus = 'Rejected';
+      if (action === 'Approve') newStatus = 'approved';
+      if (action === 'Reject') newStatus = 'rejected';
 
       if (newStatus) {
         const { error } = await supabase
@@ -129,9 +155,9 @@ export default function AdminReviewsPage() {
         fetchReviews();
         setSelectedReviews([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating reviews', err);
-      alert('Failed to update reviews. Functionality might be limited.');
+      alert('Failed to update reviews: ' + (err?.message || 'Unknown error'));
     }
   };
 
@@ -289,14 +315,13 @@ export default function AdminReviewsPage() {
                     <td className="py-4 px-4">
                       <div className="space-y-1">
                         {renderStars(review.rating)}
-                        <p className="text-sm font-bold text-gray-900">{review.title}</p>
-                        <p className="text-sm text-gray-600 line-clamp-2">{review.comment}</p>
+                        <p className="text-sm text-gray-600 line-clamp-3">{review.comment}</p>
                       </div>
                     </td>
                     <td className="py-4 px-4 text-sm text-gray-600 whitespace-nowrap">{review.date}</td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${statusColors[review.status] || 'bg-gray-100'}`}>
-                        {review.status}
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${statusColors[String(review.status).toLowerCase()] || 'bg-gray-100'}`}>
+                        {statusLabels[String(review.status).toLowerCase()] || review.status}
                       </span>
                     </td>
                   </tr>

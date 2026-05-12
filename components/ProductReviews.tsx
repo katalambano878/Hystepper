@@ -10,7 +10,6 @@ interface Review {
   rating: number;
   date: string;
   verified: boolean;
-  title: string;
   content: string;
   helpful: number;
   user_id: string | null;
@@ -36,7 +35,6 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
 
   const [reviewForm, setReviewForm] = useState({
     rating: 5,
-    title: '',
     content: '',
     guestName: '',
     guestEmail: '',
@@ -87,7 +85,6 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
           rating: r.rating,
           date: r.created_at,
           verified: r.verified_purchase,
-          title: r.title,
           content: r.content,
           helpful: r.helpful_votes || 0,
           user_id: r.user_id
@@ -127,8 +124,8 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
       alert('Please tell us your name so we can credit your review.');
       return;
     }
-    if (!reviewForm.title.trim() || !reviewForm.content.trim()) {
-      alert('Please add a title and a few words about your experience.');
+    if (!reviewForm.content.trim()) {
+      alert('Please share a few words about your experience.');
       return;
     }
 
@@ -153,7 +150,6 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
       const insertRow: Record<string, unknown> = {
         product_id: productId,
         rating: reviewForm.rating,
-        title: reviewForm.title.trim(),
         content: reviewForm.content.trim(),
         status: 'pending',
         verified_purchase: isVerifiedPurchase,
@@ -174,7 +170,7 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
 
       alert('Thanks! Your review has been submitted and will appear after a quick check.');
       setShowReviewForm(false);
-      setReviewForm({ rating: 5, title: '', content: '', guestName: '', guestEmail: '' });
+      setReviewForm({ rating: 5, content: '', guestName: '', guestEmail: '' });
       fetchReviews();
 
     } catch (err: any) {
@@ -326,19 +322,6 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
           )}
 
           <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-900 mb-2">Review Title *</label>
-            <input
-              type="text"
-              value={reviewForm.title}
-              onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              placeholder="Sum up your experience"
-              maxLength={120}
-              required
-            />
-          </div>
-
-          <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-900 mb-2">Your Review *</label>
             <textarea
               value={reviewForm.content}
@@ -403,7 +386,6 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
               </div>
             </div>
 
-            <h4 className="font-semibold text-gray-900 mb-2">{review.title}</h4>
             <p className="text-gray-700 mb-4">{review.content}</p>
 
             <div className="flex items-center space-x-4 text-sm">

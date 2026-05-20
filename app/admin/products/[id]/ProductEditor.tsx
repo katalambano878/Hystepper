@@ -1162,69 +1162,140 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     </span>
                   </div>
 
-                  <div className="border border-gray-200 rounded-xl overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Variant</th>
-                          {variants.some(v => !v._disabled && (v._color || v.option2)) && (
-                            <th className="text-left py-3 px-4 font-semibold text-gray-700">Color</th>
-                          )}
-                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Price (GH₵)</th>
-                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Stock</th>
-                          <th className="text-right py-3 px-4 font-semibold text-gray-700"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {variants.map((v, index) => {
-                          if (v._disabled) return null;
-                          return (
-                            <tr key={v.id || index} className="hover:bg-gray-50 transition-colors">
-                              <td className="py-3 px-4 font-medium text-gray-900">{v.name}</td>
-                              {variants.some(vv => !vv._disabled && (vv._color || vv.option2)) && (
-                                <td className="py-3 px-4">
-                                  <div className="flex items-center gap-2">
-                                    {v.image_url ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={v.image_url} alt="" className="w-7 h-7 rounded-md object-cover border border-gray-200" />
-                                    ) : v.option3 ? (
-                                      <div className="w-5 h-5 rounded-md border border-gray-300 shrink-0" style={{ background: v.option3 }} />
-                                    ) : null}
-                                    <span className="text-gray-600 text-xs">{v.option2 || v._color || '—'}</span>
+                  {(() => {
+                    const showColorColumn = variants.some(v => !v._disabled && (v._color || v.option2));
+                    const removeVariant = (v: any, index: number) => {
+                      // Mark disabled via matrix if possible, else remove
+                      if (v._size && v._color) {
+                        setVariants(prev => prev.map((vv, i) => i === index ? { ...vv, _disabled: true } : vv));
+                      } else {
+                        setVariants(variants.filter((_, i) => i !== index));
+                      }
+                    };
+
+                    return (
+                      <>
+                        {/* Desktop: data-dense table */}
+                        <div className="hidden md:block border border-gray-200 rounded-xl overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                              <tr>
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Variant</th>
+                                {showColorColumn && (
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Color</th>
+                                )}
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Price (GH₵)</th>
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Stock</th>
+                                <th className="text-right py-3 px-4 font-semibold text-gray-700"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {variants.map((v, index) => {
+                                if (v._disabled) return null;
+                                return (
+                                  <tr key={v.id || index} className="hover:bg-gray-50 transition-colors">
+                                    <td className="py-3 px-4 font-medium text-gray-900">{v.name}</td>
+                                    {showColorColumn && (
+                                      <td className="py-3 px-4">
+                                        <div className="flex items-center gap-2">
+                                          {v.image_url ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={v.image_url} alt="" className="w-7 h-7 rounded-md object-cover border border-gray-200" />
+                                          ) : v.option3 ? (
+                                            <div className="w-5 h-5 rounded-md border border-gray-300 shrink-0" style={{ background: v.option3 }} />
+                                          ) : null}
+                                          <span className="text-gray-600 text-xs">{v.option2 || v._color || '—'}</span>
+                                        </div>
+                                      </td>
+                                    )}
+                                    <td className="py-3 px-4">
+                                      <input type="number" value={v.price ?? ''}
+                                        onChange={e => { const nv = [...variants]; nv[index].price = parseFloat(e.target.value) || 0; setVariants(nv); }}
+                                        placeholder={price || '0'}
+                                        className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <input type="number" value={v.quantity ?? 0}
+                                        onChange={e => { const nv = [...variants]; nv[index].quantity = parseInt(e.target.value) || 0; setVariants(nv); }}
+                                        className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
+                                    </td>
+                                    <td className="py-3 px-4 text-right">
+                                      <button type="button"
+                                        onClick={() => removeVariant(v, index)}
+                                        aria-label={`Remove variant ${v.name}`}
+                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                        <i className="ri-close-line"></i>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Mobile: stacked card list — every field + delete is visible without horizontal scroll */}
+                        <div className="md:hidden space-y-3">
+                          {variants.map((v, index) => {
+                            if (v._disabled) return null;
+                            return (
+                              <div
+                                key={v.id || index}
+                                className="border border-gray-200 rounded-xl bg-white p-4 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-gray-900 text-sm break-words">{v.name}</p>
+                                    {showColorColumn && (
+                                      <div className="flex items-center gap-2 mt-1.5">
+                                        {v.image_url ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img src={v.image_url} alt="" className="w-6 h-6 rounded-md object-cover border border-gray-200" />
+                                        ) : v.option3 ? (
+                                          <div className="w-5 h-5 rounded-md border border-gray-300 shrink-0" style={{ background: v.option3 }} />
+                                        ) : null}
+                                        <span className="text-gray-600 text-xs">{v.option2 || v._color || '—'}</span>
+                                      </div>
+                                    )}
                                   </div>
-                                </td>
-                              )}
-                              <td className="py-3 px-4">
-                                <input type="number" value={v.price ?? ''}
-                                  onChange={e => { const nv = [...variants]; nv[index].price = parseFloat(e.target.value) || 0; setVariants(nv); }}
-                                  placeholder={price || '0'}
-                                  className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
-                              </td>
-                              <td className="py-3 px-4">
-                                <input type="number" value={v.quantity ?? 0}
-                                  onChange={e => { const nv = [...variants]; nv[index].quantity = parseInt(e.target.value) || 0; setVariants(nv); }}
-                                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm" />
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <button type="button"
-                                  onClick={() => {
-                                    // Mark disabled via matrix if possible, else remove
-                                    if (v._size && v._color) {
-                                      setVariants(prev => prev.map((vv, i) => i === index ? { ...vv, _disabled: true } : vv));
-                                    } else {
-                                      setVariants(variants.filter((_, i) => i !== index));
-                                    }
-                                  }}
-                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                  <i className="ri-close-line"></i>
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeVariant(v, index)}
+                                    aria-label={`Remove variant ${v.name}`}
+                                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                  >
+                                    <i className="ri-delete-bin-line text-sm"></i>
+                                    Remove
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <label className="block">
+                                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Price (GH₵)</span>
+                                    <input
+                                      type="number"
+                                      value={v.price ?? ''}
+                                      onChange={e => { const nv = [...variants]; nv[index].price = parseFloat(e.target.value) || 0; setVariants(nv); }}
+                                      placeholder={price || '0'}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm"
+                                    />
+                                  </label>
+                                  <label className="block">
+                                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Stock</span>
+                                    <input
+                                      type="number"
+                                      value={v.quantity ?? 0}
+                                      onChange={e => { const nv = [...variants]; nv[index].quantity = parseInt(e.target.value) || 0; setVariants(nv); }}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 text-sm"
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 

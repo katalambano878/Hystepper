@@ -52,9 +52,7 @@ export default function OrderSummary({ items, subtotal, shipping, tax, total, pa
         </div>
         <div className="flex justify-between text-gray-700">
           <span>Shipping</span>
-          <span className="font-semibold">
-            {shipping === 0 ? 'FREE' : `GH₵ ${shipping.toFixed(2)}`}
-          </span>
+          <span className="font-semibold">GH₵ {shipping.toFixed(2)}</span>
         </div>
         {discount > 0 && (
           <div className="flex justify-between text-gold-600">

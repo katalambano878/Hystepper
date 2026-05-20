@@ -35,6 +35,12 @@ export default function HomePageClient({
 
         const limit = 8;
 
+        // Strictly only show products the admin has explicitly marked as
+        // featured. Previously the query ordered by `featured DESC` and let
+        // unfeatured products fill the remaining slots up to the limit, so
+        // unmarked products leaked onto the homepage when fewer than 8 were
+        // featured. If nothing is featured, the section renders its empty
+        // state instead.
         const { data: productsData, error: productsError } = await supabase
           .from('products')
           .select(`
@@ -43,8 +49,8 @@ export default function HomePageClient({
             product_variants(option2, option3, image_url, quantity)
           `)
           .eq('status', 'active')
+          .eq('featured', true)
           .not('product_images.url', 'ilike', 'data:video%')
-          .order('featured', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(limit)
           .order('position', { foreignTable: 'product_images', ascending: true })

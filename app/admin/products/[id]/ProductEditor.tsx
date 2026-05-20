@@ -657,13 +657,20 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
                       Heel Height
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={heelHeight}
                       onChange={(e) => setHeelHeight(e.target.value)}
-                      placeholder="e.g., 3 inches"
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    />
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                    >
+                      <option value="">Not specified</option>
+                      <option value="Flat">Flat (0–1")</option>
+                      <option value="Low">Low (1–2")</option>
+                      <option value="Mid">Mid (2–3")</option>
+                      <option value="High">High (3"+)</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Pick the bucket that matches this product so it shows up under the matching Heel Height filter on the homepage and shop page.
+                    </p>
                   </div>
                 </div>
 

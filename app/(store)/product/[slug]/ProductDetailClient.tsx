@@ -153,20 +153,26 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               }, []);
           })(),
           sizes: (() => {
+            // `option1` is the canonical size column. For Color-Only variants
+            // option1 is empty and `name` is just the colour (e.g. "Black"),
+            // so we MUST NOT parse `name` for a size in that case — otherwise
+            // the colour shows up as the only "size" on the product page.
             const variants = productData.product_variants || [];
             const hasColors = variants.some((v: any) => v.option2);
-            if (hasColors) {
-              const sizeSet = new Set<string>();
-              variants.forEach((v: any) => {
-                const name = (v.name || '').toString().trim();
-                const size = name.includes(' / ') ? name.split(' / ')[0].trim() : name;
-                if (size) sizeSet.add(size);
-              });
-              return sortSizes([...sizeSet]);
-            }
-            return sortSizes([
-              ...new Set(variants.map((v: any) => v.name || v.option1).filter(Boolean) as string[]),
-            ]);
+            const sizeSet = new Set<string>();
+            variants.forEach((v: any) => {
+              let raw = (v.option1 ?? '').toString().trim();
+              if (!raw && !hasColors) {
+                // Legacy size-only rows that only stored the size in `name`.
+                raw = (v.name ?? '').toString().trim();
+              } else if (!raw && hasColors) {
+                // Legacy size+colour rows that stored "Size / Colour" in name.
+                const n = (v.name ?? '').toString();
+                if (n.includes(' / ')) raw = n.split(' / ')[0].trim();
+              }
+              if (raw) sizeSet.add(raw);
+            });
+            return sortSizes([...sizeSet]);
           })(),
           variants: productData.product_variants || [],
           totalVariantStock: (productData.product_variants || []).reduce((sum: number, v: any) => sum + (Number(v?.quantity) || 0), 0),

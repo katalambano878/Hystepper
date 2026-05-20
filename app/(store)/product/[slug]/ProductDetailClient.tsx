@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
@@ -52,6 +52,43 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [notifySubmitted, setNotifySubmitted] = useState(false);
   const [notifyLoading, setNotifyLoading] = useState(false);
   const [mainImageError, setMainImageError] = useState(false);
+
+  // Track touch positions so we can swipe between gallery images on mobile
+  // without pulling in a full carousel library.
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const SWIPE_THRESHOLD_PX = 40;
+
+  const goToImage = (next: number) => {
+    if (!product) return;
+    const imgs: any[] = Array.isArray(product.images) ? product.images : [];
+    if (imgs.length === 0) return;
+    const normalized = ((next % imgs.length) + imgs.length) % imgs.length;
+    setSelectedImage(normalized);
+    setColorOverrideImage(null);
+    setMainImageError(false);
+  };
+
+  const handleMediaTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStartXRef.current = t.clientX;
+    touchStartYRef.current = t.clientY;
+  };
+
+  const handleMediaTouchEnd = (e: React.TouchEvent) => {
+    const startX = touchStartXRef.current;
+    const startY = touchStartYRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    if (startX === null || startY === null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    // Only treat as a horizontal swipe; otherwise let the page scroll vertically.
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX || Math.abs(dx) <= Math.abs(dy)) return;
+    if (dx < 0) goToImage(selectedImage + 1);
+    else goToImage(selectedImage - 1);
+  };
 
   const { addToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
@@ -465,7 +502,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               {/* Left Column: Images */}
               <div className="lg:col-span-7 animate-fade-in-up">
                 <div className="sticky top-24">
-                  <div className="relative aspect-[4/5] rounded-3xl overflow-hidden bg-gray-50 mb-4 shadow-sm border border-gray-100">
+                  <div
+                    className="group relative aspect-[4/5] rounded-3xl overflow-hidden bg-gray-50 mb-4 shadow-sm border border-gray-100 select-none touch-pan-y"
+                    onTouchStart={handleMediaTouchStart}
+                    onTouchEnd={handleMediaTouchEnd}
+                  >
                     {/* Main Media Display — color override takes priority */}
                     {(() => {
                       const images = Array.isArray(product.images) ? product.images : [];
@@ -520,6 +561,36 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       <span className="absolute top-6 right-6 bg-red-600 text-white text-sm font-bold px-4 py-1.5 rounded-full z-10 shadow-lg">
                         -{discount}% OFF
                       </span>
+                    )}
+
+                    {Array.isArray(product.images) && product.images.length > 1 && !colorOverrideImage && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => goToImage(selectedImage - 1)}
+                          aria-label="Previous image"
+                          className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-white/80 hover:bg-white backdrop-blur text-gray-900 shadow-md border border-gray-200 transition-opacity opacity-0 group-hover:opacity-100"
+                        >
+                          <i className="ri-arrow-left-s-line text-xl"></i>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => goToImage(selectedImage + 1)}
+                          aria-label="Next image"
+                          className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-white/80 hover:bg-white backdrop-blur text-gray-900 shadow-md border border-gray-200 transition-opacity opacity-0 group-hover:opacity-100"
+                        >
+                          <i className="ri-arrow-right-s-line text-xl"></i>
+                        </button>
+
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm">
+                          {product.images.map((_: any, i: number) => (
+                            <span
+                              key={i}
+                              className={`h-1.5 rounded-full transition-all ${i === selectedImage ? 'bg-white w-4' : 'bg-white/60 w-1.5'}`}
+                            />
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
 

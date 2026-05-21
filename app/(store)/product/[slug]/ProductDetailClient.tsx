@@ -672,9 +672,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 {product.colors && product.colors.length > 0 && (
                   <div className="mb-8">
                     <div className="flex items-center justify-between mb-3">
-                      <label className="font-semibold text-gray-900">
-                        {product.colors.some((c: any) => c.image) ? 'Style' : 'Colour'}
-                      </label>
+                      <label className="font-semibold text-gray-900">Colors</label>
                       {selectedColor && <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedColor}</span>}
                     </div>
                     <div className="flex flex-wrap gap-3">

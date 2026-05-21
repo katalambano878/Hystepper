@@ -52,7 +52,17 @@ export default function CheckoutPage() {
   const [paymentOption, setPaymentOption] = useState<'full_payment' | 'item_only'>('full_payment');
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [acceptedPolicy, setAcceptedPolicy] = useState(false);
+  const [policyError, setPolicyError] = useState(false);
+  const [showValidationBanner, setShowValidationBanner] = useState(false);
   const [errors, setErrors] = useState<any>({});
+
+  // Auto-dismiss the top banner once the customer has resolved every issue,
+  // so it doesn't linger after they fix things without re-clicking submit.
+  useEffect(() => {
+    if (!showValidationBanner) return;
+    const stillHasErrors = Object.values(errors).some(Boolean) || (policyError && !acceptedPolicy);
+    if (!stillHasErrors) setShowValidationBanner(false);
+  }, [errors, acceptedPolicy, policyError, showValidationBanner]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Coupon
@@ -257,15 +267,37 @@ export default function CheckoutPage() {
   };
 
   const handleProceedToPayment = () => {
-    if (!validateShipping()) return;
-    if (!acceptedPolicy) {
-      toast.error('Please accept the Exchange & Refund Policy to proceed.');
+    const shippingOk = validateShipping();
+    const policyMissing = !acceptedPolicy;
+    if (policyMissing) setPolicyError(true);
+
+    if (!shippingOk || policyMissing) {
+      // Surface a top-of-form summary so the customer knows what to fix
+      // without having to spot the red borders themselves.
+      setShowValidationBanner(true);
+      requestAnimationFrame(() => {
+        // Prefer scrolling to the first shipping field with an error so the
+        // customer's cursor naturally lands there; fall back to the policy
+        // box if shipping is fine but the policy wasn't accepted.
+        const firstShippingError = document.querySelector<HTMLElement>('[data-shipping-error="true"]');
+        if (firstShippingError) {
+          firstShippingError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          firstShippingError.querySelector<HTMLInputElement | HTMLSelectElement>('input, select, textarea')?.focus({ preventScroll: true });
+          return;
+        }
+        if (policyMissing) {
+          document.getElementById('policy-accept-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
       return;
     }
+
     if (cart.length === 0) {
       toast.error('Your cart is empty');
       return;
     }
+
+    setShowValidationBanner(false);
     setShowPaymentModal(true);
   };
 
@@ -526,13 +558,25 @@ export default function CheckoutPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
 
+            {showValidationBanner && (Object.values(errors).some(Boolean) || (policyError && !acceptedPolicy)) && (
+              <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4 flex items-start gap-3">
+                <i className="ri-error-warning-line text-red-600 text-xl mt-0.5"></i>
+                <div>
+                  <p className="font-semibold text-red-700">Almost there — a few things still need your attention</p>
+                  <p className="text-sm text-red-600 mt-0.5">
+                    The fields highlighted in red below are missing or invalid. Fix them and tap <span className="font-semibold">Proceed to Payment</span> again.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Shipping Information */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-5">Shipping Information</h2>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                  <div data-shipping-error={errors.firstName ? 'true' : undefined} className="scroll-mt-24">
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">First Name *</label>
                     <input
                       type="text"
@@ -541,9 +585,9 @@ export default function CheckoutPage() {
                       className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.firstName ? 'border-red-500' : 'border-gray-300'}`}
                       placeholder="John"
                     />
-                    {errors.firstName && <p className="text-sm text-red-600 mt-1">{errors.firstName}</p>}
+                    {errors.firstName && <p className="text-sm text-red-600 mt-1 flex items-center gap-1"><i className="ri-error-warning-line"></i>{errors.firstName}</p>}
                   </div>
-                  <div>
+                  <div data-shipping-error={errors.lastName ? 'true' : undefined} className="scroll-mt-24">
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">Last Name *</label>
                     <input
                       type="text"
@@ -552,11 +596,11 @@ export default function CheckoutPage() {
                       className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.lastName ? 'border-red-500' : 'border-gray-300'}`}
                       placeholder="Doe"
                     />
-                    {errors.lastName && <p className="text-sm text-red-600 mt-1">{errors.lastName}</p>}
+                    {errors.lastName && <p className="text-sm text-red-600 mt-1 flex items-center gap-1"><i className="ri-error-warning-line"></i>{errors.lastName}</p>}
                   </div>
                 </div>
 
-                <div>
+                <div data-shipping-error={errors.email ? 'true' : undefined} className="scroll-mt-24">
                   <label className="block text-sm font-semibold text-gray-900 mb-1.5">Email Address <span className="text-gray-400 font-normal">(optional)</span></label>
                   <input
                     type="email"
@@ -566,10 +610,10 @@ export default function CheckoutPage() {
                     className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.email ? 'border-red-500' : 'border-gray-300'} ${user ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     placeholder="you@example.com"
                   />
-                  {errors.email && <p className="text-sm text-red-600 mt-1">{errors.email}</p>}
+                  {errors.email && <p className="text-sm text-red-600 mt-1 flex items-center gap-1"><i className="ri-error-warning-line"></i>{errors.email}</p>}
                 </div>
 
-                <div>
+                <div data-shipping-error={errors.phone ? 'true' : undefined} className="scroll-mt-24">
                   <label className="block text-sm font-semibold text-gray-900 mb-1.5">Phone Number *</label>
                   <input
                     type="tel"
@@ -578,11 +622,11 @@ export default function CheckoutPage() {
                     className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-300 focus:border-gold-400 ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
                     placeholder="0241234567"
                   />
-                  {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone}</p>}
+                  {errors.phone && <p className="text-sm text-red-600 mt-1 flex items-center gap-1"><i className="ri-error-warning-line"></i>{errors.phone}</p>}
                 </div>
 
 
-                <div>
+                <div data-shipping-error={errors.region && !selectedRegionType ? 'true' : undefined} className="scroll-mt-24">
                   <label className="block text-sm font-semibold text-gray-900 mb-1.5">Region *</label>
                   <select
                     value={selectedRegionType}
@@ -597,10 +641,11 @@ export default function CheckoutPage() {
                     <option value="greater_accra">Greater Accra</option>
                     <option value="other_regions">Other Regions</option>
                   </select>
+                  {errors.region && !selectedRegionType && <p className="text-sm text-red-600 mt-1 flex items-center gap-1"><i className="ri-error-warning-line"></i>{errors.region}</p>}
                 </div>
 
                 {selectedRegionType === 'greater_accra' && (
-                  <div ref={areaDropdownRef} className="relative">
+                  <div ref={areaDropdownRef} data-shipping-error={errors.region && selectedRegionType === 'greater_accra' ? 'true' : undefined} className="relative scroll-mt-24">
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">Delivery Area *</label>
                     <div
                       className={`relative w-full border-2 rounded-lg overflow-hidden transition-colors ${errors.region ? 'border-red-500' : showAreaDropdown ? 'border-gold-400 ring-2 ring-gold-300' : 'border-gray-300'}`}
@@ -673,7 +718,7 @@ export default function CheckoutPage() {
                 )}
 
                 {selectedRegionType === 'other_regions' && (
-                  <div>
+                  <div data-shipping-error={errors.region && selectedRegionType === 'other_regions' ? 'true' : undefined} className="scroll-mt-24">
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">City *</label>
                     <select
                       value={shippingData.region}
@@ -903,19 +948,25 @@ export default function CheckoutPage() {
             </div>
 
             {/* Exchange & Refund Policy */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="p-5 bg-amber-50 rounded-lg border border-amber-200">
+            <div id="policy-accept-box" className="bg-white rounded-xl shadow-sm p-6 scroll-mt-24">
+              <div className={`p-5 rounded-lg border-2 transition-colors ${policyError && !acceptedPolicy ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-200'}`}>
                 <label className="flex items-start space-x-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={acceptedPolicy}
-                    onChange={(e) => setAcceptedPolicy(e.target.checked)}
+                    onChange={(e) => { setAcceptedPolicy(e.target.checked); if (e.target.checked) setPolicyError(false); }}
                     className="w-5 h-5 text-gold-600 rounded border-gray-300 focus:ring-gold-400 mt-0.5"
                   />
-                  <div className="text-sm text-gray-900 font-medium">
+                  <div className={`text-sm font-medium ${policyError && !acceptedPolicy ? 'text-red-700' : 'text-gray-900'}`}>
                     I have read and agree to the <Link href="/policy" target="_blank" className="text-gold-600 underline hover:text-gold-700">Exchange & Refund Policy</Link>
                   </div>
                 </label>
+                {policyError && !acceptedPolicy && (
+                  <p className="mt-2 ml-8 text-sm text-red-600 flex items-center gap-1">
+                    <i className="ri-error-warning-line"></i>
+                    Please tick this box to confirm you&apos;ve read the policy.
+                  </p>
+                )}
               </div>
             </div>
 

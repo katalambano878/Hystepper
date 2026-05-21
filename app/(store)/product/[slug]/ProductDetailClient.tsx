@@ -273,6 +273,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
   const [showSizeError, setShowSizeError] = useState(false);
   const [showColorError, setShowColorError] = useState(false);
+  const colorSectionRef = useRef<HTMLDivElement | null>(null);
+  const sizeSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Helper: get effective stock — variant stock when product has variants, else product stock
   const getEffectiveStock = () => {
@@ -311,24 +313,26 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     }
   }, [product, selectedColor, selectedSize]);
 
+  const focusFirstVariantError = (missingColor: boolean, missingSize: boolean) => {
+    const target = missingColor ? colorSectionRef.current : missingSize ? sizeSectionRef.current : null;
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      window.scrollBy({ top: -100, behavior: 'smooth' });
+    }
+  };
+
   const handleAddToCart = () => {
     if (!product) return;
 
-    let hasError = false;
+    const missingColor = !!(product.colors && product.colors.length > 0 && !selectedColor);
+    const missingSize = !!(product.sizes && product.sizes.length > 0 && !selectedSize);
 
-    // Validation: Ensure required variants are selected before adding to cart
-    if (product.colors && product.colors.length > 0 && !selectedColor) {
-      setShowColorError(true);
-      hasError = true;
-    }
+    if (missingColor) setShowColorError(true);
+    if (missingSize) setShowSizeError(true);
 
-    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
-      setShowSizeError(true);
-      hasError = true;
-    }
-
-    if (hasError) {
-      window.scrollBy({ top: -100, behavior: 'smooth' });
+    if (missingColor || missingSize) {
+      focusFirstVariantError(missingColor, missingSize);
       return;
     }
 
@@ -384,20 +388,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const handleBuyNow = () => {
     if (!product) return;
 
-    let hasError = false;
+    const missingColor = !!(product.colors && product.colors.length > 0 && !selectedColor);
+    const missingSize = !!(product.sizes && product.sizes.length > 0 && !selectedSize);
 
-    if (product.colors && product.colors.length > 0 && !selectedColor) {
-      setShowColorError(true);
-      hasError = true;
-    }
+    if (missingColor) setShowColorError(true);
+    if (missingSize) setShowSizeError(true);
 
-    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
-      setShowSizeError(true);
-      hasError = true;
-    }
-
-    if (hasError) {
-      window.scrollBy({ top: -100, behavior: 'smooth' });
+    if (missingColor || missingSize) {
+      focusFirstVariantError(missingColor, missingSize);
       return;
     }
 
@@ -670,9 +668,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 {/* Variant Selection — color swatches or image thumbnails */}
                 {product.colors && product.colors.length > 0 && (
-                  <div className="mb-8">
+                  <div
+                    ref={colorSectionRef}
+                    className={`mb-8 -mx-2 px-2 py-2 rounded-xl transition-colors scroll-mt-24 ${showColorError ? 'ring-2 ring-red-400 bg-red-50/40' : ''}`}
+                  >
                     <div className="flex items-center justify-between mb-3">
-                      <label className="font-semibold text-gray-900">Colors</label>
+                      <label className={`font-semibold ${showColorError ? 'text-red-600' : 'text-gray-900'}`}>
+                        Colors {showColorError && <span className="ml-1 text-xs font-normal">— please pick one</span>}
+                      </label>
                       {selectedColor && <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedColor}</span>}
                     </div>
                     <div className="flex flex-wrap gap-3">
@@ -689,6 +692,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                               onClick={() => {
                                 setSelectedColor(colorName);
                                 setSelectedSize('');
+                                setShowColorError(false);
                                 setColorOverrideImage(colorImage);
                                 setMainImageError(false);
                               }}
@@ -714,6 +718,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             onClick={() => {
                               setSelectedColor(colorName);
                               setSelectedSize('');
+                              setShowColorError(false);
                               setColorOverrideImage(null);
                               setMainImageError(false);
                             }}
@@ -732,14 +737,25 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         );
                       })}
                     </div>
+                    {showColorError && (
+                      <p className="mt-2 flex items-center gap-1.5 text-sm text-red-600">
+                        <i className="ri-error-warning-line"></i>
+                        Please pick a color before continuing.
+                      </p>
+                    )}
                   </div>
                 )}
 
                 {/* Size Selection — filtered by selected color when colors exist */}
                 {product.sizes && product.sizes.length > 0 && (
-                  <div className="mb-8">
+                  <div
+                    ref={sizeSectionRef}
+                    className={`mb-8 -mx-2 px-2 py-2 rounded-xl transition-colors scroll-mt-24 ${showSizeError ? 'ring-2 ring-red-400 bg-red-50/40' : ''}`}
+                  >
                     <div className="flex items-center justify-between mb-3">
-                      <label className="font-semibold text-gray-900">Size</label>
+                      <label className={`font-semibold ${showSizeError ? 'text-red-600' : 'text-gray-900'}`}>
+                        Size {showSizeError && <span className="ml-1 text-xs font-normal">— please pick one</span>}
+                      </label>
                       {selectedSize && <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedSize}</span>}
                     </div>
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
@@ -756,7 +772,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         return (
                           <button
                             key={size}
-                            onClick={() => !isOutOfStock && setSelectedSize(size)}
+                            onClick={() => {
+                              if (isOutOfStock) return;
+                              setSelectedSize(size);
+                              setShowSizeError(false);
+                            }}
                             disabled={isOutOfStock}
                             className={`py-3 rounded-xl border-2 font-semibold transition-all text-center ${isOutOfStock
                               ? 'border-gray-100 text-gray-300 cursor-not-allowed line-through bg-gray-50'
@@ -770,6 +790,12 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         );
                       })}
                     </div>
+                    {showSizeError && (
+                      <p className="mt-2 flex items-center gap-1.5 text-sm text-red-600">
+                        <i className="ri-error-warning-line"></i>
+                        Please pick a size before continuing.
+                      </p>
+                    )}
                   </div>
                 )}
 

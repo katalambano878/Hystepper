@@ -276,6 +276,20 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const colorSectionRef = useRef<HTMLDivElement | null>(null);
   const sizeSectionRef = useRef<HTMLDivElement | null>(null);
 
+  // Normalise variant identifiers — option1/option2 in the DB can have stray
+  // whitespace (e.g. "Black " with a trailing space) which would otherwise
+  // break exact equality matches against the trimmed selectedColor/selectedSize.
+  const norm = (s: unknown) => String(s ?? '').trim();
+  // Helper: pull a variant's size out of option1 if present, else the prefix
+  // of "Size / Colour" in the name field, else the whole name (legacy).
+  const variantSize = (v: any): string => {
+    const fromOption = norm(v?.option1);
+    if (fromOption) return fromOption;
+    const name = norm(v?.name);
+    if (name.includes(' / ')) return name.split(' / ')[0].trim();
+    return name;
+  };
+
   // Helper: get effective stock — variant stock when product has variants, else product stock
   const getEffectiveStock = () => {
     if (!product) return 0;
@@ -283,18 +297,19 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     const hasSizes = product.sizes && product.sizes.length > 0;
 
     if (hasColors && hasSizes && selectedColor && selectedSize) {
-      const match = product.variants?.find((v: any) => {
-        const vSize = v.name?.includes(' / ') ? v.name.split(' / ')[0].trim() : v.name;
-        return vSize === selectedSize && v.option2 === selectedColor;
-      });
+      const match = product.variants?.find((v: any) =>
+        variantSize(v) === norm(selectedSize) && norm(v.option2) === norm(selectedColor)
+      );
       return match ? (match.quantity ?? 0) : 0;
     }
     if (hasColors && !hasSizes && selectedColor) {
-      const match = product.variants?.find((v: any) => v.option2 === selectedColor || v.name === selectedColor);
+      const match = product.variants?.find((v: any) =>
+        norm(v.option2) === norm(selectedColor) || norm(v.name) === norm(selectedColor)
+      );
       return match ? (match.quantity ?? 0) : 0;
     }
     if (!hasColors && hasSizes && selectedSize) {
-      const match = product.variants?.find((v: any) => v.name === selectedSize);
+      const match = product.variants?.find((v: any) => variantSize(v) === norm(selectedSize));
       return match ? (match.quantity ?? 0) : 0;
     }
     const variantTotal = Number(product.totalVariantStock) || 0;
@@ -352,18 +367,20 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     const matchedVariant = (() => {
       const variants: any[] = product.variants || [];
       if (!variants.length) return null;
-      const size = (selectedSize || '').toString().trim();
-      const colour = (selectedColor || '').toString().trim();
+      const size = norm(selectedSize);
+      const colour = norm(selectedColor);
+      // Match on size + colour first (using the size helper so option1=null rows still work),
+      // then size only, then colour only.
       const byBoth = size && colour
-        ? variants.find((v: any) => `${v.option1 ?? ''}`.trim() === size && `${v.option2 ?? ''}`.trim() === colour)
+        ? variants.find((v: any) => variantSize(v) === size && norm(v.option2) === colour)
         : null;
       if (byBoth) return byBoth;
       const bySize = size
-        ? variants.find((v: any) => `${v.option1 ?? ''}`.trim() === size || `${v.name ?? ''}`.trim() === size)
+        ? variants.find((v: any) => variantSize(v) === size)
         : null;
       if (bySize) return bySize;
       const byColour = colour
-        ? variants.find((v: any) => `${v.option2 ?? ''}`.trim() === colour)
+        ? variants.find((v: any) => norm(v.option2) === colour)
         : null;
       return byColour;
     })();
@@ -763,10 +780,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         const hasColors = product.colors && product.colors.length > 0;
                         const isAvailable = !hasColors || !selectedColor
                           ? true
-                          : product.variants.some((v: any) => {
-                              const vSize = v.name?.includes(' / ') ? v.name.split(' / ')[0].trim() : v.name;
-                              return vSize === size && v.option2 === selectedColor && (v.quantity ?? 0) > 0;
-                            });
+                          : product.variants.some((v: any) =>
+                              variantSize(v) === norm(size)
+                              && norm(v.option2) === norm(selectedColor)
+                              && (v.quantity ?? 0) > 0
+                            );
                         const isOutOfStock = hasColors && selectedColor && !isAvailable;
 
                         return (

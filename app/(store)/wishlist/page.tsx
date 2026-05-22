@@ -5,10 +5,51 @@ import { useCart } from '@/context/CartContext';
 import PageHero from '@/components/PageHero';
 import { useWishlist } from '@/context/WishlistContext';
 import ProductCard from '@/components/ProductCard';
+import { useCMS } from '@/context/CMSContext';
+
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://hystepper.vercel.app';
 
 export default function WishlistPage() {
   const { wishlist: wishlistItems, removeFromWishlist } = useWishlist();
   const { addToCart } = useCart();
+  const { getSetting } = useCMS();
+
+  // The wishlist itself lives in localStorage so we can't really link a
+  // friend to *this customer's* list. Instead the share message tells the
+  // friend what the customer is loving and points them at the store.
+  const buildShareText = () => {
+    const siteName = getSetting('site_name') || 'Hy_stepper';
+    if (wishlistItems.length === 0) {
+      return `Check out ${siteName} — premium footwear & accessories.`;
+    }
+    const firstFew = wishlistItems.slice(0, 3).map(i => i.name).filter(Boolean).join(', ');
+    return `I'm loving these on ${siteName}: ${firstFew}${wishlistItems.length > 3 ? '…' : ''}`;
+  };
+
+  const handleShare = (platform: 'facebook' | 'x' | 'whatsapp' | 'email') => {
+    const text = buildShareText();
+    const url = typeof window !== 'undefined' ? window.location.origin : SITE_URL;
+    let shareUrl = '';
+    switch (platform) {
+      case 'facebook':
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
+        break;
+      case 'x':
+        shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+        break;
+      case 'whatsapp':
+        shareUrl = `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`;
+        break;
+      case 'email':
+        shareUrl = `mailto:?subject=${encodeURIComponent('Check this out')}&body=${encodeURIComponent(text + '\n\n' + url)}`;
+        break;
+    }
+    if (platform === 'email') {
+      window.location.href = shareUrl;
+    } else {
+      window.open(shareUrl, '_blank', 'noopener,noreferrer,width=600,height=500');
+    }
+  };
 
   const addAllToCart = () => {
     const inStockItems = wishlistItems.filter(item => item.inStock);
@@ -97,16 +138,36 @@ export default function WishlistPage() {
             <h2 className="text-3xl font-bold mb-4">Share Your Wishlist</h2>
             <p className="text-gold-100 mb-8 text-lg">Let friends and family know what you love</p>
             <div className="flex justify-center space-x-4">
-              <button className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+              <button
+                type="button"
+                onClick={() => handleShare('facebook')}
+                aria-label="Share on Facebook"
+                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+              >
                 <i className="ri-facebook-fill text-xl"></i>
               </button>
-              <button className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+              <button
+                type="button"
+                onClick={() => handleShare('x')}
+                aria-label="Share on X"
+                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+              >
                 <i className="ri-twitter-x-fill text-xl"></i>
               </button>
-              <button className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+              <button
+                type="button"
+                onClick={() => handleShare('whatsapp')}
+                aria-label="Share on WhatsApp"
+                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+              >
                 <i className="ri-whatsapp-fill text-xl"></i>
               </button>
-              <button className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+              <button
+                type="button"
+                onClick={() => handleShare('email')}
+                aria-label="Share by email"
+                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+              >
                 <i className="ri-mail-fill text-xl"></i>
               </button>
             </div>

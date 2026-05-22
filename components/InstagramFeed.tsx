@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useCMS } from '@/context/CMSContext';
 
 interface InstagramPost {
   id: string;
@@ -63,8 +64,31 @@ const mockPosts: InstagramPost[] = [
   }
 ];
 
+function deriveInstagramHandle(url: string): string {
+  // Pull "@handle" out of URLs like https://instagram.com/hy_stepper or
+  // https://www.instagram.com/hy_stepper/. Returns empty string if we
+  // can't figure out a handle so callers can hide the @ mention.
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    const seg = u.pathname.split('/').filter(Boolean)[0];
+    return seg ? `@${seg}` : '';
+  } catch {
+    return '';
+  }
+}
+
 export default function InstagramFeed() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const { getSetting } = useCMS();
+  const instagramUrl = getSetting('social_instagram') || '';
+
+  // If the admin hasn't linked an Instagram profile, there's nothing
+  // honest to show here — hide the whole section rather than rendering
+  // a dead "Follow" button.
+  if (!instagramUrl) return null;
+
+  const handle = deriveInstagramHandle(instagramUrl);
 
   return (
     <div className="py-16 bg-gradient-to-b from-white to-gray-50">
@@ -78,13 +102,13 @@ export default function InstagramFeed() {
             Join our community and get inspired by our latest posts
           </p>
           <a
-            href="https://www.instagram.com/hy_stepper"
+            href={instagramUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold hover:shadow-lg transition-all hover:scale-105"
           >
             <i className="ri-instagram-fill text-xl"></i>
-            Follow @hy_stepper
+            Follow{handle ? ` ${handle}` : ''}
           </a>
         </div>
 
@@ -92,7 +116,7 @@ export default function InstagramFeed() {
           {mockPosts.map((post) => (
             <a
               key={post.id}
-              href={post.link}
+              href={instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="relative aspect-square rounded-lg overflow-hidden group cursor-pointer"

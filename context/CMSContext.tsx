@@ -10,6 +10,7 @@ interface SiteSettings {
     contact_email: string;
     contact_phone: string;
     contact_address: string;
+    whatsapp_number: string;
     social_facebook: string;
     social_instagram: string;
     social_tiktok: string;
@@ -67,6 +68,7 @@ const defaultSettings: SiteSettings = {
     contact_email: 'hystepper2@gmail.com',
     contact_phone: '+233 XX XXX XXXX',
     contact_address: 'Accra, Ghana',
+    whatsapp_number: '',
     social_facebook: '',
     social_instagram: '',
     social_tiktok: '',
@@ -95,6 +97,7 @@ export function CMSProvider({ children }: { children: ReactNode }) {
         contact_email: 'hystepper2@gmail.com',
         contact_phone: '0276558163',
         contact_address: 'Accra, Ghana',
+        whatsapp_number: '233276558163',
         social_facebook: 'https://facebook.com/hystepper',
         social_instagram: 'https://instagram.com/hystepper',
         social_tiktok: 'https://www.tiktok.com/@hystepper',

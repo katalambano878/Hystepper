@@ -142,13 +142,18 @@ function ShopContent() {
           }
         }
 
-        // Size Filter — get product IDs that have variants with matching size
-        const sizeParam = searchParams.get('size');
+        // Size Filter — get product IDs that have variants with matching size.
+        // Variant names follow the "Size / Colour" pattern (e.g. "37 / Black"),
+        // so an exact `name = '37'` match never finds anything. The canonical
+        // size lives in `option1`; we also match `name LIKE '37 / %'` and the
+        // bare `name = '37'` case to cover legacy single-option variants where
+        // option1 may not be populated.
+        const sizeParam = searchParams.get('size')?.trim();
         if (sizeParam) {
           const { data: sizeVariants } = await supabase
             .from('product_variants')
             .select('product_id')
-            .eq('name', sizeParam);
+            .or(`option1.eq.${sizeParam},name.eq.${sizeParam},name.ilike.${sizeParam} / %`);
 
           if (sizeVariants && sizeVariants.length > 0) {
             const productIds = [...new Set(sizeVariants.map(v => v.product_id))];

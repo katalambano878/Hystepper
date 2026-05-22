@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useCMS } from '@/context/CMSContext';
 
 const STORAGE_KEY = 'whatsapp-button-pos-v1';
 // Don't treat a tiny pointer wiggle as a drag — anything under this many
@@ -31,8 +32,13 @@ function computeDefaultPos(size: number): Pos {
 }
 
 export default function WhatsAppButton() {
-  const whatsappNumber = '233276558163';
-  const message = encodeURIComponent('Hi! I have a question about Hy_stepper.');
+  const { getSetting } = useCMS();
+  // Strip anything that isn't a digit — wa.me only accepts the raw
+  // international number (e.g. 233276558163, no spaces / +'s).
+  const rawNumber = getSetting('whatsapp_number') || '233276558163';
+  const whatsappNumber = rawNumber.replace(/\D/g, '');
+  const siteName = getSetting('site_name') || 'Hy_stepper';
+  const message = encodeURIComponent(`Hi! I have a question about ${siteName}.`);
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
 
   const buttonRef = useRef<HTMLButtonElement>(null);

@@ -942,7 +942,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 text-gold-600">
                       <i className="ri-truck-line text-2xl"></i>
                     </div>
-                    <h4 className="font-bold text-gray-900 text-sm mb-1">Fast Delivery</h4>
+                    <h4 className="font-bold text-gray-900 text-sm mb-1">Reliable Delivery</h4>
                     <p className="text-xs text-gray-500">Nationwide shipping</p>
                   </div>
                   <div className="flex flex-col items-center justify-center text-center p-4 bg-gray-50 rounded-2xl border border-gray-100 transition-colors hover:bg-gray-100">

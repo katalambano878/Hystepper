@@ -688,7 +688,12 @@ export default function SettingsPage() {
                         {/* Contact & Social Tab */}
                         {activeTab === 'contact' && (
                             <form onSubmit={handleSaveSettings} className="space-y-6">
-                                <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-100 pb-4 mb-6">Contact & Social Media</h2>
+                                <div className="border-b border-gray-100 pb-4 mb-6">
+                                    <h2 className="text-lg font-semibold text-gray-900">Contact & Social Media</h2>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        These fields power every social icon and contact link on the storefront — footer, floating WhatsApp button, Instagram feed section, checkout fallbacks, etc. Leave a field blank to hide that icon site-wide.
+                                    </p>
+                                </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="md:col-span-2">
@@ -739,6 +744,7 @@ export default function SettingsPage() {
                                                 placeholder="233200000000"
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-500 mt-1">Powers the floating WhatsApp chat button + checkout fallback. Digits only, with country code (e.g. <span className="font-mono">233276558163</span>).</p>
                                     </div>
 
                                     <div>
@@ -749,9 +755,11 @@ export default function SettingsPage() {
                                                 type="url"
                                                 value={settings.social_facebook || ''}
                                                 onChange={(e) => updateSetting('social_facebook', e.target.value)}
+                                                placeholder="https://facebook.com/yourpage"
                                                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-500 mt-1">Shown in the footer. Leave blank to hide.</p>
                                     </div>
 
                                     <div>
@@ -762,9 +770,11 @@ export default function SettingsPage() {
                                                 type="url"
                                                 value={settings.social_instagram || ''}
                                                 onChange={(e) => updateSetting('social_instagram', e.target.value)}
+                                                placeholder="https://instagram.com/yourhandle"
                                                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-500 mt-1">Shown in the footer, the homepage Instagram feed section, and the checkout contact fallback. Leave blank to hide.</p>
                                     </div>
 
                                     <div>
@@ -779,6 +789,7 @@ export default function SettingsPage() {
                                                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-500 mt-1">Shown in the footer. Leave blank to hide.</p>
                                     </div>
                                 </div>
 

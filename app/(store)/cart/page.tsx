@@ -262,7 +262,7 @@ export default function CartPage() {
                       </div>
                       <div className="flex items-center text-sm text-gray-600">
                         <i className="ri-customer-service-line text-gold-600 mr-2"></i>
-                        <span>24/7 support</span>
+                        <span>Friendly support</span>
                       </div>
                     </div>
                   </div>

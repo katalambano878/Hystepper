@@ -28,9 +28,9 @@ export default function Footer() {
 
   const siteName = getSetting('site_name') || 'Hy-Stepper';
   const siteTagline = getSetting('site_tagline') || 'Stay sleek in style';
-  const contactEmail = 'hystepper2@gmail.com';
+  const contactEmail = getSetting('contact_email') || 'hystepper2@gmail.com';
   const contactPhone = getSetting('contact_phone') || '0276558163';
-  const socialInstagram = 'https://www.instagram.com/hy_stepper';
+  const socialInstagram = getSetting('social_instagram') || '';
   const socialFacebook = getSetting('social_facebook') || '';
   const socialTiktok = getSetting('social_tiktok') || '';
 
@@ -85,15 +85,17 @@ export default function Footer() {
             </p>
 
             <div className="flex gap-3 pt-1">
-              <a
-                href={socialInstagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-gray-400 hover:bg-gold-500 hover:text-white transition-all"
-                aria-label="Instagram"
-              >
-                <i className="ri-instagram-line text-lg"></i>
-              </a>
+              {socialInstagram && (
+                <a
+                  href={socialInstagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-gray-400 hover:bg-gold-500 hover:text-white transition-all"
+                  aria-label="Instagram"
+                >
+                  <i className="ri-instagram-line text-lg"></i>
+                </a>
+              )}
               {socialFacebook && (
                 <a
                   href={socialFacebook}

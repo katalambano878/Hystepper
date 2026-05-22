@@ -157,6 +157,17 @@ export async function POST(req: Request) {
 
         console.log('[Verify] Order marked as paid:', orderNumber);
 
+        // Idempotent fallback for stock decrement (see paystack webhook for the
+        // full reasoning). No-op if the chained RPC already flagged the order.
+        if (orderJson?.id) {
+            const { error: stockError } = await supabaseAdmin.rpc('decrement_order_stock', {
+                order_ref: orderJson.id,
+            });
+            if (stockError) {
+                console.error('[Verify] decrement_order_stock failed:', stockError.message);
+            }
+        }
+
         if (orderJson) {
             try {
                 await sendOrderConfirmation(orderJson);

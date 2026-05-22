@@ -210,6 +210,18 @@ export async function POST(req: Request) {
 
             console.log('[Moolre Callback] Order updated:', orderJson.order_number, '| status:', orderJson.status);
 
+            // Idempotent fallback in case the inner stock RPC chained from
+            // mark_order_paid is ever missed (replica lag, pool routing, etc).
+            // decrement_order_stock short-circuits on metadata.stock_reduced.
+            if (orderJson?.id) {
+                const { error: stockError } = await supabaseAdmin.rpc('decrement_order_stock', {
+                    order_ref: orderJson.id,
+                });
+                if (stockError) {
+                    console.error('[Moolre Callback] decrement_order_stock failed:', stockError);
+                }
+            }
+
             try {
                 await sendOrderConfirmation(orderJson);
             } catch (notifyErr: any) {

@@ -1,6 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 export type CartItem = {
     id: string;
@@ -28,6 +30,7 @@ type CartContextType = {
     removeFromCart: (itemId: string, variant?: string) => void;
     updateQuantity: (itemId: string, quantity: number, variant?: string) => void;
     clearCart: () => void;
+    revalidateCart: () => Promise<void>;
     cartCount: number;
     subtotal: number;
     isCartOpen: boolean;
@@ -40,6 +43,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
+    // Stable ref so revalidateCart sees the latest cart without forcing
+    // every consumer to re-render when the callback identity would change.
+    const cartRef = useRef<CartItem[]>([]);
+    useEffect(() => { cartRef.current = cart; }, [cart]);
 
     // Load cart from localStorage on mount (sanitize so no invalid data causes crashes)
     useEffect(() => {
@@ -143,6 +150,143 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setCart([]);
     };
 
+    // Re-check every line item against the live catalogue. Anything that's
+    // been deleted, deactivated, or sold out gets removed; stock-capped
+    // quantities are clamped to whatever is actually available now. Runs
+    // on mount, when the cart drawer opens, and on window focus so the cart
+    // never lingers with stale items.
+    const revalidateCart = async () => {
+        const current = cartRef.current;
+        if (current.length === 0) return;
+
+        const productIds = Array.from(new Set(current.map(i => i.id).filter(Boolean)));
+        const variantIds = Array.from(
+            new Set(current.map(i => i.variantId).filter((v): v is string => typeof v === 'string' && v.length > 0))
+        );
+
+        try {
+            const [productsRes, variantsRes] = await Promise.all([
+                productIds.length > 0
+                    ? supabase.from('products').select('id, status, quantity').in('id', productIds)
+                    : Promise.resolve({ data: [] as any[], error: null }),
+                variantIds.length > 0
+                    ? supabase.from('product_variants').select('id, quantity').in('id', variantIds)
+                    : Promise.resolve({ data: [] as any[], error: null }),
+            ]);
+
+            // Bail on errors rather than wiping the cart — better to keep
+            // a possibly-stale line than lose the customer's selections.
+            if (productsRes.error || variantsRes.error) {
+                console.warn('Cart revalidation skipped:', productsRes.error || variantsRes.error);
+                return;
+            }
+
+            const productMap = new Map(
+                (productsRes.data || []).map((p: any) => [p.id, { status: p.status, quantity: Number(p.quantity) || 0 }])
+            );
+            const variantMap = new Map(
+                (variantsRes.data || []).map((v: any) => [v.id, Number(v.quantity) || 0])
+            );
+
+            let removedCount = 0;
+            let clampedCount = 0;
+            const removedNames: string[] = [];
+
+            const next = current.flatMap(item => {
+                const product = productMap.get(item.id);
+
+                // Product deleted or deactivated → drop the line entirely.
+                if (!product || product.status !== 'active') {
+                    removedCount++;
+                    if (item.name) removedNames.push(item.name);
+                    return [];
+                }
+
+                let availableStock: number;
+                if (item.variantId) {
+                    const variantQty = variantMap.get(item.variantId);
+                    if (variantQty == null) {
+                        // Variant no longer exists.
+                        removedCount++;
+                        if (item.name) removedNames.push(`${item.name}${item.variant ? ` (${item.variant})` : ''}`);
+                        return [];
+                    }
+                    availableStock = variantQty;
+                } else {
+                    availableStock = product.quantity;
+                }
+
+                if (availableStock <= 0) {
+                    removedCount++;
+                    if (item.name) removedNames.push(`${item.name}${item.variant ? ` (${item.variant})` : ''}`);
+                    return [];
+                }
+
+                const clampedQty = Math.min(Math.max(1, item.quantity), availableStock);
+                if (clampedQty !== item.quantity || availableStock !== item.maxStock) {
+                    if (clampedQty !== item.quantity) clampedCount++;
+                    return [{ ...item, quantity: clampedQty, maxStock: availableStock }];
+                }
+                return [item];
+            });
+
+            if (removedCount > 0 || clampedCount > 0) {
+                setCart(next);
+            }
+
+            if (removedCount > 0) {
+                const summary = removedNames.slice(0, 2).join(', ');
+                const more = removedNames.length > 2 ? ` +${removedNames.length - 2} more` : '';
+                toast.info(
+                    removedCount === 1
+                        ? `Removed an item from your cart that's no longer available${summary ? `: ${summary}` : ''}.`
+                        : `Removed ${removedCount} items from your cart that are no longer available: ${summary}${more}.`
+                );
+            } else if (clampedCount > 0) {
+                toast.info(
+                    clampedCount === 1
+                        ? 'One cart item was low on stock — quantity adjusted to what we have available.'
+                        : `${clampedCount} cart items were low on stock — quantities adjusted to what we have available.`
+                );
+            }
+        } catch (err) {
+            console.warn('Cart revalidation failed:', err);
+        }
+    };
+
+    // Run once shortly after hydration. Wait a beat so we don't compete with
+    // the initial page render for bandwidth.
+    useEffect(() => {
+        if (!isInitialized) return;
+        const id = setTimeout(() => { void revalidateCart(); }, 600);
+        return () => clearTimeout(id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isInitialized]);
+
+    // Re-check whenever the drawer is opened — covers the "left tab open
+    // overnight, came back, item was deleted in admin" flow.
+    useEffect(() => {
+        if (isCartOpen && isInitialized) {
+            void revalidateCart();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isCartOpen]);
+
+    // And on window focus / tab visibility regaining focus.
+    useEffect(() => {
+        const onFocus = () => { void revalidateCart(); };
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') void revalidateCart();
+        };
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const cartCount = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
 
@@ -153,6 +297,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             removeFromCart,
             updateQuantity,
             clearCart,
+            revalidateCart,
             cartCount,
             subtotal,
             isCartOpen,

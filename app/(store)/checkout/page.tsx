@@ -6,11 +6,21 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import OrderSummary from '@/components/OrderSummary';
 import { useCart } from '@/context/CartContext';
+import { useCMS } from '@/context/CMSContext';
 import { supabase } from '@/lib/supabase';
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, subtotal: cartSubtotal, clearCart } = useCart();
+  const { getSetting } = useCMS();
+
+  // "Contact us for a quote" fallback links — sourced from admin
+  // settings so the merchant can update them in one place.
+  const contactWhatsappNumber = (getSetting('whatsapp_number') || '233276558163').replace(/\D/g, '');
+  const contactWhatsappUrl = contactWhatsappNumber
+    ? `https://wa.me/${contactWhatsappNumber}`
+    : '';
+  const contactInstagramUrl = getSetting('social_instagram') || '';
 
   const [isLoading, setIsLoading] = useState(false);
   const [checkoutType, setCheckoutType] = useState<'guest' | 'account'>('guest');
@@ -308,12 +318,22 @@ export default function CheckoutPage() {
     try {
       const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+      // `orders.email` is NOT NULL in the DB, but the checkout form makes
+      // email optional. For guests who skip it, synthesise a placeholder so
+      // the insert succeeds — receipts go via SMS in that case, and admins
+      // can always reach the customer via the phone field.
+      const cleanedPhoneForEmail = (shippingData.phone || '').replace(/\D/g, '') || 'unknown';
+      const orderEmail =
+        shippingData.email && shippingData.email.includes('@')
+          ? shippingData.email
+          : `guest-${cleanedPhoneForEmail}@hystepper.local`;
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert([{
           order_number: orderNumber,
           user_id: user?.id || null,
-          email: shippingData.email || null,
+          email: orderEmail,
           phone: shippingData.phone,
           status: 'pending',
           payment_status: 'pending',
@@ -349,10 +369,15 @@ export default function CheckoutPage() {
 
       // Create Order Items — carry SKU + variant_id so warehouse / POS can pack
       // the right size/colour and admin order details show a fillable SKU.
+      // IMPORTANT: variant_id MUST go in the column (not only metadata) so the
+      // decrement_order_stock RPC can reduce the correct product_variants row
+      // when payment confirms. Previously we only stored it in metadata, which
+      // is why variant inventory never went down after a paid order.
       const orderItems = [
         ...cart.map(item => ({
           order_id: order.id,
           product_id: item.id,
+          variant_id: item.variantId || null,
           product_name: item.name,
           variant_name: item.variant,
           sku: item.sku || null,
@@ -438,7 +463,7 @@ export default function CheckoutPage() {
           body: JSON.stringify({
             orderId: orderNumber,
             amount: payableNow,
-            customerEmail: shippingData.email || 'no-email@checkout.local'
+            customerEmail: orderEmail,
           })
         });
 
@@ -456,7 +481,7 @@ export default function CheckoutPage() {
           body: JSON.stringify({
             orderId: orderNumber,
             amount: payableNow,
-            customerEmail: shippingData.email || 'no-email@checkout.local',
+            customerEmail: orderEmail,
             customerPhone: shippingData.phone
           })
         });
@@ -769,14 +794,20 @@ export default function CheckoutPage() {
                         <p className="text-sm text-amber-700 mb-3">
                           For 3 or more items outside Accra, delivery fees are quoted individually. Please reach out to us for a price.
                         </p>
-                        <div className="flex items-center justify-center gap-4 text-sm font-semibold">
-                          <a href="https://wa.me/233276558163" target="_blank" className="text-green-700 hover:underline flex items-center gap-1">
-                            <i className="ri-whatsapp-line"></i> WhatsApp
-                          </a>
-                          <span className="text-gray-300">|</span>
-                          <a href="https://instagram.com/hy_stepper" target="_blank" className="text-pink-700 hover:underline flex items-center gap-1">
-                            <i className="ri-instagram-line"></i> Instagram
-                          </a>
+                        <div className="flex items-center justify-center gap-4 text-sm font-semibold flex-wrap">
+                          {contactWhatsappUrl && (
+                            <a href={contactWhatsappUrl} target="_blank" rel="noopener noreferrer" className="text-green-700 hover:underline flex items-center gap-1">
+                              <i className="ri-whatsapp-line"></i> WhatsApp
+                            </a>
+                          )}
+                          {contactWhatsappUrl && contactInstagramUrl && (
+                            <span className="text-gray-300">|</span>
+                          )}
+                          {contactInstagramUrl && (
+                            <a href={contactInstagramUrl} target="_blank" rel="noopener noreferrer" className="text-pink-700 hover:underline flex items-center gap-1">
+                              <i className="ri-instagram-line"></i> Instagram
+                            </a>
+                          )}
                         </div>
                       </div>
                     ) : (

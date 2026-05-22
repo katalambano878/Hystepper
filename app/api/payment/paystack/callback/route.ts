@@ -109,6 +109,16 @@ export async function GET(req: Request) {
             );
         }
 
+        // Idempotent fallback for stock decrement; no-op if already flagged.
+        if (updatedOrder?.id) {
+            const { error: stockError } = await supabase.rpc('decrement_order_stock', {
+                order_ref: updatedOrder.id,
+            });
+            if (stockError) {
+                console.error('[Paystack Callback] decrement_order_stock failed:', stockError);
+            }
+        }
+
         if (updatedOrder) {
             try {
                 await sendOrderConfirmation(updatedOrder);

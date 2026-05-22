@@ -182,6 +182,20 @@ export async function POST(req: Request) {
       data.reference
     );
 
+    // Idempotent fallback: re-call the stock RPC explicitly. mark_order_paid
+    // already chains into it, but if replication lag / a connection-pool race
+    // ever causes the inner UPDATE to be missed, this catches it. The RPC
+    // short-circuits on the metadata.stock_reduced flag so a successful inner
+    // call is a no-op here.
+    if (updatedOrder?.id) {
+      const { error: stockError } = await supabaseAdmin.rpc('decrement_order_stock', {
+        order_ref: updatedOrder.id,
+      });
+      if (stockError) {
+        console.error('[Paystack Webhook] decrement_order_stock failed:', stockError);
+      }
+    }
+
     if (updatedOrder) {
       try {
         await sendOrderConfirmation(updatedOrder);

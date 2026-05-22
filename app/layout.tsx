@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Toaster } from "sonner";
 import { CartProvider } from "@/context/CartContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import "./globals.css";
@@ -144,6 +145,7 @@ export default function RootLayout({
             </div>
           </WishlistProvider>
         </CartProvider>
+        <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
   );

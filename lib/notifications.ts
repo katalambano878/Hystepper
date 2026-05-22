@@ -444,11 +444,19 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     let emailMessage = `Your order #${orderRef} status has been updated to ${newStatus}.`;
     let smsMessage = emailMessage;
 
-    if (newStatus === 'shipped' || newStatus === 'packaged') {
-        emailMessage = `Good news! Your order #${orderRef} has been packaged and is ready for dispatch.`;
+    if (newStatus === 'shipped') {
+        emailMessage = `Good news! Your order #${orderRef} has been shipped and is on its way.`;
         smsMessage = trackingNumber
-            ? `Hi ${name}, order #${orderRef} has been packaged. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
-            : `Hi ${name}, order #${orderRef} has been packaged. Track: ${trackingUrl}`;
+            ? `Hi ${name}, order #${orderRef} has been shipped. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
+            : `Hi ${name}, order #${orderRef} has been shipped. Track: ${trackingUrl}`;
+    } else if (newStatus === 'packaged') {
+        // `packaged` isn't in the order_status enum, but POS / future code
+        // might emit it. Keep a distinct copy so customers aren't told their
+        // order has shipped when it's only been boxed.
+        emailMessage = `Your order #${orderRef} has been packaged and is ready for dispatch.`;
+        smsMessage = trackingNumber
+            ? `Hi ${name}, order #${orderRef} has been packaged and is ready for dispatch. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
+            : `Hi ${name}, order #${orderRef} has been packaged and is ready for dispatch. Track: ${trackingUrl}`;
     } else if (newStatus === 'dispatched_to_rider' || newStatus === 'out_for_delivery') {
         emailMessage = `Your order #${orderRef} is with the rider and on its way to you.`;
         smsMessage = trackingNumber

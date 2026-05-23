@@ -9,6 +9,50 @@ import { useRouter } from 'next/navigation';
 type VariantMode = 'size_only' | 'size_color' | 'color_only';
 const PRESET_SHOE_SIZES = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
 
+// Normalise free-text or auto-derived slugs into a safe URL segment.
+function slugify(input: string): string {
+  return (input || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Look up existing slugs that collide with our base and pick the next available
+// `-2`, `-3`, ... suffix. Excludes the current product so editing doesn't
+// collide with itself. Race-safe enough for admin usage; if two saves still
+// race, the DB unique constraint kicks in and handleSave retries.
+async function findUniqueSlug(baseSlug: string, excludeProductId?: string | null): Promise<string> {
+  const safeBase = slugify(baseSlug) || 'product';
+
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, slug')
+    .or(`slug.eq.${safeBase},slug.ilike.${safeBase}-%`);
+
+  if (error || !data) {
+    // Can't pre-check — return the base and let the DB / retry guard catch it.
+    return safeBase;
+  }
+
+  const taken = new Set(
+    data
+      .filter((p) => (excludeProductId ? p.id !== excludeProductId : true))
+      .map((p) => p.slug as string)
+  );
+
+  if (!taken.has(safeBase)) return safeBase;
+
+  for (let n = 2; n < 10000; n++) {
+    const candidate = `${safeBase}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+
+  // Astronomically unlikely fallback — append a short random suffix.
+  return `${safeBase}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
 export default function ProductEditor({ productId }: { productId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -270,7 +314,14 @@ export default function ProductEditor({ productId }: { productId: string }) {
         return;
       }
 
-      const productData = {
+      // Compute a guaranteed-unique slug before insert. If the user didn't
+      // type one we fall back to a slugified product name; either way we run
+      // it through findUniqueSlug to append `-2`, `-3`, etc. when needed.
+      const requestedSlug = slug.trim() || productName;
+      const excludeId = productId !== 'new' ? productId : null;
+      let finalSlug = await findUniqueSlug(requestedSlug, excludeId);
+
+      const buildProductData = (slugValue: string) => ({
         name: productName,
         category_id: category,
         status,
@@ -281,39 +332,71 @@ export default function ProductEditor({ productId }: { productId: string }) {
         compare_at_price: comparePrice ? parseFloat(comparePrice) : null,
         sku,
         quantity: parseInt(stock) || 0,
-        slug: slug || productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        // New Fields
+        slug: slugValue,
         product_code: productCode,
         style_name: styleName,
         material: material,
         heel_height: heelHeight,
         sizing_notes: sizingNotes,
-        // SEO
         seo_title: seoTitle,
         seo_description: seoDescription,
         tags: keywords.split(',').map(tag => tag.trim()).filter(tag => tag),
         metadata: { delivery_notice: deliveryNotice },
-        updated_at: new Date().toISOString()
-      };
+        updated_at: new Date().toISOString(),
+      });
 
       let targetId: string = productId;
 
-      if (productId === 'new') {
-        const { data, error: insertError } = await supabase
-          .from('products')
-          .insert(productData)
-          .select('id')
-          .single();
+      // Single retry loop. The first attempt uses the pre-checked slug.
+      // If the DB still rejects on the unique slug constraint (concurrent
+      // save raced us, or our pre-check went stale), regenerate with a
+      // short random suffix and try once more.
+      const isSlugConflict = (err: any) =>
+        err?.code === '23505' && /slug/i.test(err?.message || err?.details || '');
 
-        if (insertError) throw insertError;
-        if (!data?.id) throw new Error('Product was not created — no ID returned. Please try again.');
-        targetId = data.id;
-      } else {
-        const { error: updateError } = await supabase
-          .from('products')
-          .update(productData)
-          .eq('id', productId);
-        if (updateError) throw updateError;
+      let writeAttempts = 0;
+      while (true) {
+        writeAttempts++;
+        const productData = buildProductData(finalSlug);
+        let writeError: any = null;
+
+        if (productId === 'new') {
+          const { data, error: insertError } = await supabase
+            .from('products')
+            .insert(productData)
+            .select('id')
+            .single();
+          if (insertError) writeError = insertError;
+          else if (!data?.id) throw new Error('Product was not created — no ID returned. Please try again.');
+          else targetId = data.id;
+        } else {
+          const { error: updateError } = await supabase
+            .from('products')
+            .update(productData)
+            .eq('id', productId);
+          if (updateError) writeError = updateError;
+        }
+
+        if (!writeError) break;
+
+        if (isSlugConflict(writeError) && writeAttempts < 3) {
+          // Re-derive against the latest DB state, then add a random suffix
+          // so we don't immediately collide again on the same race.
+          const recomputed = await findUniqueSlug(requestedSlug, excludeId);
+          finalSlug = `${recomputed}-${Math.random().toString(36).slice(2, 5)}`;
+          continue;
+        }
+
+        throw writeError;
+      }
+
+      // Reflect any adjustment back into the form so the admin sees the
+      // slug that was actually saved (and any subsequent re-save is a no-op).
+      if (finalSlug !== slug) {
+        setSlug(finalSlug);
+        if (slug && finalSlug !== slugify(slug)) {
+          toast.info(`Slug adjusted to "${finalSlug}" to keep it unique`);
+        }
       }
 
       // --- SAVE VARIANTS ---

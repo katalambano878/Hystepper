@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CartCountdown from '@/components/CartCountdown';
 // import CartSuggestions from '@/components/CartSuggestions'; // Removed demo suggestions
 import AdvancedCouponSystem from '@/components/AdvancedCouponSystem';
@@ -10,7 +10,17 @@ import { useCart } from '@/context/CartContext';
 import PageHero from '@/components/PageHero';
 
 export default function CartPage() {
-  const { cart: cartItems, removeFromCart, updateQuantity, subtotal, addToCart } = useCart();
+  const { cart: cartItems, removeFromCart, updateQuantity, subtotal, addToCart, revalidateCart } = useCart();
+
+  // Re-check stock + product status every time the cart page is opened.
+  // The cart provider already runs revalidation on initial app load + on
+  // window focus, but a customer who navigates to /cart from another tab
+  // route would otherwise see whatever was in localStorage from minutes
+  // (or hours) ago.
+  useEffect(() => {
+    void revalidateCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [savedItems, setSavedItems] = useState<any[]>([]);
 

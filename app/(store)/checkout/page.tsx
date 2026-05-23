@@ -11,8 +11,17 @@ import { supabase } from '@/lib/supabase';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, subtotal: cartSubtotal, clearCart } = useCart();
+  const { cart, subtotal: cartSubtotal, clearCart, revalidateCart } = useCart();
   const { getSetting } = useCMS();
+
+  // Re-check stock + product status the moment the customer lands on
+  // /checkout. The cart provider already does this on app load + window
+  // focus, but this catches the "added at noon, came back to checkout
+  // at 3pm" case where the page never lost focus in between.
+  useEffect(() => {
+    void revalidateCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // "Contact us for a quote" fallback links — sourced from admin
   // settings so the merchant can update them in one place.
@@ -316,6 +325,56 @@ export default function CheckoutPage() {
     setShowPaymentModal(false);
 
     try {
+      // Last-chance stock check: between the customer opening the payment
+      // modal and clicking "Pay", another shopper may have bought the last
+      // of a variant. We re-check each line against the DB and abort the
+      // order if anything is now unavailable. The cart context's revalidate
+      // routine will also strip the offending items so the customer doesn't
+      // get stuck.
+      const variantIdsToCheck = Array.from(
+        new Set(cart.map(i => i.variantId).filter((v): v is string => typeof v === 'string' && v.length > 0))
+      );
+      const productIdsToCheck = Array.from(new Set(cart.map(i => i.id).filter(Boolean)));
+
+      const [variantStockRes, productStockRes] = await Promise.all([
+        variantIdsToCheck.length > 0
+          ? supabase.from('product_variants').select('id, quantity').in('id', variantIdsToCheck)
+          : Promise.resolve({ data: [] as any[], error: null }),
+        productIdsToCheck.length > 0
+          ? supabase.from('products').select('id, status, quantity, name').in('id', productIdsToCheck)
+          : Promise.resolve({ data: [] as any[], error: null }),
+      ]);
+
+      // Only abort on stock failures if the DB actually answered — a
+      // network blip shouldn't block a legitimate purchase.
+      if (!variantStockRes.error && !productStockRes.error) {
+        const variantStock = new Map((variantStockRes.data || []).map((v: any) => [v.id, Number(v.quantity) || 0]));
+        const productStock = new Map(
+          (productStockRes.data || []).map((p: any) => [p.id, { status: p.status, quantity: Number(p.quantity) || 0, name: p.name }])
+        );
+        const outOfStock = cart.filter(item => {
+          const product = productStock.get(item.id);
+          if (!product || product.status !== 'active') return true;
+          const available = item.variantId
+            ? variantStock.get(item.variantId)
+            : product.quantity;
+          return available == null || available < item.quantity;
+        });
+
+        if (outOfStock.length > 0) {
+          await revalidateCart(); // cleans up the cart UI + toasts
+          const names = outOfStock.slice(0, 2).map(i => `${i.name}${i.variant ? ` (${i.variant})` : ''}`).join(', ');
+          const more = outOfStock.length > 2 ? ` +${outOfStock.length - 2} more` : '';
+          toast.error(
+            outOfStock.length === 1
+              ? `${names} just sold out or is no longer available. We've updated your cart — please review and try again.`
+              : `Some items in your cart are no longer available (${names}${more}). We've updated your cart — please review and try again.`
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
       // `orders.email` is NOT NULL in the DB, but the checkout form makes

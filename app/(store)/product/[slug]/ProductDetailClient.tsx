@@ -290,11 +290,28 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     return name;
   };
 
-  // Helper: get effective stock — variant stock when product has variants, else product stock
+  // Helper: true when the product needs variant selection but the user
+  // hasn't picked everything yet (e.g. picked size but not colour).
+  const isVariantSelectionIncomplete = () => {
+    if (!product) return false;
+    const hasColors = product.colors && product.colors.length > 0;
+    const hasSizes = product.sizes && product.sizes.length > 0;
+    if (hasColors && !selectedColor) return true;
+    if (hasSizes && !selectedSize) return true;
+    return false;
+  };
+
+  // Helper: get effective stock — variant stock when product has variants, else product stock.
+  // Returns 0 when variant selection is incomplete so the quantity controls can't
+  // be cranked above any single variant's true stock (e.g. user picks size 38 but
+  // hasn't picked a colour — without this guard we'd fall back to the sum of all
+  // variant quantities and let them buy more than exists for any one combo).
   const getEffectiveStock = () => {
     if (!product) return 0;
     const hasColors = product.colors && product.colors.length > 0;
     const hasSizes = product.sizes && product.sizes.length > 0;
+
+    if (isVariantSelectionIncomplete()) return 0;
 
     if (hasColors && hasSizes && selectedColor && selectedSize) {
       const match = product.variants?.find((v: any) =>
@@ -819,51 +836,79 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 {/* Quantity & Stock — show variant-level stock when a specific combo is selected */}
                 {(() => {
+                  const incompleteSelection = isVariantSelectionIncomplete();
                   const displayStock = getEffectiveStock();
+                  const controlsDisabled = displayStock === 0;
+                  const hasColors = product.colors && product.colors.length > 0;
+                  const hasSizes = product.sizes && product.sizes.length > 0;
+                  const missingParts: string[] = [];
+                  if (hasColors && !selectedColor) missingParts.push('colour');
+                  if (hasSizes && !selectedSize) missingParts.push('size');
+                  const missingLabel =
+                    missingParts.length === 2
+                      ? 'a size and a colour'
+                      : missingParts.length === 1
+                      ? `a ${missingParts[0]}`
+                      : 'your options';
 
                   return (
                     <div className="mb-8">
                       <label className="block font-semibold text-gray-900 mb-3">Quantity</label>
                       <div className="flex items-center space-x-4">
-                        <div className="flex items-center border-2 border-gray-200 rounded-xl bg-white overflow-hidden shadow-sm">
+                        <div className={`flex items-center border-2 rounded-xl bg-white overflow-hidden shadow-sm ${controlsDisabled ? 'border-gray-200 opacity-60' : 'border-gray-200'}`}>
                           <button
                             onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                            className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
-                            disabled={displayStock === 0}
+                            className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-600"
+                            disabled={controlsDisabled}
+                            aria-label="Decrease quantity"
                           >
                             <i className="ri-subtract-line text-xl"></i>
                           </button>
                           <input
                             type="number"
                             value={quantity}
-                            onChange={(e) => setQuantity(Math.max(1, Math.min(displayStock, parseInt(e.target.value) || 1)))}
-                            className="w-16 h-12 text-center border-x-2 border-gray-100 focus:outline-none text-lg font-bold text-gray-900 bg-gray-50/50"
+                            onChange={(e) => {
+                              if (controlsDisabled) return;
+                              const parsed = parseInt(e.target.value) || 1;
+                              setQuantity(Math.max(1, Math.min(displayStock, parsed)));
+                            }}
+                            className="w-16 h-12 text-center border-x-2 border-gray-100 focus:outline-none text-lg font-bold text-gray-900 bg-gray-50/50 disabled:cursor-not-allowed"
                             min="1"
-                            max={displayStock}
-                            disabled={displayStock === 0}
+                            max={displayStock || 1}
+                            disabled={controlsDisabled}
                           />
                           <button
                             onClick={() => setQuantity(Math.min(displayStock, quantity + 1))}
-                            className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
-                            disabled={displayStock === 0 || quantity >= displayStock}
+                            className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-600"
+                            disabled={controlsDisabled || quantity >= displayStock}
+                            aria-label="Increase quantity"
                           >
                             <i className="ri-add-line text-xl"></i>
                           </button>
                         </div>
-                        {displayStock > 10 && (
-                          <span className="text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full text-sm">
-                            <i className="ri-checkbox-circle-fill text-lg"></i> In Stock
+                        {incompleteSelection ? (
+                          <span className="text-gray-700 font-medium flex items-center gap-1.5 bg-gray-100 px-3 py-1.5 rounded-full text-sm">
+                            <i className="ri-information-line text-lg text-gray-500"></i>
+                            Pick {missingLabel} to see availability
                           </span>
-                        )}
-                        {displayStock > 0 && displayStock <= 10 && (
-                          <span className="text-amber-600 font-semibold flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full text-sm">
-                            <i className="ri-error-warning-fill text-lg"></i> Only {displayStock} Left
-                          </span>
-                        )}
-                        {displayStock === 0 && (
-                          <span className="text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-3 py-1.5 rounded-full text-sm">
-                            <i className="ri-close-circle-fill text-lg"></i> Sold Out
-                          </span>
+                        ) : (
+                          <>
+                            {displayStock > 10 && (
+                              <span className="text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full text-sm">
+                                <i className="ri-checkbox-circle-fill text-lg"></i> In Stock
+                              </span>
+                            )}
+                            {displayStock > 0 && displayStock <= 10 && (
+                              <span className="text-amber-600 font-semibold flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full text-sm">
+                                <i className="ri-error-warning-fill text-lg"></i> Only {displayStock} Left
+                              </span>
+                            )}
+                            {displayStock === 0 && (
+                              <span className="text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-3 py-1.5 rounded-full text-sm">
+                                <i className="ri-close-circle-fill text-lg"></i> Sold Out
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

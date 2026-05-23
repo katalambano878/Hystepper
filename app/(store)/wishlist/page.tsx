@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import PageHero from '@/components/PageHero';
 import { useWishlist } from '@/context/WishlistContext';
@@ -14,42 +15,44 @@ export default function WishlistPage() {
   const { addToCart } = useCart();
   const { getSetting } = useCMS();
 
+  // Read window.location.origin only on the client so the share links use
+  // the live host (works on staging, custom domains, etc.) instead of the
+  // fallback SITE_URL.
+  const [shareOrigin, setShareOrigin] = useState<string>(SITE_URL);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      setShareOrigin(window.location.origin);
+    }
+  }, []);
+
   // The wishlist itself lives in localStorage so we can't really link a
   // friend to *this customer's* list. Instead the share message tells the
   // friend what the customer is loving and points them at the store.
-  const buildShareText = () => {
-    const siteName = getSetting('site_name') || 'Hy_stepper';
+  const siteName = getSetting('site_name') || 'Hy_stepper';
+  const shareText = useMemo(() => {
     if (wishlistItems.length === 0) {
       return `Check out ${siteName} — premium footwear & accessories.`;
     }
     const firstFew = wishlistItems.slice(0, 3).map(i => i.name).filter(Boolean).join(', ');
     return `I'm loving these on ${siteName}: ${firstFew}${wishlistItems.length > 3 ? '…' : ''}`;
-  };
+  }, [wishlistItems, siteName]);
 
-  const handleShare = (platform: 'facebook' | 'x' | 'whatsapp' | 'email') => {
-    const text = buildShareText();
-    const url = typeof window !== 'undefined' ? window.location.origin : SITE_URL;
-    let shareUrl = '';
-    switch (platform) {
-      case 'facebook':
-        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
-        break;
-      case 'x':
-        shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-        break;
-      case 'whatsapp':
-        shareUrl = `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`;
-        break;
-      case 'email':
-        shareUrl = `mailto:?subject=${encodeURIComponent('Check this out')}&body=${encodeURIComponent(text + '\n\n' + url)}`;
-        break;
-    }
-    if (platform === 'email') {
-      window.location.href = shareUrl;
-    } else {
-      window.open(shareUrl, '_blank', 'noopener,noreferrer,width=600,height=500');
-    }
-  };
+  // Pre-compute share hrefs. Using real <a target="_blank"> elements instead
+  // of window.open() so popup blockers and "translucent" mobile browsers
+  // (Brave, in-app webviews) treat them as a normal user-initiated
+  // navigation and never silently swallow the click.
+  const shareLinks = useMemo(() => {
+    const encodedText = encodeURIComponent(shareText);
+    const encodedUrl = encodeURIComponent(shareOrigin);
+    const encodedTextAndUrl = encodeURIComponent(`${shareText} ${shareOrigin}`);
+    const encodedBody = encodeURIComponent(`${shareText}\n\n${shareOrigin}`);
+    return {
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,
+      x: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`,
+      whatsapp: `https://wa.me/?text=${encodedTextAndUrl}`,
+      email: `mailto:?subject=${encodeURIComponent('Check this out')}&body=${encodedBody}`,
+    };
+  }, [shareText, shareOrigin]);
 
   const addAllToCart = () => {
     const inStockItems = wishlistItems.filter(item => item.inStock);
@@ -138,38 +141,41 @@ export default function WishlistPage() {
             <h2 className="text-3xl font-bold mb-4">Share Your Wishlist</h2>
             <p className="text-gold-100 mb-8 text-lg">Let friends and family know what you love</p>
             <div className="flex justify-center space-x-4">
-              <button
-                type="button"
-                onClick={() => handleShare('facebook')}
+              <a
+                href={shareLinks.facebook}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Share on Facebook"
-                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer text-white"
               >
                 <i className="ri-facebook-fill text-xl"></i>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleShare('x')}
+              </a>
+              <a
+                href={shareLinks.x}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Share on X"
-                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer text-white"
               >
                 <i className="ri-twitter-x-fill text-xl"></i>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleShare('whatsapp')}
+              </a>
+              <a
+                href={shareLinks.whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Share on WhatsApp"
-                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+                data-action="share/whatsapp/share"
+                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer text-white"
               >
                 <i className="ri-whatsapp-fill text-xl"></i>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleShare('email')}
+              </a>
+              <a
+                href={shareLinks.email}
                 aria-label="Share by email"
-                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+                className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer text-white"
               >
                 <i className="ri-mail-fill text-xl"></i>
-              </button>
+              </a>
             </div>
           </div>
         </div>

@@ -142,17 +142,23 @@ function ShopContent() {
           }
         }
 
-        // Size Filter — get product IDs that have variants with matching size.
-        // Variant names follow the "Size / Colour" pattern (e.g. "37 / Black"),
-        // so an exact `name = '37'` match never finds anything. The canonical
-        // size lives in `option1`; we also match `name LIKE '37 / %'` and the
-        // bare `name = '37'` case to cover legacy single-option variants where
-        // option1 may not be populated.
+        // Size Filter — get product IDs that have *in-stock* variants with the
+        // matching size. Variant names follow the "Size / Colour" pattern
+        // (e.g. "37 / Black"), so an exact `name = '37'` match never finds
+        // anything. The canonical size lives in `option1`; we also match
+        // `name LIKE '37 / %'` and the bare `name = '37'` case to cover legacy
+        // single-option variants where option1 may not be populated.
+        //
+        // The `.gt('quantity', 0)` is the key bit: a product whose only size-37
+        // variant has 0 stock shouldn't show up under "Shop by Size: 37",
+        // because a customer clicking that filter expects results they can
+        // actually buy.
         const sizeParam = searchParams.get('size')?.trim();
         if (sizeParam) {
           const { data: sizeVariants } = await supabase
             .from('product_variants')
             .select('product_id')
+            .gt('quantity', 0)
             .or(`option1.eq.${sizeParam},name.eq.${sizeParam},name.ilike.${sizeParam} / %`);
 
           if (sizeVariants && sizeVariants.length > 0) {

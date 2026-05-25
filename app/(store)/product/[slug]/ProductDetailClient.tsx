@@ -854,12 +854,24 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </div>
                 )}
 
-                {/* Quantity & Stock — only show a stock badge once selection is
-                    complete. Before that we keep the quantity controls inert
-                    but stay silent (no misleading "Out of Stock" / hint badge). */}
+                {/* Quantity & Stock. Once selection is complete we render the
+                    real stock badge (In Stock / Only N Left / Sold Out). Before
+                    that, we surface a small hint telling the customer which
+                    option they still need to pick. */}
                 {(() => {
                   const displayStock = currentSelectionStock;
                   const controlsDisabled = incompleteVariantSelection || displayStock === 0;
+                  const hasColors = product.colors && product.colors.length > 0;
+                  const hasSizes = product.sizes && product.sizes.length > 0;
+                  const missingParts: string[] = [];
+                  if (hasSizes && !selectedSize) missingParts.push('size');
+                  if (hasColors && !selectedColor) missingParts.push('colour');
+                  const missingLabel =
+                    missingParts.length === 2
+                      ? 'a size and a colour'
+                      : missingParts.length === 1
+                      ? `a ${missingParts[0]}`
+                      : '';
 
                   return (
                     <div className="mb-8">
@@ -896,6 +908,12 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             <i className="ri-add-line text-xl"></i>
                           </button>
                         </div>
+                        {incompleteVariantSelection && missingLabel && (
+                          <span className="text-gray-700 font-medium flex items-center gap-1.5 bg-gray-100 px-3 py-1.5 rounded-full text-sm">
+                            <i className="ri-information-line text-lg text-gray-500"></i>
+                            Pick {missingLabel} to see availability
+                          </span>
+                        )}
                         {!incompleteVariantSelection && displayStock > 10 && (
                           <span className="text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full text-sm">
                             <i className="ri-checkbox-circle-fill text-lg"></i> In Stock

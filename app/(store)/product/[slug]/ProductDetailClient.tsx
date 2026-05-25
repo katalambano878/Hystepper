@@ -483,7 +483,27 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   }
 
   const discount = product.compare_at_price ? Math.round((1 - product.price / product.compare_at_price) * 100) : 0;
-  const totalAvailableStock = getEffectiveStock();
+
+  // Stock for whatever the user currently has selected. Will be 0 when the
+  // user hasn't picked all required variant options yet (see getEffectiveStock).
+  const currentSelectionStock = getEffectiveStock();
+
+  // True if the product has *anything* purchasable, anywhere across its
+  // variants. Drives the "back in stock" form so we don't surface it just
+  // because the user hasn't picked a size or colour yet.
+  const productHasAnyStock = (() => {
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    if (variants.length > 0) {
+      return variants.some((v: any) => (Number(v?.quantity) || 0) > 0);
+    }
+    return (Number(product.stockCount) || 0) > 0;
+  })();
+
+  // "Out of stock" only when we can be certain: either the product has no
+  // variants and its own quantity is 0, or the user has finished picking a
+  // variant combo and that specific combo has 0 stock.
+  const incompleteVariantSelection = isVariantSelectionIncomplete();
+  const isSelectedOutOfStock = !incompleteVariantSelection && currentSelectionStock === 0;
 
   const productSchema = generateProductSchema({
     name: product.name,
@@ -494,7 +514,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     sku: product.sku,
     rating: product.rating,
     reviewCount: product.reviewCount,
-    availability: totalAvailableStock > 0 ? 'in_stock' : 'out_of_stock',
+    availability: productHasAnyStock ? 'in_stock' : 'out_of_stock',
     category: product.category
   });
 
@@ -834,28 +854,18 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </div>
                 )}
 
-                {/* Quantity & Stock — show variant-level stock when a specific combo is selected */}
+                {/* Quantity & Stock — only show a stock badge once selection is
+                    complete. Before that we keep the quantity controls inert
+                    but stay silent (no misleading "Out of Stock" / hint badge). */}
                 {(() => {
-                  const incompleteSelection = isVariantSelectionIncomplete();
-                  const displayStock = getEffectiveStock();
-                  const controlsDisabled = displayStock === 0;
-                  const hasColors = product.colors && product.colors.length > 0;
-                  const hasSizes = product.sizes && product.sizes.length > 0;
-                  const missingParts: string[] = [];
-                  if (hasColors && !selectedColor) missingParts.push('colour');
-                  if (hasSizes && !selectedSize) missingParts.push('size');
-                  const missingLabel =
-                    missingParts.length === 2
-                      ? 'a size and a colour'
-                      : missingParts.length === 1
-                      ? `a ${missingParts[0]}`
-                      : 'your options';
+                  const displayStock = currentSelectionStock;
+                  const controlsDisabled = incompleteVariantSelection || displayStock === 0;
 
                   return (
                     <div className="mb-8">
                       <label className="block font-semibold text-gray-900 mb-3">Quantity</label>
                       <div className="flex items-center space-x-4">
-                        <div className={`flex items-center border-2 rounded-xl bg-white overflow-hidden shadow-sm ${controlsDisabled ? 'border-gray-200 opacity-60' : 'border-gray-200'}`}>
+                        <div className={`flex items-center border-2 rounded-xl bg-white overflow-hidden shadow-sm border-gray-200 ${controlsDisabled ? 'opacity-60' : ''}`}>
                           <button
                             onClick={() => setQuantity(Math.max(1, quantity - 1))}
                             className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-600"
@@ -886,64 +896,72 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             <i className="ri-add-line text-xl"></i>
                           </button>
                         </div>
-                        {incompleteSelection ? (
-                          <span className="text-gray-700 font-medium flex items-center gap-1.5 bg-gray-100 px-3 py-1.5 rounded-full text-sm">
-                            <i className="ri-information-line text-lg text-gray-500"></i>
-                            Pick {missingLabel} to see availability
+                        {!incompleteVariantSelection && displayStock > 10 && (
+                          <span className="text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full text-sm">
+                            <i className="ri-checkbox-circle-fill text-lg"></i> In Stock
                           </span>
-                        ) : (
-                          <>
-                            {displayStock > 10 && (
-                              <span className="text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full text-sm">
-                                <i className="ri-checkbox-circle-fill text-lg"></i> In Stock
-                              </span>
-                            )}
-                            {displayStock > 0 && displayStock <= 10 && (
-                              <span className="text-amber-600 font-semibold flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full text-sm">
-                                <i className="ri-error-warning-fill text-lg"></i> Only {displayStock} Left
-                              </span>
-                            )}
-                            {displayStock === 0 && (
-                              <span className="text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-3 py-1.5 rounded-full text-sm">
-                                <i className="ri-close-circle-fill text-lg"></i> Sold Out
-                              </span>
-                            )}
-                          </>
+                        )}
+                        {!incompleteVariantSelection && displayStock > 0 && displayStock <= 10 && (
+                          <span className="text-amber-600 font-semibold flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full text-sm">
+                            <i className="ri-error-warning-fill text-lg"></i> Only {displayStock} Left
+                          </span>
+                        )}
+                        {!incompleteVariantSelection && displayStock === 0 && (
+                          <span className="text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-3 py-1.5 rounded-full text-sm">
+                            <i className="ri-close-circle-fill text-lg"></i> Sold Out
+                          </span>
                         )}
                       </div>
                     </div>
                   );
                 })()}
 
-                {/* Add to Cart / Buy Now — use variant stock when available */}
-                {(() => {
-                  const resolvedStock = getEffectiveStock();
-
-                  return (
-                    <div className="flex flex-col gap-3 mb-8">
+                {/* Add to Cart / Buy Now.
+                    States:
+                      - Truly out of stock (selection complete + 0, or no-variant
+                        product with 0 stock): single disabled "Out of Stock"
+                        button; the notify-me form appears below.
+                      - Incomplete variant selection: both buttons render but are
+                        styled as muted. We DON'T disable them so the click still
+                        runs handleAddToCart/handleBuyNow, which already focus
+                        and highlight the missing variant section.
+                      - Normal: full-strength Add to Cart + Buy It Now. */}
+                <div className="flex flex-col gap-3 mb-8">
+                  {isSelectedOutOfStock ? (
+                    <button
+                      disabled
+                      className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold flex items-center justify-center space-x-2 text-lg shadow-lg shadow-gray-900/20 opacity-50 cursor-not-allowed"
+                    >
+                      <i className="ri-shopping-cart-line text-xl"></i>
+                      <span>Out of Stock</span>
+                    </button>
+                  ) : (
+                    <>
                       <button
-                        disabled={resolvedStock === 0}
-                        className={`w-full bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-lg cursor-pointer shadow-lg shadow-gray-900/20 ${resolvedStock === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}`}
                         onClick={handleAddToCart}
+                        aria-disabled={incompleteVariantSelection}
+                        className={`w-full bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-lg cursor-pointer shadow-lg shadow-gray-900/20 ${incompleteVariantSelection ? 'opacity-60' : 'hover:-translate-y-0.5'}`}
                       >
                         <i className="ri-shopping-cart-line text-xl"></i>
-                        <span>{resolvedStock === 0 ? 'Out of Stock' : 'Add to Cart'}</span>
+                        <span>Add to Cart</span>
                       </button>
-                      {resolvedStock > 0 && (
-                        <button
-                          onClick={handleBuyNow}
-                          className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-lg cursor-pointer shadow-lg shadow-gold-600/20 hover:-translate-y-0.5"
-                        >
-                          <i className="ri-flashlight-fill text-xl"></i>
-                          <span>Buy It Now</span>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })()}
+                      <button
+                        onClick={handleBuyNow}
+                        aria-disabled={incompleteVariantSelection}
+                        className={`w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-lg cursor-pointer shadow-lg shadow-gold-600/20 ${incompleteVariantSelection ? 'opacity-60' : 'hover:-translate-y-0.5'}`}
+                      >
+                        <i className="ri-flashlight-fill text-xl"></i>
+                        <span>Buy It Now</span>
+                      </button>
+                    </>
+                  )}
+                </div>
 
-                {/* Notify Me When Back in Stock */}
-                {totalAvailableStock === 0 && (
+                {/* Notify Me When Back in Stock — only when the selected variant
+                    is genuinely out of stock (or the product has no variants and
+                    is sold out). We don't show this during incomplete variant
+                    selection, because that's not actually "out of stock". */}
+                {isSelectedOutOfStock && (
                   <div className="mb-8 p-6 bg-gray-50 border border-gray-200 rounded-2xl">
                     {notifySubmitted ? (
                       <div className="flex items-center gap-3 text-gold-700">

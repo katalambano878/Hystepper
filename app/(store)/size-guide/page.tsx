@@ -171,9 +171,9 @@ export default function SizeGuidePage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { height: 'Flat (0-1")', comfort: 'Maximum comfort', best: 'Daily wear, walking', icon: '👟' },
-              { height: 'Low (1-2")', comfort: 'Very comfortable', best: 'Work, casual outings', icon: '👢' },
-              { height: 'Mid (2-3")', comfort: 'Moderate comfort', best: 'Events, dinners', icon: '👠' },
-              { height: 'High (3"+)', comfort: 'Statement piece', best: 'Special occasions', icon: '💃' },
+              { height: 'Low (2-2.5")', comfort: 'Very comfortable', best: 'Work, casual outings', icon: '👢' },
+              { height: 'Mid (3-3.5")', comfort: 'Moderate comfort', best: 'Events, dinners', icon: '👠' },
+              { height: 'High (4"+)', comfort: 'Statement piece', best: 'Special occasions', icon: '💃' },
             ].map((item) => (
               <div key={item.height} className="p-6 bg-white rounded-xl border-2 border-gray-100 hover:border-emerald-200 transition-colors text-center">
                 <span className="text-4xl mb-4 block">{item.icon}</span>

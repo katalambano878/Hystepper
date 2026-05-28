@@ -747,9 +747,9 @@ export default function ProductEditor({ productId }: { productId: string }) {
                     >
                       <option value="">Not specified</option>
                       <option value="Flat">Flat (0–1")</option>
-                      <option value="Low">Low (1–2")</option>
-                      <option value="Mid">Mid (2–3")</option>
-                      <option value="High">High (3"+)</option>
+                      <option value="Low">Low (2–2.5")</option>
+                      <option value="Mid">Mid (3–3.5")</option>
+                      <option value="High">High (4"+)</option>
                     </select>
                     <p className="mt-1 text-xs text-gray-500">
                       Pick the bucket that matches this product so it shows up under the matching Heel Height filter on the homepage and shop page.

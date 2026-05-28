@@ -293,8 +293,8 @@ export default function HomePageClient({
               <div className="flex-1 grid grid-cols-2 md:grid-cols-4 divide-x divide-white/10">
                 {[
                   { label: 'Flat', value: 'flat', range: '0–1"', desc: 'Everyday ease', icon: 'ri-footprint-line' },
-                  { label: 'Low', value: 'low', range: '1–2"', desc: 'Subtle lift', icon: 'ri-arrow-right-up-line' },
-                  { label: 'Mid', value: 'mid', range: '2–3"', desc: 'Classic versatility', icon: 'ri-sort-asc' },
+                  { label: 'Low', value: 'low', range: '2–2.5"', desc: 'Subtle lift', icon: 'ri-arrow-right-up-line' },
+                  { label: 'Mid', value: 'mid', range: '3–3.5"', desc: 'Classic versatility', icon: 'ri-sort-asc' },
                   { label: 'High', value: 'high', range: '4"+', desc: 'Bold statement', icon: 'ri-vip-crown-line' },
                 ].map((item) => (
                   <Link

@@ -866,9 +866,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   const missingParts: string[] = [];
                   if (hasSizes && !selectedSize) missingParts.push('size');
                   if (hasColors && !selectedColor) missingParts.push('colour');
+                  // When both size and colour are missing we lead the customer
+                  // with the colour prompt first — picking colour switches the
+                  // size pills and reveals which sizes are stocked, so it's
+                  // the more useful starting nudge. After they pick colour the
+                  // hint updates to "Pick a size" if size is still missing.
                   const missingLabel =
                     missingParts.length === 2
-                      ? 'a size and a colour'
+                      ? 'a colour'
                       : missingParts.length === 1
                       ? `a ${missingParts[0]}`
                       : '';

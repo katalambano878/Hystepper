@@ -98,10 +98,21 @@ export default function AdminOrdersPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRider, riderUserId]);
 
+  // An order belongs to "Confirmed Orders" when it's been paid OR it was
+  // rung up at the POS. POS sales are real confirmed sales even when the
+  // customer chose pay-on-delivery (payment_status sits at 'pending' until
+  // the rider collects cash and marks the order delivered). Anything else
+  // with an unpaid status is a true abandoned cart.
+  const isConfirmedOrder = (o: any) => {
+    if (o?.payment_status === 'paid') return true;
+    const meta = (o?.metadata || {}) as Record<string, unknown>;
+    return meta.pos_sale === true;
+  };
+
   useEffect(() => {
     const sourceOrders = orderViewTab === 'confirmed'
-      ? orders.filter((o) => o.payment_status === 'paid')
-      : orders.filter((o) => o.payment_status !== 'paid');
+      ? orders.filter(isConfirmedOrder)
+      : orders.filter((o) => !isConfirmedOrder(o));
     setOrderStats([
       { label: 'All Orders', count: sourceOrders.length, status: 'all' },
       { label: 'Pending', count: sourceOrders.filter(o => o.status === 'pending').length, status: 'pending' },
@@ -151,8 +162,8 @@ export default function AdminOrdersPage() {
       if (error) throw error;
 
       setOrders(ordersData || []);
-      const confirmedOrders = (ordersData || []).filter(o => o.payment_status === 'paid');
-      const abandonedOrders = (ordersData || []).filter(o => o.payment_status !== 'paid');
+      const confirmedOrders = (ordersData || []).filter(isConfirmedOrder);
+      const abandonedOrders = (ordersData || []).filter(o => !isConfirmedOrder(o));
       setConfirmedCount(confirmedOrders.length);
       setAbandonedCount(abandonedOrders.length);
 
@@ -637,8 +648,8 @@ export default function AdminOrdersPage() {
   };
 
   const tabOrders = orders.filter((order) => {
-    const isConfirmed = order.payment_status === 'paid';
-    return orderViewTab === 'confirmed' ? isConfirmed : !isConfirmed;
+    const confirmed = isConfirmedOrder(order);
+    return orderViewTab === 'confirmed' ? confirmed : !confirmed;
   });
 
   const filteredOrders = tabOrders.filter(order => {
@@ -1073,6 +1084,14 @@ export default function AdminOrdersPage() {
                       {orderViewTab === 'abandoned' && (
                         <p className={`text-xs mt-0.5 ${order.payment_status === 'failed' ? 'text-red-600' : 'text-amber-600'}`}>
                           {order.payment_status === 'failed' ? 'Failed' : 'Pending'}
+                        </p>
+                      )}
+                      {/* Confirmed POS sale that's pay-on-delivery — flag it so
+                          the admin knows cash is still owed until the rider
+                          collects on delivery. */}
+                      {orderViewTab === 'confirmed' && order.payment_status !== 'paid' && (
+                        <p className="text-xs mt-0.5 text-amber-600 font-medium">
+                          Unpaid · Pay on delivery
                         </p>
                       )}
                     </td>

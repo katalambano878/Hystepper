@@ -29,7 +29,7 @@ function ShopContent() {
   const activeHeelHeight = searchParams.get('heel_height');
   const activeSize = searchParams.get('size');
 
-  const heelLabels: Record<string, string> = { flat: 'Flat (0–1")', low: 'Low (1–2")', mid: 'Mid (2–3")', high: 'High (4"+)' };
+  const heelLabels: Record<string, string> = { flat: 'Flat (0–1")', low: 'Low (2–2.5")', mid: 'Mid (3–3.5")', high: 'High (4"+)' };
 
   function removeFilter(key: string) {
     const params = new URLSearchParams(searchParams.toString());

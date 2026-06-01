@@ -168,12 +168,19 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
         updatePayload.cancel_reason = adminNotes || 'Cancelled by admin';
       }
 
-      const { error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from('orders')
         .update(updatePayload)
-        .eq('id', order.id);
+        .eq('id', order.id)
+        .select('id');
 
       if (error) throw error;
+      // RLS can silently block an update — it returns no error but changes
+      // zero rows. Without this guard the UI would report a false "updated"
+      // while the order stayed put (the staff "stuck on processing" bug).
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error("This order couldn't be updated. You may not have permission, or the order no longer exists.");
+      }
 
       // Update local state
       setOrder({

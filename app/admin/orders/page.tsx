@@ -177,14 +177,21 @@ export default function AdminOrdersPage() {
   const handleRiderStatusUpdate = async (orderId: string, newStatus: 'delivered' | 'completed') => {
     setUpdatingStatus(orderId);
     try {
-      const { error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from('orders')
         .update({ status: newStatus })
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .select('id');
       if (error) throw error;
+      // RLS-blocked updates return no error but zero rows — surface that
+      // instead of silently pretending the status changed.
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error("Update was blocked — you may not have permission to change this order.");
+      }
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     } catch (err) {
       console.error('Failed to update order status:', err);
+      alert(err instanceof Error ? err.message : 'Failed to update order status.');
     } finally {
       setUpdatingStatus(null);
     }
@@ -264,12 +271,17 @@ export default function AdminOrdersPage() {
   const handleBulkAction = async (action: string, newStatus?: string) => {
     if (newStatus) {
       try {
-        const { error } = await supabase
+        const { data: bulkUpdated, error } = await supabase
           .from('orders')
           .update({ status: newStatus })
-          .in('id', selectedOrders);
+          .in('id', selectedOrders)
+          .select('id');
 
         if (error) throw error;
+        // RLS-blocked updates return no error but zero rows changed.
+        if (!bulkUpdated || bulkUpdated.length === 0) {
+          throw new Error("No orders were updated — you may not have permission to change these orders.");
+        }
 
 
 
@@ -291,7 +303,7 @@ export default function AdminOrdersPage() {
         alert(`${selectedOrders.length} orders updated to ${newStatus}`);
       } catch (error) {
         console.error('Error updating orders:', error);
-        alert('Failed to update orders');
+        alert(error instanceof Error ? error.message : 'Failed to update orders');
       }
     } else if (action === 'Export') {
       const ordersToExport = orders.filter(o => selectedOrders.includes(o.id));

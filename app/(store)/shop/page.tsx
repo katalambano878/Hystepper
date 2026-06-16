@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ProductCard from '@/components/ProductCard';
 import { supabase } from '@/lib/supabase';
@@ -23,7 +23,16 @@ function ShopContent() {
   const [sortBy, setSortBy] = useState('popular');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const productsPerPage = 9;
+  // 12 keeps every row full on both the 2-column (mobile) and 3-column
+  // (desktop) grids — 12 is divisible by 2 and 3, so there are never orphan
+  // tiles in the last row. (9 left a lopsided row on the 2-column mobile view.)
+  const productsPerPage = 12;
+
+  // Monotonic counter used to discard out-of-order Supabase responses. Without
+  // it, switching categories quickly (e.g. All → Shoes) could let the slower
+  // "All" response land after the "Shoes" response and repaint the grid with
+  // every product — which looked like the category filter "leaking".
+  const fetchSeqRef = useRef(0);
 
   // Active URL-based filters
   const activeHeelHeight = searchParams.get('heel_height');
@@ -70,6 +79,7 @@ function ShopContent() {
 
   // Fetch Products
   useEffect(() => {
+    const seq = ++fetchSeqRef.current;
     async function fetchProducts() {
       setLoading(true);
       try {
@@ -93,27 +103,28 @@ function ShopContent() {
           query = query.or(`name.ilike.%${search}%,product_code.ilike.%${search}%,style_name.ilike.%${search}%`);
         }
 
-        // Category Filter with Subcategories
+        // Category Filter with Subcategories.
+        //
+        // We filter on the products' own `category_id` column (plus any child
+        // category ids) rather than the embedded `categories.slug` relation.
+        // Filtering by the direct foreign key is unambiguous and avoids the
+        // edge cases of filtering through an `!inner` embed.
         if (selectedCategory !== 'all') {
-          // Find the selected category object to check if it's a parent
           const categoryObj = categories.find(c => c.slug === selectedCategory);
 
           if (categoryObj) {
-            // Include self
-            const targetSlugs = [selectedCategory];
-
-            // Should we look for children? Yes, if it is a parent.
-            // (Even if it is a child, checking for its children doesn't hurt, though 3 levels deep needs recursion)
-            // Assuming 1 level of nesting for now:
-            const childSlugs = categories
-              .filter(c => c.parent_id === categoryObj.id)
-              .map(c => c.slug);
-
-            targetSlugs.push(...childSlugs);
-
-            query = query.in('categories.slug', targetSlugs);
+            // Selected category + its direct children (1 level of nesting).
+            const targetIds = [
+              categoryObj.id,
+              ...categories
+                .filter(c => c.parent_id === categoryObj.id)
+                .map(c => c.id),
+            ];
+            query = query.in('category_id', targetIds);
           } else {
-            // Fallback if state not synced yet, just try exact match
+            // Categories not loaded yet — fall back to matching on the embedded
+            // slug. Once `categories` resolves, the effect re-runs (it's a
+            // dependency) and switches to the precise id-based filter above.
             query = query.eq('categories.slug', selectedCategory);
           }
         }
@@ -197,6 +208,10 @@ function ShopContent() {
 
         const { data, count, error } = await query;
 
+        // A newer fetch has started since this one — discard these results so a
+        // slow response can't overwrite the current filter's grid.
+        if (seq !== fetchSeqRef.current) return;
+
         if (error) throw error;
 
         if (data) {
@@ -235,14 +250,15 @@ function ShopContent() {
           setTotalProducts(count || 0);
         }
       } catch (err) {
-        console.error('Error fetching products:', err);
+        if (seq === fetchSeqRef.current) console.error('Error fetching products:', err);
       } finally {
-        setLoading(false);
+        // Only the most recent fetch is allowed to clear the loading state.
+        if (seq === fetchSeqRef.current) setLoading(false);
       }
     }
 
     fetchProducts();
-  }, [selectedCategory, priceRange, selectedRating, sortBy, page, searchParams]);
+  }, [selectedCategory, priceRange, selectedRating, sortBy, page, searchParams, categories]);
 
   const totalPages = Math.ceil(totalProducts / productsPerPage);
 
@@ -491,7 +507,7 @@ function ShopContent() {
                 <>
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8" data-product-shop>
                     {products.map((product, idx) => (
-                      <div key={product.id} className="animate-fade-in-up" style={{ animationDelay: `${(idx % 9) * 50}ms` }}>
+                      <div key={product.id} className="animate-fade-in-up" style={{ animationDelay: `${(idx % productsPerPage) * 40}ms` }}>
                         <ProductCard {...product} />
                       </div>
                     ))}

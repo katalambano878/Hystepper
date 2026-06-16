@@ -134,7 +134,7 @@ export default function StaffPage() {
   async function handleUpdateStaff() {
     if (!editingStaff) return;
     setSaving(true);
-    const { error } = await supabase
+    const { data: updatedRows, error } = await supabase
       .from('staff')
       .update({
         full_name: editingStaff.full_name,
@@ -142,10 +142,15 @@ export default function StaffPage() {
         permissions: editingStaff.permissions,
         is_active: editingStaff.is_active,
       })
-      .eq('id', editingStaff.id);
+      .eq('id', editingStaff.id)
+      .select('id');
     setSaving(false);
     if (error) {
       showToast('error', error.message);
+    } else if (!updatedRows || updatedRows.length === 0) {
+      // No error but nothing changed = RLS blocked the write (you need an admin
+      // profile to manage staff).
+      showToast('error', "Update was blocked — you may not have permission to manage staff.");
     } else {
       showToast('success', 'Staff member updated.');
       setEditingStaff(null);
@@ -154,22 +159,44 @@ export default function StaffPage() {
   }
 
   async function handleToggleActive(member: StaffMember) {
-    const { error } = await supabase
+    const { data: updatedRows, error } = await supabase
       .from('staff')
       .update({ is_active: !member.is_active })
-      .eq('id', member.id);
-    if (!error) fetchStaff();
+      .eq('id', member.id)
+      .select('id');
+    if (error) {
+      showToast('error', error.message);
+    } else if (!updatedRows || updatedRows.length === 0) {
+      showToast('error', "Couldn't change status — you may not have permission to manage staff.");
+    } else {
+      fetchStaff();
+    }
   }
 
   async function handleDelete(id: string) {
-    const { error } = await supabase.from('staff').delete().eq('id', id);
-    if (!error) {
-      showToast('success', 'Staff member removed.');
-      setDeleteConfirm(null);
-      fetchStaff();
-    } else {
-      showToast('error', error.message);
+    setSaving(true);
+    try {
+      // Goes through the service-role API so it removes BOTH the staff row and
+      // the underlying login account. A plain client-side delete only removed
+      // the row (and could be silently blocked by RLS), leaving an orphaned
+      // login that then blocked re-adding the same email.
+      const res = await fetch('/api/admin/delete-staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast('error', result.error || 'Failed to remove staff member.');
+      } else {
+        showToast('success', 'Staff member removed.');
+        setDeleteConfirm(null);
+        fetchStaff();
+      }
+    } catch {
+      showToast('error', 'Network error. Please try again.');
     }
+    setSaving(false);
   }
 
   function applyRolePreset(role: 'admin' | 'manager' | 'staff' | 'rider', target: 'invite' | 'edit') {
@@ -600,7 +627,8 @@ export default function StaffPage() {
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer">
                 Cancel
               </button>
-              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium cursor-pointer">
+              <button onClick={() => handleDelete(deleteConfirm)} disabled={saving} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium cursor-pointer flex items-center justify-center gap-2">
+                {saving && <i className="ri-loader-4-line animate-spin"></i>}
                 Remove
               </button>
             </div>

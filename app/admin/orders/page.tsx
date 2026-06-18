@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import ProductSalesStats from './ProductSalesStats';
 
@@ -48,10 +48,246 @@ interface OrderStats {
   status: string;
 }
 
+// ── Receipt rendering ──────────────────────────────────────────────────────
+// These build a fully self-contained receipt document that we render inside an
+// <iframe>. Using an iframe (instead of window.open) means: no pop-up blockers,
+// the receipt styling is isolated from the admin page, it previews on screen,
+// and Print works reliably on mobile.
+
+const escHtml = (s: any) =>
+  String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const fmtMoneyR = (n: any) => `GH₵ ${Number(n || 0).toFixed(2)}`;
+
+const statusLabelR = (status: string) =>
+  status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+
+const isPosReceipt = (order: any) =>
+  order?.metadata?.pos_sale === true ||
+  order?.payment_provider === 'pos' ||
+  (order?.order_number || '').startsWith('POS-');
+
+const RECEIPT_DOC_STYLES = `
+  @page { size: A4; margin: 18mm 14mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: #111827; margin: 0; padding: 24px 28px; background: #f3f4f6;
+  }
+  .sheet {
+    background: #fff; max-width: 780px; margin: 0 auto 24px; padding: 32px 36px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08); border-radius: 8px;
+  }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 18px; border-bottom: 2px solid #111827; }
+  .brand .name { font-size: 22px; font-weight: 800; letter-spacing: 0.3px; }
+  .brand .meta { margin-top: 6px; font-size: 12px; color: #4b5563; line-height: 1.5; }
+  .doc { text-align: right; }
+  .doc .title { font-size: 22px; font-weight: 800; color: #111827; }
+  .doc .num { font-size: 13px; color: #4b5563; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .doc .date { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 22px; }
+  .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 16px; }
+  .card .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 6px; }
+  .card .body { font-size: 13px; line-height: 1.55; color: #111827; }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  table.items thead th { background: #111827; color: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 12px; text-align: left; }
+  table.items thead th.num { text-align: right; }
+  table.items tbody td { padding: 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; vertical-align: top; }
+  table.items tbody td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .prod-name { font-weight: 600; color: #111827; }
+  .pills { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid; }
+  .pill-size { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
+  .pill-color { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
+  .pill-sku { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; font-family: ui-monospace, monospace; }
+  .totals { margin-top: 18px; display: flex; justify-content: flex-end; }
+  .totals table { border-collapse: collapse; min-width: 280px; }
+  .totals td { padding: 6px 8px; font-size: 13px; }
+  .totals td.label { color: #4b5563; }
+  .totals td.value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #111827; }
+  .totals tr.grand td { font-size: 16px; font-weight: 800; padding-top: 10px; border-top: 2px solid #111827; }
+  .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .badge-paid { background: #d1fae5; color: #065f46; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .footer { margin-top: 32px; padding-top: 18px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #6b7280; line-height: 1.6; text-align: center; }
+  .thanks { font-weight: 700; color: #111827; font-size: 13px; margin-bottom: 4px; }
+  .page-break { page-break-after: always; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .sheet { box-shadow: none; max-width: none; padding: 0; border-radius: 0; margin: 0; }
+  }
+`;
+
+function buildReceiptSheet(order: any, settings: any): string {
+  const dt = new Date(order.created_at || Date.now());
+  const dateStr = dt.toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+  const ship = order.shipping_address || {};
+  const customerName =
+    ship.full_name ||
+    [ship.first_name, ship.last_name].filter(Boolean).join(' ').trim() ||
+    (order.email ? order.email.split('@')[0] : 'Guest');
+  const customerEmail = order.email || ship.email || '';
+  const customerPhone = order.phone || ship.phone || '';
+  const addressLines = [
+    ship.address_line1 || ship.address || '',
+    ship.address_line2 || '',
+    [ship.city, ship.state || ship.region].filter(Boolean).join(', '),
+    ship.country || '',
+  ].map((l: any) => (l || '').toString().trim()).filter(Boolean);
+
+  const isPos = isPosReceipt(order);
+  const docTitle = isPos ? 'Sales Receipt' : 'Order Invoice';
+
+  const itemsHtml = (order.order_items || [])
+    .map((item: any) => {
+      const meta = item.metadata || {};
+      const variantParts = (item.variant_name || '')
+        .split('/').map((p: string) => p.trim()).filter(Boolean);
+      const sizeLabel = (meta.size || variantParts[0] || '').toString().trim();
+      const colorLabel = (meta.color || variantParts[1] || '').toString().trim();
+      const sku = (item.sku || item.products?.sku || item.products?.product_code || '').toString().trim();
+      const pills = [
+        sizeLabel ? `<span class="pill pill-size">Size ${escHtml(sizeLabel)}</span>` : '',
+        colorLabel ? `<span class="pill pill-color">${escHtml(colorLabel)}</span>` : '',
+        sku ? `<span class="pill pill-sku">SKU ${escHtml(sku)}</span>` : '',
+      ].filter(Boolean).join('');
+      return `
+        <tr>
+          <td class="prod">
+            <div class="prod-name">${escHtml(item.product_name)}</div>
+            <div class="pills">${pills}</div>
+          </td>
+          <td class="num">${item.quantity}</td>
+          <td class="num">${fmtMoneyR(item.unit_price)}</td>
+          <td class="num">${fmtMoneyR(item.total_price)}</td>
+        </tr>`;
+    })
+    .join('');
+
+  const storeName = settings?.store_name || 'Hy_stepper';
+  const storePhone = settings?.contact_phone || '';
+  const storeEmail = settings?.contact_email || '';
+  const storeAddress = (settings?.contact_address || '')
+    .split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean);
+
+  const paymentLabel = (() => {
+    const m = (order.payment_method || '').toString().toLowerCase();
+    if (m === 'cash') return 'Cash';
+    if (m === 'mobile_money' || m === 'momo') return 'Mobile Money';
+    if (m === 'card') return 'Card';
+    if (order.payment_provider) return order.payment_provider.toString();
+    return order.payment_method || 'Paid';
+  })();
+
+  const payable = Number(order.metadata?.payable_now ?? order.total) || 0;
+  const dueLater = Number(order.metadata?.delivery_fee_due ?? 0) || 0;
+
+  return `
+  <div class="sheet">
+    <div class="header">
+      <div class="brand">
+        <div class="name">${escHtml(storeName)}</div>
+        <div class="meta">
+          ${storeAddress.map((l: string) => escHtml(l)).join('<br />')}
+          ${storePhone ? `<br />Tel: ${escHtml(storePhone)}` : ''}
+          ${storeEmail ? `<br />${escHtml(storeEmail)}` : ''}
+        </div>
+      </div>
+      <div class="doc">
+        <div class="title">${escHtml(docTitle)}</div>
+        <div class="num">#${escHtml(order.order_number || order.id.slice(0, 8))}</div>
+        <div class="date">${escHtml(dateStr)}</div>
+        <div style="margin-top:8px;">
+          <span class="badge ${order.payment_status === 'paid' ? 'badge-paid' : 'badge-pending'}">${order.payment_status === 'paid' ? 'Paid' : (order.payment_status || 'Unpaid')}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div class="card">
+        <div class="label">Bill To</div>
+        <div class="body">
+          <strong>${escHtml(customerName)}</strong>
+          ${customerEmail ? `<br />${escHtml(customerEmail)}` : ''}
+          ${customerPhone ? `<br />${escHtml(customerPhone)}` : ''}
+          ${addressLines.length ? `<br />${addressLines.map((l: string) => escHtml(l)).join('<br />')}` : ''}
+        </div>
+      </div>
+      <div class="card">
+        <div class="label">Order Info</div>
+        <div class="body">
+          <strong>Status:</strong> ${escHtml(statusLabelR(order.status))}<br />
+          <strong>Payment:</strong> ${escHtml(paymentLabel)}<br />
+          <strong>Source:</strong> ${isPos ? 'POS / In-store' : 'Online Store'}<br />
+          ${order.shipping_method ? `<strong>Delivery:</strong> ${escHtml(order.shipping_method)}` : ''}
+        </div>
+      </div>
+    </div>
+
+    <table class="items">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th class="num">Qty</th>
+          <th class="num">Price</th>
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml || '<tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">No items found</td></tr>'}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <table>
+        <tbody>
+          ${order.subtotal != null ? `<tr><td class="label">Subtotal</td><td class="value">${fmtMoneyR(order.subtotal)}</td></tr>` : ''}
+          ${order.shipping_total ? `<tr><td class="label">Shipping</td><td class="value">${fmtMoneyR(order.shipping_total)}</td></tr>` : ''}
+          ${order.tax_total ? `<tr><td class="label">Tax</td><td class="value">${fmtMoneyR(order.tax_total)}</td></tr>` : ''}
+          ${order.discount_total ? `<tr><td class="label">Discount</td><td class="value">- ${fmtMoneyR(order.discount_total)}</td></tr>` : ''}
+          <tr class="grand"><td class="label">Total</td><td class="value">${fmtMoneyR(order.total)}</td></tr>
+          ${dueLater > 0 ? `
+            <tr><td class="label">Paid online</td><td class="value">${fmtMoneyR(payable)}</td></tr>
+            <tr><td class="label">Due on delivery</td><td class="value">${fmtMoneyR(dueLater)}</td></tr>
+          ` : ''}
+        </tbody>
+      </table>
+    </div>
+
+    ${order.notes ? `<div style="margin-top:24px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e;"><strong>Notes:</strong> ${escHtml(order.notes)}</div>` : ''}
+
+    <div class="footer">
+      <div class="thanks">Thank you for shopping with ${escHtml(storeName)}!</div>
+      <div>Faulty items: report within 48 hours of delivery.</div>
+      <div>Other issues: report within 24 hours. Items must be unused, unworn and in original packaging.</div>
+      ${storePhone || storeEmail ? `<div style="margin-top:6px;">Questions? ${storePhone ? `Call ${escHtml(storePhone)}` : ''}${storePhone && storeEmail ? ' · ' : ''}${storeEmail ? `Email ${escHtml(storeEmail)}` : ''}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function wrapReceiptDoc(title: string, innerHtml: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${escHtml(title)}</title><style>${RECEIPT_DOC_STYLES}</style></head><body>${innerHtml}</body></html>`;
+}
+
+const RECEIPT_ITEMS_SELECT = `
+  id, order_number, email, phone, status, payment_status,
+  payment_method, payment_provider, shipping_method, created_at,
+  subtotal, shipping_total, tax_total, discount_total, total,
+  notes, shipping_address, billing_address, metadata,
+  order_items (
+    id, product_name, variant_name, sku, quantity,
+    unit_price, total_price, metadata,
+    products ( sku, product_code )
+  )
+`;
+
 export default function AdminOrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'abandoned'>('confirmed');
+  const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'abandoned' | 'receipts'>('confirmed');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('date');
@@ -74,6 +310,15 @@ export default function AdminOrdersPage() {
   const [abandonedCount, setAbandonedCount] = useState(0);
 
   const [riderUserId, setRiderUserId] = useState<string | null>(null);
+
+  // ── Receipt preview / print modal ──
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [receiptDocHtml, setReceiptDocHtml] = useState('');
+  const [receiptTitle, setReceiptTitle] = useState('Receipt');
+  const [receiptCount, setReceiptCount] = useState(1);
+  const receiptIframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     async function checkRole() {
@@ -112,7 +357,9 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     const sourceOrders = orderViewTab === 'confirmed'
       ? orders.filter(isConfirmedOrder)
-      : orders.filter((o) => !isConfirmedOrder(o));
+      : orderViewTab === 'abandoned'
+      ? orders.filter((o) => !isConfirmedOrder(o))
+      : orders; // 'receipts' tab covers every order
     setOrderStats([
       { label: 'All Orders', count: sourceOrders.length, status: 'all' },
       { label: 'Pending', count: sourceOrders.filter(o => o.status === 'pending').length, status: 'pending' },
@@ -337,304 +584,89 @@ export default function AdminOrdersPage() {
     window.URL.revokeObjectURL(url);
   };
 
-  // Open a clean, printable invoice/receipt in a new window and auto-fire
-  // window.print(). We fetch the full order + items here (the list view only
-  // pulls quantities) so the receipt has SKUs, sizes/colours and totals.
-  const handlePrintInvoice = async (orderId: string) => {
-    // Open the popup synchronously (Safari/Chrome block popups opened from
-    // an async chain). We'll write into it after the data loads.
-    const win = window.open('', '_blank', 'width=820,height=900');
-    if (!win) {
-      alert('Please allow pop-ups to print order receipts.');
-      return;
-    }
+  // Fetch one or more orders (with their items) plus store settings, used to
+  // build printable receipts. The list view only pulls quantities, so we
+  // re-fetch the full rows here to get SKUs, sizes/colours and totals.
+  const fetchReceiptData = async (orderIds: string[]) => {
+    const { data: ordersData, error: ordersError } = await supabase
+      .from('orders')
+      .select(RECEIPT_ITEMS_SELECT)
+      .in('id', orderIds);
+    if (ordersError) throw ordersError;
+    if (!ordersData || ordersData.length === 0) throw new Error('Order not found');
 
-    // Lightweight loading shim so the user sees feedback while we fetch.
-    win.document.open();
-    win.document.write(`<!DOCTYPE html><html><head><title>Loading invoice…</title>
-      <meta charset="utf-8" /><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#374151;}</style>
-      </head><body>Loading invoice…</body></html>`);
-    win.document.close();
+    const { data: settings } = await supabase
+      .from('store_settings')
+      .select('store_name, contact_phone, contact_email, contact_address, logo_url')
+      .maybeSingle();
 
+    // Preserve the order of the ids we were given.
+    const byId = new Map((ordersData as any[]).map((o) => [o.id, o]));
+    const ordered = orderIds.map((id) => byId.get(id)).filter(Boolean) as any[];
+    return { orders: ordered, settings };
+  };
+
+  // Open the in-page receipt preview for a single order (no pop-up window).
+  const openReceipt = async (orderId: string) => {
+    setReceiptModalOpen(true);
+    setReceiptLoading(true);
+    setReceiptError(null);
+    setReceiptDocHtml('');
+    setReceiptCount(1);
+    setReceiptTitle('Receipt');
     try {
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .select(`
-          id, order_number, email, phone, status, payment_status,
-          payment_method, payment_provider, shipping_method, created_at,
-          subtotal, shipping_total, tax_total, discount_total, total,
-          notes, shipping_address, billing_address, metadata,
-          order_items (
-            id, product_name, variant_name, sku, quantity,
-            unit_price, total_price, metadata,
-            products ( sku, product_code )
-          )
-        `)
-        .eq('id', orderId)
-        .single();
-
-      if (orderError || !order) throw orderError || new Error('Order not found');
-
-      const { data: settings } = await supabase
-        .from('store_settings')
-        .select('store_name, contact_phone, contact_email, contact_address, logo_url')
-        .maybeSingle();
-
-      const esc = (s: any) =>
-        String(s ?? '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-
-      const fmtMoney = (n: any) => `GH₵ ${Number(n || 0).toFixed(2)}`;
-
-      const dt = new Date(order.created_at || Date.now());
-      const dateStr = dt.toLocaleString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
-      const ship = order.shipping_address || {};
-      const customerName =
-        ship.full_name ||
-        [ship.first_name, ship.last_name].filter(Boolean).join(' ').trim() ||
-        getCustomerName(order as any);
-      const customerEmail = order.email || ship.email || '';
-      const customerPhone = order.phone || ship.phone || '';
-      const addressLines = [
-        ship.address_line1 || ship.address || '',
-        ship.address_line2 || '',
-        [ship.city, ship.state || ship.region].filter(Boolean).join(', '),
-        ship.country || '',
-      ]
-        .map((l) => (l || '').toString().trim())
-        .filter(Boolean);
-
-      const isPos =
-        order.metadata?.pos_sale === true ||
-        order.payment_provider === 'pos' ||
-        (order.order_number || '').startsWith('POS-');
-
-      const docTitle = isPos ? 'Sales Receipt' : 'Order Invoice';
-
-      const itemsHtml = (order.order_items || [])
-        .map((item: any) => {
-          const meta = item.metadata || {};
-          const variantParts = (item.variant_name || '')
-            .split('/')
-            .map((part: string) => part.trim())
-            .filter(Boolean);
-          const sizeLabel = (meta.size || variantParts[0] || '').toString().trim();
-          const colorLabel = (meta.color || variantParts[1] || '').toString().trim();
-          const sku = (item.sku || item.products?.sku || item.products?.product_code || '').toString().trim();
-          const pills = [
-            sizeLabel ? `<span class="pill pill-size">Size ${esc(sizeLabel)}</span>` : '',
-            colorLabel ? `<span class="pill pill-color">${esc(colorLabel)}</span>` : '',
-            sku ? `<span class="pill pill-sku">SKU ${esc(sku)}</span>` : '',
-          ]
-            .filter(Boolean)
-            .join('');
-          return `
-            <tr>
-              <td class="prod">
-                <div class="prod-name">${esc(item.product_name)}</div>
-                <div class="pills">${pills}</div>
-              </td>
-              <td class="num">${item.quantity}</td>
-              <td class="num">${fmtMoney(item.unit_price)}</td>
-              <td class="num">${fmtMoney(item.total_price)}</td>
-            </tr>`;
-        })
-        .join('');
-
-      const storeName = settings?.store_name || 'Hy_stepper';
-      const storePhone = settings?.contact_phone || '';
-      const storeEmail = settings?.contact_email || '';
-      const storeAddress = (settings?.contact_address || '')
-        .split(/\r?\n/)
-        .map((l: string) => l.trim())
-        .filter(Boolean);
-
-      const paymentLabel = (() => {
-        const m = (order.payment_method || '').toString().toLowerCase();
-        if (m === 'cash') return 'Cash';
-        if (m === 'mobile_money' || m === 'momo') return 'Mobile Money';
-        if (m === 'card') return 'Card';
-        if (order.payment_provider) return order.payment_provider.toString();
-        return order.payment_method || 'Paid';
-      })();
-
-      const payable = Number(order.metadata?.payable_now ?? order.total) || 0;
-      const dueLater = Number(order.metadata?.delivery_fee_due ?? 0) || 0;
-
-      const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<title>${esc(docTitle)} ${esc(order.order_number || order.id.slice(0, 8))}</title>
-<style>
-  @page { size: A4; margin: 18mm 14mm; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    color: #111827;
-    margin: 0;
-    padding: 24px 28px;
-    background: #f3f4f6;
-  }
-  .sheet {
-    background: #fff;
-    max-width: 780px;
-    margin: 0 auto;
-    padding: 32px 36px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-    border-radius: 8px;
-  }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 18px; border-bottom: 2px solid #111827; }
-  .brand .name { font-size: 22px; font-weight: 800; letter-spacing: 0.3px; }
-  .brand .meta { margin-top: 6px; font-size: 12px; color: #4b5563; line-height: 1.5; }
-  .doc { text-align: right; }
-  .doc .title { font-size: 22px; font-weight: 800; color: #111827; }
-  .doc .num { font-size: 13px; color: #4b5563; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .doc .date { font-size: 12px; color: #6b7280; margin-top: 2px; }
-  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 22px; }
-  .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 16px; }
-  .card .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 6px; }
-  .card .body { font-size: 13px; line-height: 1.55; color: #111827; }
-  table.items { width: 100%; border-collapse: collapse; margin-top: 24px; }
-  table.items thead th { background: #111827; color: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 12px; text-align: left; }
-  table.items thead th.num { text-align: right; }
-  table.items tbody td { padding: 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; vertical-align: top; }
-  table.items tbody td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .prod-name { font-weight: 600; color: #111827; }
-  .pills { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
-  .pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid; }
-  .pill-size { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
-  .pill-color { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
-  .pill-sku { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; font-family: ui-monospace, monospace; }
-  .totals { margin-top: 18px; display: flex; justify-content: flex-end; }
-  .totals table { border-collapse: collapse; min-width: 280px; }
-  .totals td { padding: 6px 8px; font-size: 13px; }
-  .totals td.label { color: #4b5563; }
-  .totals td.value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #111827; }
-  .totals tr.grand td { font-size: 16px; font-weight: 800; padding-top: 10px; border-top: 2px solid #111827; }
-  .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-  .badge-paid { background: #d1fae5; color: #065f46; }
-  .badge-pending { background: #fef3c7; color: #92400e; }
-  .footer { margin-top: 32px; padding-top: 18px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #6b7280; line-height: 1.6; text-align: center; }
-  .thanks { font-weight: 700; color: #111827; font-size: 13px; margin-bottom: 4px; }
-  @media print {
-    body { background: #fff; padding: 0; }
-    .sheet { box-shadow: none; max-width: none; padding: 0; border-radius: 0; }
-  }
-</style>
-</head>
-<body>
-  <div class="sheet">
-    <div class="header">
-      <div class="brand">
-        <div class="name">${esc(storeName)}</div>
-        <div class="meta">
-          ${storeAddress.map((l: string) => esc(l)).join('<br />')}
-          ${storePhone ? `<br />Tel: ${esc(storePhone)}` : ''}
-          ${storeEmail ? `<br />${esc(storeEmail)}` : ''}
-        </div>
-      </div>
-      <div class="doc">
-        <div class="title">${esc(docTitle)}</div>
-        <div class="num">#${esc(order.order_number || order.id.slice(0, 8))}</div>
-        <div class="date">${esc(dateStr)}</div>
-        <div style="margin-top:8px;">
-          <span class="badge ${order.payment_status === 'paid' ? 'badge-paid' : 'badge-pending'}">${order.payment_status === 'paid' ? 'Paid' : (order.payment_status || 'Unpaid')}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="row-2">
-      <div class="card">
-        <div class="label">Bill To</div>
-        <div class="body">
-          <strong>${esc(customerName)}</strong>
-          ${customerEmail ? `<br />${esc(customerEmail)}` : ''}
-          ${customerPhone ? `<br />${esc(customerPhone)}` : ''}
-          ${addressLines.length ? `<br />${addressLines.map((l: string) => esc(l)).join('<br />')}` : ''}
-        </div>
-      </div>
-      <div class="card">
-        <div class="label">Order Info</div>
-        <div class="body">
-          <strong>Status:</strong> ${esc(formatStatus(order.status))}<br />
-          <strong>Payment:</strong> ${esc(paymentLabel)}<br />
-          <strong>Source:</strong> ${isPos ? 'POS / In-store' : 'Online Store'}<br />
-          ${order.shipping_method ? `<strong>Delivery:</strong> ${esc(order.shipping_method)}` : ''}
-        </div>
-      </div>
-    </div>
-
-    <table class="items">
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th class="num">Qty</th>
-          <th class="num">Price</th>
-          <th class="num">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsHtml || '<tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">No items found</td></tr>'}
-      </tbody>
-    </table>
-
-    <div class="totals">
-      <table>
-        <tbody>
-          ${order.subtotal != null ? `<tr><td class="label">Subtotal</td><td class="value">${fmtMoney(order.subtotal)}</td></tr>` : ''}
-          ${order.shipping_total ? `<tr><td class="label">Shipping</td><td class="value">${fmtMoney(order.shipping_total)}</td></tr>` : ''}
-          ${order.tax_total ? `<tr><td class="label">Tax</td><td class="value">${fmtMoney(order.tax_total)}</td></tr>` : ''}
-          ${order.discount_total ? `<tr><td class="label">Discount</td><td class="value">- ${fmtMoney(order.discount_total)}</td></tr>` : ''}
-          <tr class="grand"><td class="label">Total</td><td class="value">${fmtMoney(order.total)}</td></tr>
-          ${dueLater > 0 ? `
-            <tr><td class="label">Paid online</td><td class="value">${fmtMoney(payable)}</td></tr>
-            <tr><td class="label">Due on delivery</td><td class="value">${fmtMoney(dueLater)}</td></tr>
-          ` : ''}
-        </tbody>
-      </table>
-    </div>
-
-    ${order.notes ? `<div style="margin-top:24px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e;"><strong>Notes:</strong> ${esc(order.notes)}</div>` : ''}
-
-    <div class="footer">
-      <div class="thanks">Thank you for shopping with ${esc(storeName)}!</div>
-      <div>Faulty items: report within 48 hours of delivery.</div>
-      <div>Other issues: report within 24 hours. Items must be unused, unworn and in original packaging.</div>
-      ${storePhone || storeEmail ? `<div style="margin-top:6px;">Questions? ${storePhone ? `Call ${esc(storePhone)}` : ''}${storePhone && storeEmail ? ' · ' : ''}${storeEmail ? `Email ${esc(storeEmail)}` : ''}</div>` : ''}
-    </div>
-  </div>
-  <script>
-    window.addEventListener('load', function () {
-      setTimeout(function () { window.focus(); window.print(); }, 200);
-    });
-    window.addEventListener('afterprint', function () { window.close(); });
-  </script>
-</body>
-</html>`;
-
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
+      const { orders: fetched, settings } = await fetchReceiptData([orderId]);
+      const order = fetched[0];
+      const title = isPosReceipt(order) ? 'Sales Receipt' : 'Order Invoice';
+      setReceiptTitle(title);
+      setReceiptDocHtml(
+        wrapReceiptDoc(`${title} ${order.order_number || order.id.slice(0, 8)}`, buildReceiptSheet(order, settings))
+      );
     } catch (err) {
-      console.error('Failed to build invoice:', err);
-      win.document.open();
-      win.document.write(`<!DOCTYPE html><html><body style="font-family:system-ui;padding:40px;color:#991b1b;">
-        <h2>Couldn't load invoice</h2>
-        <p>${(err as Error)?.message || 'Unknown error'}</p>
-        <button onclick="window.close()">Close</button>
-      </body></html>`);
-      win.document.close();
+      setReceiptError((err as Error)?.message || 'Could not load this receipt.');
+    } finally {
+      setReceiptLoading(false);
     }
+  };
+
+  // Open a combined preview of several receipts (one per printed page) so they
+  // can be printed in one go. Used by the "Print receipts" bulk action.
+  const openBulkReceipts = async (orderIds: string[]) => {
+    if (orderIds.length === 0) return;
+    setReceiptModalOpen(true);
+    setReceiptLoading(true);
+    setReceiptError(null);
+    setReceiptDocHtml('');
+    setReceiptCount(orderIds.length);
+    setReceiptTitle(`Receipts (${orderIds.length})`);
+    try {
+      const { orders: fetched, settings } = await fetchReceiptData(orderIds);
+      const inner = fetched
+        .map((o, i) => buildReceiptSheet(o, settings) + (i < fetched.length - 1 ? '<div class="page-break"></div>' : ''))
+        .join('');
+      setReceiptCount(fetched.length);
+      setReceiptDocHtml(wrapReceiptDoc(`Receipts (${fetched.length})`, inner));
+    } catch (err) {
+      setReceiptError((err as Error)?.message || 'Could not load these receipts.');
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
+
+  // Print whatever is currently shown in the receipt iframe. Printing the
+  // iframe (not the whole admin page) sends only the receipt to the printer,
+  // and there's no pop-up to be blocked — works on mobile too.
+  const printReceiptIframe = () => {
+    const frame = receiptIframeRef.current;
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+  };
+
+  const closeReceiptModal = () => {
+    setReceiptModalOpen(false);
+    setReceiptDocHtml('');
+    setReceiptError(null);
   };
 
   const handleResendPaymentLink = async (order: Order) => {
@@ -660,6 +692,7 @@ export default function AdminOrdersPage() {
   };
 
   const tabOrders = orders.filter((order) => {
+    if (orderViewTab === 'receipts') return true; // every order has a receipt
     const confirmed = isConfirmedOrder(order);
     return orderViewTab === 'confirmed' ? confirmed : !confirmed;
   });
@@ -850,9 +883,21 @@ export default function AdminOrdersPage() {
           <i className="ri-shopping-cart-line mr-1"></i>
           Abandoned Carts ({abandonedCount})
         </button>
+        <button
+          onClick={() => setOrderViewTab('receipts')}
+          className={`pb-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${orderViewTab === 'receipts' ? 'text-blue-700 border-blue-600' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+        >
+          <i className="ri-receipt-line mr-1"></i>
+          Receipts ({orders.length})
+        </button>
       </div>
 
-      {orderViewTab === 'confirmed' ? (
+      {orderViewTab === 'abandoned' ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-800 text-sm">
+          <p className="font-semibold mb-1"><i className="ri-information-line mr-1"></i>Abandoned Carts</p>
+          <p>These orders were created but payment was not completed. You can resend payment links to customers.</p>
+        </div>
+      ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {orderStats.map((stat) => (
             <button
@@ -868,10 +913,22 @@ export default function AdminOrdersPage() {
             </button>
           ))}
         </div>
-      ) : (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-800 text-sm">
-          <p className="font-semibold mb-1"><i className="ri-information-line mr-1"></i>Abandoned Carts</p>
-          <p>These orders were created but payment was not completed. You can resend payment links to customers.</p>
+      )}
+
+      {orderViewTab === 'receipts' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-blue-800 text-sm">
+            <p className="font-semibold mb-0.5"><i className="ri-receipt-line mr-1"></i>Receipts</p>
+            <p>View and print a receipt for any order. Tick rows to print several at once, or print everything shown.</p>
+          </div>
+          <button
+            onClick={() => openBulkReceipts(filteredOrders.map((o) => o.id))}
+            disabled={filteredOrders.length === 0}
+            className="shrink-0 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap"
+          >
+            <i className="ri-printer-line"></i>
+            Print all shown ({filteredOrders.length})
+          </button>
         </div>
       )}
 
@@ -957,6 +1014,13 @@ export default function AdminOrdersPage() {
                 className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
                 Mark Shipped
+              </button>
+              <button
+                onClick={() => openBulkReceipts(selectedOrders)}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <i className="ri-printer-line mr-2"></i>
+                Print Receipts
               </button>
               <button
                 onClick={() => handleBulkAction('Export')}
@@ -1121,7 +1185,8 @@ export default function AdminOrdersPage() {
                           <i className="ri-eye-line text-lg w-4 h-4 flex items-center justify-center"></i>
                         </Link>
                         <button
-                          onClick={() => handlePrintInvoice(order.id)}
+                          onClick={() => openReceipt(order.id)}
+                          title="View / print receipt"
                           className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                         >
                           <i className="ri-printer-line text-lg w-4 h-4 flex items-center justify-center"></i>
@@ -1157,6 +1222,65 @@ export default function AdminOrdersPage() {
       </div>
 
       <ProductSalesStats isOpen={showProductStats} onClose={() => setShowProductStats(false)} />
+
+      {/* ── Receipt preview / print modal (renders in-page via an iframe — no
+            pop-up windows, isolated styling, prints reliably on mobile) ── */}
+      {receiptModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <i className="ri-receipt-line text-xl text-blue-600 shrink-0"></i>
+                <div className="min-w-0">
+                  <h2 className="font-bold text-gray-900 text-base leading-tight truncate">{receiptTitle}</h2>
+                  {receiptCount > 1 && (
+                    <p className="text-xs text-gray-500">{receiptCount} receipts · one per page</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={printReceiptIframe}
+                  disabled={receiptLoading || !receiptDocHtml}
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  <i className="ri-printer-line"></i>
+                  Print
+                </button>
+                <button
+                  onClick={closeReceiptModal}
+                  className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-lg cursor-pointer"
+                  aria-label="Close"
+                >
+                  <i className="ri-close-line text-xl"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-gray-100 overflow-hidden relative">
+              {receiptLoading ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                  <i className="ri-loader-4-line animate-spin text-3xl mb-2"></i>
+                  <p className="text-sm">Loading receipt…</p>
+                </div>
+              ) : receiptError ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-red-600">
+                  <i className="ri-error-warning-line text-4xl mb-2"></i>
+                  <p className="font-semibold">Couldn&apos;t load the receipt</p>
+                  <p className="text-sm text-gray-500 mt-1">{receiptError}</p>
+                </div>
+              ) : (
+                <iframe
+                  ref={receiptIframeRef}
+                  srcDoc={receiptDocHtml}
+                  title="Receipt preview"
+                  className="w-full h-full border-0 bg-gray-100"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

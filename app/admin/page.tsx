@@ -53,11 +53,15 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        // 1. Confirmed payment = payment_status === 'paid' (same as admin Orders "Confirmed" tab)
+        // 1. Confirmed payment = payment_status === 'paid' (same as admin Orders "Confirmed" tab).
+        //    Exclude cancelled/refunded orders: a paid order that's later cancelled
+        //    or refunded is no longer real revenue, so it must not inflate the
+        //    Total Revenue, order count, or the revenue chart.
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
           .select('total, status, payment_status, created_at, email')
-          .eq('payment_status', 'paid');
+          .eq('payment_status', 'paid')
+          .not('status', 'in', '(cancelled,refunded)');
 
         if (ordersError) throw ordersError;
 

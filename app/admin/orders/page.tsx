@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import ProductSalesStats from './ProductSalesStats';
 
@@ -67,54 +67,98 @@ const isPosReceipt = (order: any) =>
   order?.payment_provider === 'pos' ||
   (order?.order_number || '').startsWith('POS-');
 
+// A size token is a shoe number (e.g. "37", "38.5") or a clothing size
+// (S / M / L / XL / XXL). Used to tell a size apart from a colour when a
+// variant only carries a single label.
+const looksLikeSize = (v: string) =>
+  /^\d{1,2}(\.\d)?$/.test(v) || /^(xs|s|m|l|xl|xxl|xxxl)$/i.test(v);
+
+// Work out the real size and colour for an order line, regardless of how the
+// data was originally written. Some older orders (especially POS) saved the
+// colour into metadata.size and dropped the size entirely — but the linked
+// product_variant still holds the authoritative "Size / Colour" label, so we
+// resolve from the variant first and fall back to the line's own fields.
+function resolveVariantSizeColor(item: any): { size: string; color: string } {
+  const clean = (v: any) => (v == null ? '' : String(v).trim());
+
+  // 1) Authoritative: the linked product_variant ("37 / Coffee", option2 = colour).
+  const variant = item?.variant || null;
+  if (variant) {
+    const nameParts = clean(variant.name).split('/').map((p: string) => p.trim()).filter(Boolean);
+    const colorFromVariant = clean(variant.option2) || (nameParts.length > 1 ? nameParts[1] : '');
+    let sizeFromVariant = clean(variant.option1);
+    if (!sizeFromVariant && nameParts.length > 1) sizeFromVariant = nameParts[0];
+    if (!sizeFromVariant && nameParts.length === 1 && looksLikeSize(nameParts[0])) sizeFromVariant = nameParts[0];
+    if (sizeFromVariant || colorFromVariant) {
+      return { size: sizeFromVariant, color: colorFromVariant };
+    }
+  }
+
+  // 2) Fall back to the line's own variant_name, e.g. "37 / Black".
+  const labelParts = clean(item?.variant_name).split('/').map((p: string) => p.trim()).filter(Boolean);
+  if (labelParts.length > 1) {
+    return { size: labelParts[0], color: labelParts[1] };
+  }
+
+  // 3) Last resort: metadata (may be unreliable on legacy orders).
+  const meta = item?.metadata || {};
+  const metaSize = clean(meta.size);
+  const metaColor = clean(meta.color);
+  if (metaColor || (metaSize && looksLikeSize(metaSize))) {
+    return { size: looksLikeSize(metaSize) ? metaSize : '', color: metaColor };
+  }
+
+  // Single unknown token — treat as size if numeric, otherwise as a colour.
+  const lone = labelParts[0] || metaSize;
+  if (lone) {
+    return looksLikeSize(lone) ? { size: lone, color: '' } : { size: '', color: lone };
+  }
+  return { size: '', color: '' };
+}
+
+// Sized for 80mm thermal paper (the printable area is ~72mm). Single column,
+// compact, monospace — the standard receipt look that thermal printers expect.
 const RECEIPT_DOC_STYLES = `
-  @page { size: A4; margin: 18mm 14mm; }
+  @page { size: 80mm auto; margin: 0; }
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    color: #111827; margin: 0; padding: 24px 28px; background: #f3f4f6;
+    font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #000; margin: 0; padding: 16px; background: #e5e7eb;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .sheet {
-    background: #fff; max-width: 780px; margin: 0 auto 24px; padding: 32px 36px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.08); border-radius: 8px;
+    background: #fff; width: 80mm; margin: 0 auto 16px; padding: 14px 12px 18px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
   }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 18px; border-bottom: 2px solid #111827; }
-  .brand .name { font-size: 22px; font-weight: 800; letter-spacing: 0.3px; }
-  .brand .meta { margin-top: 6px; font-size: 12px; color: #4b5563; line-height: 1.5; }
-  .doc { text-align: right; }
-  .doc .title { font-size: 22px; font-weight: 800; color: #111827; }
-  .doc .num { font-size: 13px; color: #4b5563; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .doc .date { font-size: 12px; color: #6b7280; margin-top: 2px; }
-  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 22px; }
-  .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 16px; }
-  .card .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 6px; }
-  .card .body { font-size: 13px; line-height: 1.55; color: #111827; }
-  table.items { width: 100%; border-collapse: collapse; margin-top: 24px; }
-  table.items thead th { background: #111827; color: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 12px; text-align: left; }
-  table.items thead th.num { text-align: right; }
-  table.items tbody td { padding: 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; vertical-align: top; }
-  table.items tbody td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .prod-name { font-weight: 600; color: #111827; }
-  .pills { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
-  .pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid; }
-  .pill-size { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
-  .pill-color { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
-  .pill-sku { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; font-family: ui-monospace, monospace; }
-  .totals { margin-top: 18px; display: flex; justify-content: flex-end; }
-  .totals table { border-collapse: collapse; min-width: 280px; }
-  .totals td { padding: 6px 8px; font-size: 13px; }
-  .totals td.label { color: #4b5563; }
-  .totals td.value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #111827; }
-  .totals tr.grand td { font-size: 16px; font-weight: 800; padding-top: 10px; border-top: 2px solid #111827; }
-  .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-  .badge-paid { background: #d1fae5; color: #065f46; }
-  .badge-pending { background: #fef3c7; color: #92400e; }
-  .footer { margin-top: 32px; padding-top: 18px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #6b7280; line-height: 1.6; text-align: center; }
-  .thanks { font-weight: 700; color: #111827; font-size: 13px; margin-bottom: 4px; }
+  .center { text-align: center; }
+  .muted { color: #444; }
+  .bold { font-weight: 700; }
+  .store { font-size: 17px; font-weight: 800; letter-spacing: 0.5px; }
+  .tagline { font-size: 11px; font-weight: 700; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+  .contact { font-size: 10px; color: #333; margin-top: 3px; line-height: 1.4; }
+  .status { display: inline-block; margin-top: 7px; font-size: 11px; font-weight: 700; padding: 2px 10px; border: 1px solid #000; border-radius: 4px; letter-spacing: 0.5px; }
+  .divider { border-top: 1px dashed #000; margin: 9px 0; }
+  .meta { font-size: 11px; line-height: 1.6; }
+  .meta .row { display: flex; justify-content: space-between; gap: 10px; }
+  .meta .row .k { color: #444; white-space: nowrap; }
+  .meta .row .v { text-align: right; font-weight: 700; word-break: break-word; }
+  .items { font-size: 11px; }
+  .item { margin-bottom: 7px; }
+  .item .name { font-weight: 700; font-size: 12px; line-height: 1.3; }
+  .item .sub { font-size: 10px; color: #444; margin-top: 1px; }
+  .item .line { display: flex; justify-content: space-between; gap: 10px; margin-top: 2px; }
+  .item .line .amt { font-weight: 700; white-space: nowrap; }
+  .totals { font-size: 12px; }
+  .totals .row { display: flex; justify-content: space-between; gap: 10px; padding: 1px 0; }
+  .totals .row .amt { font-variant-numeric: tabular-nums; }
+  .totals .grand { font-size: 15px; font-weight: 800; border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; }
+  .footer { text-align: center; font-size: 10px; color: #333; margin-top: 10px; line-height: 1.5; }
+  .thanks { font-weight: 700; color: #000; font-size: 12px; margin-bottom: 3px; }
+  .notes { margin-top: 8px; font-size: 10px; border: 1px dashed #000; padding: 6px 8px; }
   .page-break { page-break-after: always; }
   @media print {
     body { background: #fff; padding: 0; }
-    .sheet { box-shadow: none; max-width: none; padding: 0; border-radius: 0; margin: 0; }
+    .sheet { box-shadow: none; width: 80mm; margin: 0; padding: 4px 8px 10px; }
   }
 `;
 
@@ -129,41 +173,28 @@ function buildReceiptSheet(order: any, settings: any): string {
     ship.full_name ||
     [ship.first_name, ship.last_name].filter(Boolean).join(' ').trim() ||
     (order.email ? order.email.split('@')[0] : 'Guest');
-  const customerEmail = order.email || ship.email || '';
   const customerPhone = order.phone || ship.phone || '';
-  const addressLines = [
-    ship.address_line1 || ship.address || '',
-    ship.address_line2 || '',
-    [ship.city, ship.state || ship.region].filter(Boolean).join(', '),
-    ship.country || '',
-  ].map((l: any) => (l || '').toString().trim()).filter(Boolean);
 
   const isPos = isPosReceipt(order);
   const docTitle = isPos ? 'Sales Receipt' : 'Order Invoice';
 
   const itemsHtml = (order.order_items || [])
     .map((item: any) => {
-      const meta = item.metadata || {};
-      const variantParts = (item.variant_name || '')
-        .split('/').map((p: string) => p.trim()).filter(Boolean);
-      const sizeLabel = (meta.size || variantParts[0] || '').toString().trim();
-      const colorLabel = (meta.color || variantParts[1] || '').toString().trim();
-      const sku = (item.sku || item.products?.sku || item.products?.product_code || '').toString().trim();
-      const pills = [
-        sizeLabel ? `<span class="pill pill-size">Size ${escHtml(sizeLabel)}</span>` : '',
-        colorLabel ? `<span class="pill pill-color">${escHtml(colorLabel)}</span>` : '',
-        sku ? `<span class="pill pill-sku">SKU ${escHtml(sku)}</span>` : '',
-      ].filter(Boolean).join('');
+      const { size: sizeLabel, color: colorLabel } = resolveVariantSizeColor(item);
+      const sku = (
+        item.variant?.sku || item.sku || item.products?.sku || item.products?.product_code || ''
+      ).toString().trim();
+      const subParts = [
+        sizeLabel ? `Size ${escHtml(sizeLabel)}` : '',
+        colorLabel ? escHtml(colorLabel) : '',
+        sku ? `SKU ${escHtml(sku)}` : '',
+      ].filter(Boolean).join(' · ');
       return `
-        <tr>
-          <td class="prod">
-            <div class="prod-name">${escHtml(item.product_name)}</div>
-            <div class="pills">${pills}</div>
-          </td>
-          <td class="num">${item.quantity}</td>
-          <td class="num">${fmtMoneyR(item.unit_price)}</td>
-          <td class="num">${fmtMoneyR(item.total_price)}</td>
-        </tr>`;
+        <div class="item">
+          <div class="name">${escHtml(String(item.product_name || '').trim())}</div>
+          ${subParts ? `<div class="sub">${subParts}</div>` : ''}
+          <div class="line"><span>${item.quantity} × ${fmtMoneyR(item.unit_price)}</span><span class="amt">${fmtMoneyR(item.total_price)}</span></div>
+        </div>`;
     })
     .join('');
 
@@ -184,86 +215,66 @@ function buildReceiptSheet(order: any, settings: any): string {
 
   const payable = Number(order.metadata?.payable_now ?? order.total) || 0;
   const dueLater = Number(order.metadata?.delivery_fee_due ?? 0) || 0;
+  const paymentStatusText = (order.payment_status || 'unpaid').toString().toUpperCase();
+  const ref = order.order_number || order.id.slice(0, 8);
+
+  const contactHtml = [
+    ...storeAddress.map((l: string) => `<div class="contact">${escHtml(l)}</div>`),
+    storePhone ? `<div class="contact">Tel: ${escHtml(storePhone)}</div>` : '',
+    storeEmail ? `<div class="contact">${escHtml(storeEmail)}</div>` : '',
+  ].filter(Boolean).join('');
 
   return `
   <div class="sheet">
-    <div class="header">
-      <div class="brand">
-        <div class="name">${escHtml(storeName)}</div>
-        <div class="meta">
-          ${storeAddress.map((l: string) => escHtml(l)).join('<br />')}
-          ${storePhone ? `<br />Tel: ${escHtml(storePhone)}` : ''}
-          ${storeEmail ? `<br />${escHtml(storeEmail)}` : ''}
-        </div>
-      </div>
-      <div class="doc">
-        <div class="title">${escHtml(docTitle)}</div>
-        <div class="num">#${escHtml(order.order_number || order.id.slice(0, 8))}</div>
-        <div class="date">${escHtml(dateStr)}</div>
-        <div style="margin-top:8px;">
-          <span class="badge ${order.payment_status === 'paid' ? 'badge-paid' : 'badge-pending'}">${order.payment_status === 'paid' ? 'Paid' : (order.payment_status || 'Unpaid')}</span>
-        </div>
-      </div>
+    <div class="center">
+      <div class="store">${escHtml(storeName)}</div>
+      <div class="tagline">${escHtml(docTitle)}</div>
+      ${contactHtml}
+      <div class="status">${escHtml(paymentStatusText)}</div>
     </div>
 
-    <div class="row-2">
-      <div class="card">
-        <div class="label">Bill To</div>
-        <div class="body">
-          <strong>${escHtml(customerName)}</strong>
-          ${customerEmail ? `<br />${escHtml(customerEmail)}` : ''}
-          ${customerPhone ? `<br />${escHtml(customerPhone)}` : ''}
-          ${addressLines.length ? `<br />${addressLines.map((l: string) => escHtml(l)).join('<br />')}` : ''}
-        </div>
-      </div>
-      <div class="card">
-        <div class="label">Order Info</div>
-        <div class="body">
-          <strong>Status:</strong> ${escHtml(statusLabelR(order.status))}<br />
-          <strong>Payment:</strong> ${escHtml(paymentLabel)}<br />
-          <strong>Source:</strong> ${isPos ? 'POS / In-store' : 'Online Store'}<br />
-          ${order.shipping_method ? `<strong>Delivery:</strong> ${escHtml(order.shipping_method)}` : ''}
-        </div>
-      </div>
+    <div class="divider"></div>
+
+    <div class="meta">
+      <div class="row"><span class="k">Receipt</span><span class="v">#${escHtml(ref)}</span></div>
+      <div class="row"><span class="k">Date</span><span class="v">${escHtml(dateStr)}</span></div>
+      <div class="row"><span class="k">Customer</span><span class="v">${escHtml(customerName)}</span></div>
+      ${customerPhone ? `<div class="row"><span class="k">Phone</span><span class="v">${escHtml(customerPhone)}</span></div>` : ''}
+      <div class="row"><span class="k">Status</span><span class="v">${escHtml(statusLabelR(order.status))}</span></div>
+      <div class="row"><span class="k">Payment</span><span class="v">${escHtml(paymentLabel)}</span></div>
+      <div class="row"><span class="k">Source</span><span class="v">${isPos ? 'POS / In-store' : 'Online Store'}</span></div>
+      ${order.shipping_method ? `<div class="row"><span class="k">Delivery</span><span class="v">${escHtml(order.shipping_method)}</span></div>` : ''}
     </div>
 
-    <table class="items">
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th class="num">Qty</th>
-          <th class="num">Price</th>
-          <th class="num">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsHtml || '<tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">No items found</td></tr>'}
-      </tbody>
-    </table>
+    <div class="divider"></div>
+
+    <div class="items">
+      ${itemsHtml || '<div class="center muted" style="padding:8px 0;">No items found</div>'}
+    </div>
+
+    <div class="divider"></div>
 
     <div class="totals">
-      <table>
-        <tbody>
-          ${order.subtotal != null ? `<tr><td class="label">Subtotal</td><td class="value">${fmtMoneyR(order.subtotal)}</td></tr>` : ''}
-          ${order.shipping_total ? `<tr><td class="label">Shipping</td><td class="value">${fmtMoneyR(order.shipping_total)}</td></tr>` : ''}
-          ${order.tax_total ? `<tr><td class="label">Tax</td><td class="value">${fmtMoneyR(order.tax_total)}</td></tr>` : ''}
-          ${order.discount_total ? `<tr><td class="label">Discount</td><td class="value">- ${fmtMoneyR(order.discount_total)}</td></tr>` : ''}
-          <tr class="grand"><td class="label">Total</td><td class="value">${fmtMoneyR(order.total)}</td></tr>
-          ${dueLater > 0 ? `
-            <tr><td class="label">Paid online</td><td class="value">${fmtMoneyR(payable)}</td></tr>
-            <tr><td class="label">Due on delivery</td><td class="value">${fmtMoneyR(dueLater)}</td></tr>
-          ` : ''}
-        </tbody>
-      </table>
+      ${order.subtotal != null ? `<div class="row"><span>Subtotal</span><span class="amt">${fmtMoneyR(order.subtotal)}</span></div>` : ''}
+      ${order.shipping_total ? `<div class="row"><span>Shipping</span><span class="amt">${fmtMoneyR(order.shipping_total)}</span></div>` : ''}
+      ${order.tax_total ? `<div class="row"><span>Tax</span><span class="amt">${fmtMoneyR(order.tax_total)}</span></div>` : ''}
+      ${order.discount_total ? `<div class="row"><span>Discount</span><span class="amt">- ${fmtMoneyR(order.discount_total)}</span></div>` : ''}
+      <div class="row grand"><span>TOTAL</span><span class="amt">${fmtMoneyR(order.total)}</span></div>
+      ${dueLater > 0 ? `
+        <div class="row"><span>Paid online</span><span class="amt">${fmtMoneyR(payable)}</span></div>
+        <div class="row"><span>Due on delivery</span><span class="amt">${fmtMoneyR(dueLater)}</span></div>
+      ` : ''}
     </div>
 
-    ${order.notes ? `<div style="margin-top:24px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e;"><strong>Notes:</strong> ${escHtml(order.notes)}</div>` : ''}
+    ${order.notes ? `<div class="notes"><span class="bold">Notes:</span> ${escHtml(order.notes)}</div>` : ''}
+
+    <div class="divider"></div>
 
     <div class="footer">
       <div class="thanks">Thank you for shopping with ${escHtml(storeName)}!</div>
       <div>Faulty items: report within 48 hours of delivery.</div>
       <div>Other issues: report within 24 hours. Items must be unused, unworn and in original packaging.</div>
-      ${storePhone || storeEmail ? `<div style="margin-top:6px;">Questions? ${storePhone ? `Call ${escHtml(storePhone)}` : ''}${storePhone && storeEmail ? ' · ' : ''}${storeEmail ? `Email ${escHtml(storeEmail)}` : ''}</div>` : ''}
+      ${storePhone || storeEmail ? `<div style="margin-top:5px;">Questions? ${storePhone ? `Call ${escHtml(storePhone)}` : ''}${storePhone && storeEmail ? ' · ' : ''}${storeEmail ? `Email ${escHtml(storeEmail)}` : ''}</div>` : ''}
     </div>
   </div>`;
 }
@@ -278,9 +289,10 @@ const RECEIPT_ITEMS_SELECT = `
   subtotal, shipping_total, tax_total, discount_total, total,
   notes, shipping_address, billing_address, metadata,
   order_items (
-    id, product_name, variant_name, sku, quantity,
+    id, product_name, variant_name, variant_id, sku, quantity,
     unit_price, total_price, metadata,
-    products ( sku, product_code )
+    products ( sku, product_code ),
+    variant:product_variants ( name, option1, option2, option3, sku )
   )
 `;
 
@@ -318,7 +330,6 @@ export default function AdminOrdersPage() {
   const [receiptDocHtml, setReceiptDocHtml] = useState('');
   const [receiptTitle, setReceiptTitle] = useState('Receipt');
   const [receiptCount, setReceiptCount] = useState(1);
-  const receiptIframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     async function checkRole() {
@@ -653,14 +664,56 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // Print whatever is currently shown in the receipt iframe. Printing the
-  // iframe (not the whole admin page) sends only the receipt to the printer,
-  // and there's no pop-up to be blocked — works on mobile too.
+  // Print the receipt in a throwaway hidden iframe. Writing the document with
+  // document.write (instead of printing the on-screen srcDoc iframe) guarantees
+  // the browser prints ONLY the receipt — the admin page never bleeds into the
+  // print preview. No pop-up, so it works on mobile too.
   const printReceiptIframe = () => {
-    const frame = receiptIframeRef.current;
-    if (!frame || !frame.contentWindow) return;
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
+    if (!receiptDocHtml) return;
+
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.position = 'fixed';
+    frame.style.right = '0';
+    frame.style.bottom = '0';
+    frame.style.width = '0';
+    frame.style.height = '0';
+    frame.style.border = '0';
+    frame.style.visibility = 'hidden';
+    document.body.appendChild(frame);
+
+    const doc = frame.contentWindow?.document;
+    if (!doc) {
+      document.body.removeChild(frame);
+      return;
+    }
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      try { document.body.removeChild(frame); } catch { /* already removed */ }
+    };
+
+    doc.open();
+    doc.write(receiptDocHtml);
+    doc.close();
+
+    const win = frame.contentWindow!;
+    win.onafterprint = cleanup;
+
+    // Give the thermal layout a tick to lay out before printing.
+    setTimeout(() => {
+      try {
+        win.focus();
+        win.print();
+      } catch {
+        cleanup();
+      }
+    }, 200);
+
+    // Safety net in case onafterprint never fires (some browsers).
+    setTimeout(cleanup, 60000);
   };
 
   const closeReceiptModal = () => {
@@ -1227,7 +1280,7 @@ export default function AdminOrdersPage() {
             pop-up windows, isolated styling, prints reliably on mobile) ── */}
       {receiptModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 shrink-0">
               <div className="flex items-center gap-2 min-w-0">
                 <i className="ri-receipt-line text-xl text-blue-600 shrink-0"></i>
@@ -1271,7 +1324,6 @@ export default function AdminOrdersPage() {
                 </div>
               ) : (
                 <iframe
-                  ref={receiptIframeRef}
                   srcDoc={receiptDocHtml}
                   title="Receipt preview"
                   className="w-full h-full border-0 bg-gray-100"

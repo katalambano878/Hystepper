@@ -118,12 +118,16 @@ function resolveVariantSizeColor(item: any): { size: string; color: string } {
 
 // Sized for 80mm thermal paper (the printable area is ~72mm). Single column,
 // compact, monospace — the standard receipt look that thermal printers expect.
+// Thermal heads only print solid black well: any grey renders as faint, dithered
+// dots, and thin strokes come out faded. So every line is pure #000 and carried
+// at a heavier weight, with everything forced fully black when printing.
 const RECEIPT_DOC_STYLES = `
   @page { size: 80mm auto; margin: 0; }
   * { box-sizing: border-box; }
   body {
     font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, monospace;
     color: #000; margin: 0; padding: 16px; background: #e5e7eb;
+    font-weight: 600;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .sheet {
@@ -131,34 +135,36 @@ const RECEIPT_DOC_STYLES = `
     box-shadow: 0 6px 20px rgba(0,0,0,0.12);
   }
   .center { text-align: center; }
-  .muted { color: #444; }
-  .bold { font-weight: 700; }
-  .store { font-size: 17px; font-weight: 800; letter-spacing: 0.5px; }
+  .muted { color: #000; }
+  .bold { font-weight: 800; }
+  .store { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; }
   .tagline { font-size: 11px; font-weight: 700; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
-  .contact { font-size: 10px; color: #333; margin-top: 3px; line-height: 1.4; }
-  .status { display: inline-block; margin-top: 7px; font-size: 11px; font-weight: 700; padding: 2px 10px; border: 1px solid #000; border-radius: 4px; letter-spacing: 0.5px; }
+  .contact { font-size: 11px; color: #000; margin-top: 3px; line-height: 1.4; }
+  .status { display: inline-block; margin-top: 7px; font-size: 11px; font-weight: 800; padding: 2px 10px; border: 1.5px solid #000; border-radius: 4px; letter-spacing: 0.5px; }
   .divider { border-top: 1px dashed #000; margin: 9px 0; }
   .meta { font-size: 11px; line-height: 1.6; }
   .meta .row { display: flex; justify-content: space-between; gap: 10px; }
-  .meta .row .k { color: #444; white-space: nowrap; }
-  .meta .row .v { text-align: right; font-weight: 700; word-break: break-word; }
+  .meta .row .k { color: #000; white-space: nowrap; }
+  .meta .row .v { text-align: right; font-weight: 800; word-break: break-word; }
   .items { font-size: 11px; }
   .item { margin-bottom: 7px; }
-  .item .name { font-weight: 700; font-size: 12px; line-height: 1.3; }
-  .item .sub { font-size: 10px; color: #444; margin-top: 1px; }
+  .item .name { font-weight: 800; font-size: 12px; line-height: 1.3; }
+  .item .sub { font-size: 11px; color: #000; font-weight: 600; margin-top: 1px; }
   .item .line { display: flex; justify-content: space-between; gap: 10px; margin-top: 2px; }
-  .item .line .amt { font-weight: 700; white-space: nowrap; }
+  .item .line .amt { font-weight: 800; white-space: nowrap; }
   .totals { font-size: 12px; }
   .totals .row { display: flex; justify-content: space-between; gap: 10px; padding: 1px 0; }
-  .totals .row .amt { font-variant-numeric: tabular-nums; }
-  .totals .grand { font-size: 15px; font-weight: 800; border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; }
-  .footer { text-align: center; font-size: 10px; color: #333; margin-top: 10px; line-height: 1.5; }
-  .thanks { font-weight: 700; color: #000; font-size: 12px; margin-bottom: 3px; }
-  .notes { margin-top: 8px; font-size: 10px; border: 1px dashed #000; padding: 6px 8px; }
+  .totals .row .amt { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .totals .grand { font-size: 15px; font-weight: 800; border-top: 1.5px solid #000; margin-top: 5px; padding-top: 5px; }
+  .footer { text-align: center; font-size: 11px; color: #000; margin-top: 10px; line-height: 1.5; }
+  .thanks { font-weight: 800; color: #000; font-size: 12px; margin-bottom: 3px; }
+  .notes { margin-top: 8px; font-size: 11px; border: 1px dashed #000; padding: 6px 8px; }
   .page-break { page-break-after: always; }
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff; padding: 0; font-weight: 700; }
     .sheet { box-shadow: none; width: 80mm; margin: 0; padding: 4px 8px 10px; }
+    /* Thermal heads can't render grey — force every glyph to solid black. */
+    * { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 `;
 

@@ -189,7 +189,13 @@ export default function POSPage() {
 
     // Cart helpers
     const addVariantToCart = (product: Product, variant: Variant) => {
-        const label = [variant.option1, variant.option2].filter(Boolean).join(' / ') || variant.name;
+        // variant.name holds the canonical "Size / Colour" (e.g. "37 / Coffee").
+        // option1 (size) is often null in our data while option2 carries the
+        // colour, so building purely from options drops the size. Prefer the
+        // full name when it already contains both parts.
+        const built = [variant.option1, variant.option2].filter(Boolean).join(' / ').trim();
+        const nm = (variant.name || '').trim();
+        const label = nm.includes('/') ? nm : (built || nm);
         const key = `${product.id}:${variant.id}`;
         setCart(prev => {
             const existing = prev.find(it => it.key === key);
@@ -649,31 +655,34 @@ export default function POSPage() {
         font-family: 'Courier New', ui-monospace, monospace;
         font-size: 12px;
         color: #000;
+        font-weight: 600;
         margin: 0;
         padding: 12px 10px;
         width: 80mm;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
     .center { text-align: center; }
     .right { text-align: right; }
-    .bold { font-weight: 700; }
-    .muted { color: #555; }
-    .store { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+    .bold { font-weight: 800; }
+    .muted { color: #000; }
+    .store { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; }
     .tagline { font-size: 11px; margin-top: 2px; }
-    .contact { font-size: 11px; margin-top: 2px; color: #333; line-height: 1.35; }
+    .contact { font-size: 11px; margin-top: 2px; color: #000; line-height: 1.35; }
     .divider { border-top: 1px dashed #000; margin: 8px 0; }
     .meta { font-size: 11px; line-height: 1.5; }
     .meta .row { display: flex; justify-content: space-between; }
     table { width: 100%; border-collapse: collapse; }
     td { padding: 4px 0; vertical-align: top; }
     .item-row .name { padding-right: 6px; }
-    .item-row .name .title { font-weight: 700; }
-    .item-row .name .variant { font-size: 11px; color: #444; }
-    .item-row .name .qty-line { font-size: 11px; color: #333; margin-top: 2px; }
-    .item-row .amt { text-align: right; white-space: nowrap; font-weight: 700; }
+    .item-row .name .title { font-weight: 800; }
+    .item-row .name .variant { font-size: 11px; color: #000; font-weight: 600; }
+    .item-row .name .qty-line { font-size: 11px; color: #000; font-weight: 600; margin-top: 2px; }
+    .item-row .amt { text-align: right; white-space: nowrap; font-weight: 800; }
     .totals .row { display: flex; justify-content: space-between; padding: 2px 0; }
     .totals .grand { font-size: 15px; font-weight: 800; padding-top: 4px; }
     .footer { text-align: center; font-size: 11px; margin-top: 12px; line-height: 1.5; }
-    .thanks { font-weight: 700; font-size: 13px; margin-top: 4px; }
+    .thanks { font-weight: 800; font-size: 13px; margin-top: 4px; }
     @media screen {
         body {
             background: #f3f4f6;
@@ -689,7 +698,9 @@ export default function POSPage() {
         }
     }
     @media print {
-        body { background: #fff; padding: 0; }
+        body { background: #fff; padding: 0; font-weight: 700; }
+        /* Thermal heads can't render grey — force every glyph to solid black. */
+        * { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .sheet { box-shadow: none; padding: 0; width: 80mm; }
     }
 </style>
@@ -793,7 +804,10 @@ export default function POSPage() {
     };
 
     return (
-        <div className="flex flex-col lg:flex-row h-[calc(100vh-90px)] -m-4 lg:-m-6 overflow-hidden bg-gray-100 relative">
+        <div
+            className="flex flex-col lg:flex-row h-[calc(100vh-90px)] -m-4 lg:-m-6 overflow-hidden bg-gray-100 relative"
+            style={{ height: 'calc(100dvh - 90px)' }}
+        >
 
             {/* LEFT: Product Grid */}
             <div className={`flex-1 flex flex-col h-full min-w-0 ${isMobileCartOpen ? 'hidden lg:flex' : 'flex'}`}>
@@ -834,7 +848,7 @@ export default function POSPage() {
                             <p>No products found</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-20 lg:pb-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-4">
                             {filteredProducts.map(product => {
                                 const hasVariants = product.variants.length > 0;
                                 const totalStock = hasVariants
@@ -878,7 +892,7 @@ export default function POSPage() {
                 </div>
 
                 {cart.length > 0 && (
-                    <div className="lg:hidden p-4 border-t border-gray-200 bg-white fixed bottom-0 left-0 right-0 z-30 shadow-2xl safe-area-bottom">
+                    <div className="lg:hidden shrink-0 p-4 border-t border-gray-200 bg-white z-30 shadow-2xl safe-area-bottom">
                         <button
                             onClick={() => setIsMobileCartOpen(true)}
                             className="w-full py-3 bg-emerald-700 text-white rounded-xl font-bold flex justify-between px-6 shadow-lg active:scale-95 transition-transform"
@@ -1010,7 +1024,7 @@ export default function POSPage() {
                                 <img src={variantProduct.image} alt="" className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0" />
                                 <div className="min-w-0">
                                     <h3 className="text-base font-bold text-gray-900 truncate">{variantProduct.name}</h3>
-                                    <p className="text-xs text-gray-500">Select size / variant</p>
+                                    <p className="text-xs text-gray-500">Tap to add — pick as many sizes / colours as you need</p>
                                 </div>
                             </div>
                             <button onClick={() => setVariantProduct(null)} className="w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center text-gray-500 shrink-0">
@@ -1026,30 +1040,42 @@ export default function POSPage() {
                                         (b.option1 || b.name || '').toString(),
                                     ))
                                     .map(v => {
-                                    const inCart = cart.find(c => c.key === `${variantProduct.id}:${v.id}`);
+                                    const key = `${variantProduct.id}:${v.id}`;
+                                    const inCart = cart.find(c => c.key === key);
                                     const outOfStock = v.quantity <= 0;
+                                    const atMax = !!inCart && inCart.cartQuantity >= v.quantity;
+                                    // Tapping anywhere on an available tile adds one and KEEPS the
+                                    // picker open, so the cashier can stack up several sizes/colours
+                                    // (and quantities) in one go before pressing Done.
+                                    const addOne = () => {
+                                        if (outOfStock || atMax) return;
+                                        addVariantToCart(variantProduct, v);
+                                    };
+                                    // option1 (size) is often null while name holds "Size / Colour",
+                                    // so derive a clean size label and colour for display.
+                                    const nameParts = (v.name || '').split('/').map((p: string) => p.trim()).filter(Boolean);
+                                    const sizeText = (v.option1 || (nameParts.length > 1 ? nameParts[0] : v.name) || '').toString().trim();
+                                    const colorText = (v.option2 || (nameParts.length > 1 ? nameParts[1] : '') || '').toString().trim();
                                     return (
-                                        <button
+                                        <div
                                             key={v.id}
-                                            onClick={() => {
-                                                if (outOfStock) return;
-                                                addVariantToCart(variantProduct, v);
-                                                setVariantProduct(null);
-                                            }}
-                                            disabled={outOfStock}
-                                            className={`relative p-3 rounded-lg border text-center transition-all ${
+                                            onClick={addOne}
+                                            role="button"
+                                            tabIndex={outOfStock ? -1 : 0}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addOne(); } }}
+                                            className={`relative p-3 rounded-lg border text-center transition-all select-none ${
                                                 outOfStock
                                                     ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
                                                     : inCart
-                                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200'
+                                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200 cursor-pointer'
                                                         : 'border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/40 text-gray-900 cursor-pointer'
                                             }`}
                                         >
                                             <p className="text-sm font-bold leading-tight">
-                                                {v.option1 || v.name}
+                                                {sizeText}
                                             </p>
-                                            {v.option2 && (
-                                                <p className="text-[10px] text-gray-500 mt-0.5 leading-none truncate">{v.option2}</p>
+                                            {colorText && (
+                                                <p className="text-[10px] text-gray-500 mt-0.5 leading-none truncate">{colorText}</p>
                                             )}
                                             <p className={`text-[11px] mt-1.5 font-medium ${outOfStock ? 'text-red-500' : 'text-gray-500'}`}>
                                                 {outOfStock ? 'Out of stock' : `Stock: ${v.quantity}`}
@@ -1059,24 +1085,58 @@ export default function POSPage() {
                                                     GH₵{v.price.toFixed(2)}
                                                 </p>
                                             )}
+                                            {!outOfStock && inCart && (
+                                                <div
+                                                    className="mt-2 flex items-center justify-center gap-1"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => inCart.cartQuantity <= 1 ? removeFromCart(key) : updateQuantity(key, -1)}
+                                                        className="w-6 h-6 rounded-md bg-white border border-emerald-300 text-emerald-700 flex items-center justify-center hover:bg-emerald-100"
+                                                        aria-label="Decrease"
+                                                    >
+                                                        <i className="ri-subtract-line text-sm"></i>
+                                                    </button>
+                                                    <span className="text-sm font-bold w-5 text-center">{inCart.cartQuantity}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => updateQuantity(key, 1)}
+                                                        disabled={atMax}
+                                                        className="w-6 h-6 rounded-md bg-white border border-emerald-300 text-emerald-700 flex items-center justify-center hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        aria-label="Increase"
+                                                    >
+                                                        <i className="ri-add-line text-sm"></i>
+                                                    </button>
+                                                </div>
+                                            )}
                                             {inCart && (
                                                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-600 text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow">
                                                     {inCart.cartQuantity}
                                                 </span>
                                             )}
-                                        </button>
+                                        </div>
                                     );
                                 })}
                             </div>
                         </div>
 
                         <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0">
-                            <button
-                                onClick={() => setVariantProduct(null)}
-                                className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-800"
-                            >
-                                Done
-                            </button>
+                            {(() => {
+                                const selectedForProduct = cart
+                                    .filter(c => c.productId === variantProduct.id)
+                                    .reduce((sum, c) => sum + c.cartQuantity, 0);
+                                return (
+                                    <button
+                                        onClick={() => setVariantProduct(null)}
+                                        className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-800"
+                                    >
+                                        {selectedForProduct > 0
+                                            ? `Done · ${selectedForProduct} added to cart`
+                                            : 'Done'}
+                                    </button>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>

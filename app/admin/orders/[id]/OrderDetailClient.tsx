@@ -16,6 +16,53 @@ interface FraudAnalysis {
   reasons: string[];
 }
 
+// A size token is a shoe number (e.g. "37", "38.5") or a clothing size.
+const looksLikeSize = (v: string) =>
+  /^\d{1,2}(\.\d)?$/.test(v) || /^(xs|s|m|l|xl|xxl|xxxl)$/i.test(v);
+
+// Work out the real size and colour for an order line, regardless of how the
+// data was originally written. Some older orders (especially POS) saved the
+// colour into metadata.size and dropped the size — but the linked
+// product_variant still holds the authoritative "Size / Colour" label, so we
+// resolve from the variant first and fall back to the line's own fields.
+function resolveVariantSizeColor(item: any): { size: string; color: string } {
+  const clean = (v: any) => (v == null ? '' : String(v).trim());
+
+  // 1) Authoritative: the linked product_variant ("37 / Coffee", option2 = colour).
+  const variant = item?.variant || null;
+  if (variant) {
+    const nameParts = clean(variant.name).split('/').map((p: string) => p.trim()).filter(Boolean);
+    const colorFromVariant = clean(variant.option2) || (nameParts.length > 1 ? nameParts[1] : '');
+    let sizeFromVariant = clean(variant.option1);
+    if (!sizeFromVariant && nameParts.length > 1) sizeFromVariant = nameParts[0];
+    if (!sizeFromVariant && nameParts.length === 1 && looksLikeSize(nameParts[0])) sizeFromVariant = nameParts[0];
+    if (sizeFromVariant || colorFromVariant) {
+      return { size: sizeFromVariant, color: colorFromVariant };
+    }
+  }
+
+  // 2) Fall back to the line's own variant_name, e.g. "37 / Black".
+  const labelParts = clean(item?.variant_name).split('/').map((p: string) => p.trim()).filter(Boolean);
+  if (labelParts.length > 1) {
+    return { size: labelParts[0], color: labelParts[1] };
+  }
+
+  // 3) Last resort: metadata (may be unreliable on legacy orders).
+  const meta = item?.metadata || {};
+  const metaSize = clean(meta.size);
+  const metaColor = clean(meta.color);
+  if (metaColor || (metaSize && looksLikeSize(metaSize))) {
+    return { size: looksLikeSize(metaSize) ? metaSize : '', color: metaColor };
+  }
+
+  // Single unknown token — treat as size if numeric, otherwise as a colour.
+  const lone = labelParts[0] || metaSize;
+  if (lone) {
+    return looksLikeSize(lone) ? { size: lone, color: '' } : { size: '', color: lone };
+  }
+  return { size: '', color: '' };
+}
+
 export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -32,6 +79,43 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   // const [markingPaid, setMarkingPaid] = useState(false);
   // const handleMarkPaid = async () => { ... };
   const [reconciling, setReconciling] = useState(false);
+  // Per-item cancel / return modal state.
+  const [itemAction, setItemAction] = useState<any | null>(null);
+  const [itemActionType, setItemActionType] = useState<'cancelled' | 'returned'>('cancelled');
+  const [itemActionReason, setItemActionReason] = useState('');
+  const [itemActionLoading, setItemActionLoading] = useState(false);
+  const [itemActionError, setItemActionError] = useState<string | null>(null);
+
+  const openItemAction = (item: any) => {
+    setItemAction(item);
+    // After delivery, a removed item is a "return"; before that it's a "cancel".
+    setItemActionType(order?.status === 'delivered' ? 'returned' : 'cancelled');
+    setItemActionReason('');
+    setItemActionError(null);
+  };
+
+  const submitItemAction = async () => {
+    if (!itemAction) return;
+    setItemActionLoading(true);
+    setItemActionError(null);
+    try {
+      const { data, error } = await supabase.rpc('cancel_order_item', {
+        p_item_id: itemAction.id,
+        p_action: itemActionType,
+        p_reason: itemActionReason.trim() || null,
+      });
+      if (error) throw error;
+      if (data && data.ok === false) {
+        throw new Error(data.message || 'Could not update this item.');
+      }
+      setItemAction(null);
+      await fetchOrderDetails();
+    } catch (err: any) {
+      setItemActionError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setItemActionLoading(false);
+    }
+  };
 
   const handleReconcile = async () => {
     if (!order) return;
@@ -75,15 +159,26 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
             product_id,
             product_name,
             variant_name,
+            variant_id,
             sku,
             quantity,
             unit_price,
             total_price,
             metadata,
+            status,
+            cancel_reason,
+            cancelled_at,
             products (
               sku,
               product_code,
               product_images (url)
+            ),
+            variant:product_variants (
+              name,
+              option1,
+              option2,
+              option3,
+              sku
             )
           )
         `)
@@ -102,15 +197,26 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               product_id,
               product_name,
               variant_name,
+              variant_id,
               sku,
               quantity,
               unit_price,
               total_price,
               metadata,
+              status,
+              cancel_reason,
+              cancelled_at,
               products (
                 sku,
                 product_code,
                 product_images (url)
+              ),
+              variant:product_variants (
+                name,
+                option1,
+                option2,
+                option3,
+                sku
               )
             )
           `)
@@ -298,36 +404,43 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
 
               <div className="space-y-4">
                 {order.order_items?.map((item: any) => {
-                  // Show whatever SKU we can find: stored on the order_item first
-                  // (correct for variants), then fall back to the parent product
-                  // SKU/code for older orders that didn't capture it on insert.
-                  const displaySku = (item.sku || item.products?.sku || item.products?.product_code || '').toString().trim();
-                  // Resolve Size / Colour. New orders store them on metadata.
-                  // Legacy orders only have the joined `variant_name` like
-                  // "38" or "38 / Black" — split that as a fallback so the
-                  // packer always sees a clear size pill.
-                  const meta = item.metadata || {};
-                  const variantParts = (item.variant_name || '')
-                    .split('/')
-                    .map((part: string) => part.trim())
-                    .filter(Boolean);
-                  const sizeLabel = (meta.size || variantParts[0] || '').toString().trim();
-                  const colorLabel = (meta.color || variantParts[1] || '').toString().trim();
+                  // Show whatever SKU we can find: the linked variant first
+                  // (correct for variants), then the order_item, then the parent
+                  // product SKU/code for older orders that didn't capture it.
+                  const displaySku = (item.variant?.sku || item.sku || item.products?.sku || item.products?.product_code || '').toString().trim();
+                  // Resolve Size / Colour from the authoritative linked variant
+                  // (falls back to variant_name / metadata for legacy orders), so
+                  // the packer always sees the correct size and colour — even on
+                  // older orders that saved the colour into the size field.
+                  const { size: sizeLabel, color: colorLabel } = resolveVariantSizeColor(item);
+                  const itemStatus = (item.status || 'active') as string;
+                  const isInactive = itemStatus === 'cancelled' || itemStatus === 'returned';
                   return (
-                  <div key={item.id} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                  <div key={item.id} className={`flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg ${isInactive ? 'bg-red-50/40 border border-red-100' : 'bg-gray-50'}`}>
                     <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center relative shrink-0">
                       {item.products?.product_images?.[0]?.url ? (
                         <img
                           src={item.products.product_images[0].url}
                           alt={item.product_name}
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full object-cover ${isInactive ? 'opacity-50 grayscale' : ''}`}
                         />
                       ) : (
                         <i className="ri-image-line text-2xl text-gray-300"></i>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 mb-1 text-sm sm:text-base truncate">{item.product_name}</h3>
+                      <h3 className={`font-semibold mb-1 text-sm sm:text-base truncate ${isInactive ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{item.product_name}</h3>
+                      {isInactive && (
+                        <div className="mb-1.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold ${itemStatus === 'returned' ? 'bg-orange-100 text-orange-800 border border-orange-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+                            <i className={itemStatus === 'returned' ? 'ri-arrow-go-back-line' : 'ri-close-circle-line'}></i>
+                            {itemStatus === 'returned' ? 'Returned' : 'Cancelled'}
+                          </span>
+                          {item.cancel_reason && (
+                            <span className="text-[11px] text-gray-500 ml-2 italic">{item.cancel_reason}</span>
+                          )}
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-center gap-1.5 mt-1">
                         {sizeLabel && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200">
@@ -366,9 +479,19 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">GH₵ {item.unit_price?.toFixed(2)}</p>
+                    <div className="text-right shrink-0 flex flex-col items-end">
+                      <p className={`font-semibold mb-1 text-sm sm:text-base ${isInactive ? 'text-gray-400 line-through' : 'text-gray-900'}`}>GH₵ {item.unit_price?.toFixed(2)}</p>
                       <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                      {!isInactive && (
+                        <button
+                          type="button"
+                          onClick={() => openItemAction(item)}
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <i className="ri-close-circle-line"></i>
+                          Cancel / Return
+                        </button>
+                      )}
                     </div>
                   </div>
                   );
@@ -398,7 +521,35 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                   <span>Total</span>
                   <span>GH₵ {order.total?.toFixed(2)}</span>
                 </div>
+                {Number(order.metadata?.partial_refund_total) > 0 && (
+                  <div className="flex justify-between text-sm font-semibold text-orange-700 pt-2">
+                    <span><i className="ri-refund-2-line mr-1"></i>Refunded for cancelled/returned items</span>
+                    <span>-GH₵ {Number(order.metadata.partial_refund_total).toFixed(2)}</span>
+                  </div>
+                )}
               </div>
+
+              {Array.isArray(order.metadata?.item_refunds) && order.metadata.item_refunds.length > 0 && (
+                <div className="mt-5 p-4 rounded-lg bg-orange-50 border border-orange-100">
+                  <p className="text-sm font-bold text-orange-900 mb-2">
+                    <i className="ri-history-line mr-1"></i>
+                    Cancellation / Return history
+                  </p>
+                  <ul className="space-y-1.5">
+                    {order.metadata.item_refunds.map((r: any, i: number) => (
+                      <li key={i} className="text-xs text-orange-900/90 flex flex-wrap justify-between gap-2">
+                        <span>
+                          <span className="font-semibold capitalize">{r.type}</span>
+                          {' · '}{r.product_name}{r.variant_name ? ` (${r.variant_name})` : ''} × {r.quantity}
+                          {r.reason ? <span className="italic text-orange-700"> — {r.reason}</span> : ''}
+                          {r.restocked ? <span className="text-emerald-700"> · restocked</span> : ''}
+                        </span>
+                        <span className="font-semibold whitespace-nowrap">GH₵ {Number(r.amount || 0).toFixed(2)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -672,6 +823,103 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
           </div>
         </div>
       </div>
+
+      {/* Per-item cancel / return modal */}
+      {itemAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-bold text-gray-900">Remove item from order</h3>
+              <button
+                onClick={() => !itemActionLoading && setItemAction(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500"
+                aria-label="Close"
+              >
+                <i className="ri-close-line text-xl"></i>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="w-12 h-12 rounded-lg bg-white border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                  {itemAction.products?.product_images?.[0]?.url ? (
+                    <img src={itemAction.products.product_images[0].url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <i className="ri-image-line text-gray-300"></i>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm truncate">{itemAction.product_name}</p>
+                  <p className="text-xs text-gray-500">Qty {itemAction.quantity} · GH₵ {Number(itemAction.total_price || 0).toFixed(2)}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-700 mb-2">What happened?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setItemActionType('cancelled')}
+                    className={`p-3 rounded-lg border text-center transition-colors cursor-pointer ${itemActionType === 'cancelled' ? 'border-red-500 bg-red-50 ring-2 ring-red-200' : 'border-gray-200 hover:border-red-300'}`}
+                  >
+                    <i className="ri-close-circle-line text-lg text-red-600"></i>
+                    <span className="block text-sm font-semibold text-gray-900 mt-0.5">Cancel</span>
+                    <span className="block text-[10px] text-gray-500">Before shipping</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setItemActionType('returned')}
+                    className={`p-3 rounded-lg border text-center transition-colors cursor-pointer ${itemActionType === 'returned' ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-200' : 'border-gray-200 hover:border-orange-300'}`}
+                  >
+                    <i className="ri-arrow-go-back-line text-lg text-orange-600"></i>
+                    <span className="block text-sm font-semibold text-gray-900 mt-0.5">Return</span>
+                    <span className="block text-[10px] text-gray-500">After delivery</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700">Reason (optional)</label>
+                <textarea
+                  value={itemActionReason}
+                  onChange={(e) => setItemActionReason(e.target.value)}
+                  rows={3}
+                  maxLength={300}
+                  placeholder="e.g. Customer changed their mind / wrong size"
+                  className="w-full mt-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+                />
+              </div>
+
+              <div className="text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3 leading-relaxed">
+                This restocks the item, lowers the order total by <span className="font-semibold">GH₵ {Number(itemAction.total_price || 0).toFixed(2)}</span>, and records a refund. The rest of the order stays unchanged.
+              </div>
+
+              {itemActionError && <p className="text-sm text-red-600">{itemActionError}</p>}
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => setItemAction(null)}
+                disabled={itemActionLoading}
+                className="flex-1 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+              >
+                Keep item
+              </button>
+              <button
+                onClick={submitItemAction}
+                disabled={itemActionLoading}
+                className="flex-1 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
+              >
+                {itemActionLoading ? (
+                  <><i className="ri-loader-4-line animate-spin"></i> Processing…</>
+                ) : (
+                  `Confirm ${itemActionType === 'returned' ? 'return' : 'cancellation'}`
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

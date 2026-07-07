@@ -220,7 +220,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
         // Ensure at least one image/placeholder
         if (transformedProduct.images.length === 0) {
-          transformedProduct.images = ['https://via.placeholder.com/800x800?text=No+Image'];
+          transformedProduct.images = ['/placeholder-product.png'];
         }
 
         setProduct(transformedProduct);
@@ -249,7 +249,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               id: p.slug,
               name: p.name,
               price: p.price,
-              image: p.product_images?.[0]?.url || 'https://via.placeholder.com/800?text=No+Image',
+              image: p.product_images?.[0]?.url || '/placeholder-product.png',
               rating: p.rating_avg || 0,
               reviewCount: 0,
               inStock: ((p.product_variants || []).length > 0
@@ -374,7 +374,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     const firstImage = (product.images || []).find(
       (img: string) => typeof img === 'string' && !img.startsWith('data:video')
     );
-    const image = firstImage ?? 'https://via.placeholder.com/400x400?text=Product';
+    const image = firstImage ?? '/placeholder-product.png';
 
     if (Number.isNaN(price) || price < 0) return;
 
@@ -562,7 +562,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     {/* Main Media Display — color override takes priority */}
                     {(() => {
                       const images = Array.isArray(product.images) ? product.images : [];
-                      const fallback = images[0] || 'https://via.placeholder.com/800x800?text=No+Image';
+                      const fallback = images[0] || '/placeholder-product.png';
                       const currentMedia = (colorOverrideImage && typeof colorOverrideImage === 'string' && colorOverrideImage.trim())
                         ? colorOverrideImage.trim()
                         : (images[selectedImage] ?? fallback);
@@ -666,7 +666,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             ) : (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
-                                src={typeof image === 'string' && image ? image : 'https://via.placeholder.com/200x200?text=No+Image'}
+                                src={typeof image === 'string' && image ? image : '/placeholder-product.png'}
                                 alt={`${product.name || 'Product'} view ${index + 1}`}
                                 className="w-full h-full object-cover object-center"
                                 loading="lazy"

@@ -15,7 +15,7 @@ interface LazyImageProps {
   sizes?: string;
 }
 
-const FALLBACK_SRC = 'https://via.placeholder.com/400x400?text=Product';
+const FALLBACK_SRC = '/placeholder-product.png';
 
 export default function LazyImage({
   src,

@@ -131,7 +131,7 @@ export default function POSPage() {
                     price: p.price,
                     quantity: p.quantity,
                     category: p.categories?.name || 'Uncategorized',
-                    image: p.product_images?.[0]?.url || 'https://via.placeholder.com/150',
+                    image: p.product_images?.[0]?.url || '/placeholder-product.png',
                     sku: p.sku,
                     variants: (p.product_variants || []).map((v: any) => ({
                         id: v.id,
@@ -864,6 +864,8 @@ export default function POSPage() {
                                             <img
                                                 src={product.image}
                                                 alt={product.name}
+                                                loading="lazy"
+                                                decoding="async"
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                             />
                                             <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">

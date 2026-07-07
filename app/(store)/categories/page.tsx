@@ -36,7 +36,7 @@ export default async function CategoriesPage() {
     const style = palette[i % palette.length];
     return {
       ...c,
-      image: c.image_url || 'https://via.placeholder.com/600x400?text=Category',
+      image: c.image_url || '/placeholder-product.png',
       color: style.color,
       icon: style.icon,
       // Optional: Fetch product count if needed, currently skipping for performance/simplicity
@@ -63,7 +63,7 @@ export default async function CategoriesPage() {
               >
                 <div className="relative h-48 overflow-hidden">
                   <Image
-                    src={category.image || 'https://via.placeholder.com/400x300?text=Category'}
+                    src={category.image || '/placeholder-product.png'}
                     alt={category.name}
                     fill
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"

@@ -70,7 +70,7 @@ export default function ProductsPage() {
           category: p.categories?.name || 'Uncategorized',
           image: p.product_images?.find((img: any) => img.position === 0)?.url
             || p.product_images?.[0]?.url
-            || 'https://via.placeholder.com/300?text=No+Image',
+            || '/placeholder-product.png',
           variantsCount: p.product_variants?.[0]?.count || 0,
           stock: p.quantity,
           sales: 0, // Placeholder for now

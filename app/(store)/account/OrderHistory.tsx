@@ -53,7 +53,7 @@ export default function OrderHistory() {
             items: order.order_items.map((item: any) => ({
               id: item.id,
               name: item.product_name,
-              image: item.metadata?.image || 'https://via.placeholder.com/150',
+              image: item.metadata?.image || '/placeholder-product.png',
               quantity: item.quantity,
               price: item.unit_price
             }))
@@ -263,7 +263,7 @@ export default function OrderHistory() {
                     <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={item.image || 'https://via.placeholder.com/150'}
+                        src={item.image || '/placeholder-product.png'}
                         alt={item.name}
                         className="w-full h-full object-cover object-center"
                         loading="lazy"

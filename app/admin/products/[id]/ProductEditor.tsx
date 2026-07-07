@@ -69,6 +69,9 @@ export default function ProductEditor({ productId }: { productId: string }) {
 
   // Pricing & Inventory
   const [price, setPrice] = useState('');
+  // Base price as it was loaded from the DB — used on save to detect a price
+  // change and carry it into variants that were never individually priced.
+  const [loadedBasePrice, setLoadedBasePrice] = useState<number | null>(null);
   const [comparePrice, setComparePrice] = useState('');
   const [sku, setSku] = useState('');
   const [stock, setStock] = useState('0');
@@ -144,6 +147,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
         setDescription(product.description || '');
 
         setPrice(product.price?.toString() || '');
+        setLoadedBasePrice(product.price != null ? Number(product.price) : null);
         setComparePrice(product.compare_at_price?.toString() || '');
         setSku(product.sku || '');
         setStock(product.quantity?.toString() || '0');
@@ -217,6 +221,35 @@ export default function ProductEditor({ productId }: { productId: string }) {
     }
   }
 
+  // Update one builder color AND propagate the change to any already-generated
+  // variants for that color. This lets admins change a color's image/swatch/name
+  // and just hit Save — no need to click "Generate Variants" again (which used
+  // to be required and wiped prices/stock).
+  function updateBuilderColor(ci: number, patch: Partial<{ name: string; hex: string; image_url: string | null }>) {
+    const oldColor = builderColors[ci];
+    if (!oldColor) return;
+    const oldName = oldColor.name;
+    const next = { ...oldColor, ...patch };
+
+    setBuilderColors(prev => prev.map((c, i) => (i === ci ? { ...c, ...patch } : c)));
+
+    setVariants(prev => prev.map(v => {
+      const vColor = v._color || v.option2;
+      if (!oldName || vColor !== oldName) return v;
+
+      const updated: any = { ...v };
+      if (patch.name !== undefined && patch.name !== oldName) {
+        updated.option2 = patch.name;
+        updated._color = patch.name;
+        updated.name = v._size ? `${v._size} / ${patch.name}` : patch.name;
+      }
+      updated.image_url = next.image_url || null;
+      updated.option3 = next.image_url ? null : (next.hex || null);
+      updated._appearanceMode = next.image_url ? 'image' : 'color';
+      return updated;
+    }));
+  }
+
   function generateVariants() {
     const sizes = [...new Set(builderSizes.split(',').map(s => s.trim()).filter(Boolean))];
     const colors = builderColors.filter(c => c.name.trim());
@@ -237,12 +270,29 @@ export default function ProductEditor({ productId }: { productId: string }) {
     const basePrice = parseFloat(price) || 0;
     const combinations: any[] = [];
 
+    // Preserve existing price / stock / DB id for combinations that already
+    // exist, so regenerating never wipes the admin's data.
+    const existingByName = new Map<string, any>(variants.map(v => [v.name, v]));
+    const carryOver = (name: string, fresh: any) => {
+      const prev = existingByName.get(name);
+      if (!prev) return fresh;
+      return {
+        ...fresh,
+        id: prev.id,
+        price: prev.price ?? fresh.price,
+        quantity: prev.quantity ?? fresh.quantity,
+        sku: prev.sku,
+        _disabled: prev._disabled || false,
+      };
+    };
+
     if (variantMode === 'size_color') {
       for (const size of sizes) {
         for (const color of colors) {
-          combinations.push({
+          const name = `${size} / ${color.name}`;
+          combinations.push(carryOver(name, {
             id: `temp-${Date.now()}-${Math.random()}`,
-            name: `${size} / ${color.name}`,
+            name,
             option2: color.name,
             option3: color.image_url ? null : (color.hex || null),
             image_url: color.image_url || null,
@@ -252,12 +302,12 @@ export default function ProductEditor({ productId }: { productId: string }) {
             _color: color.name,
             _disabled: false,
             _appearanceMode: color.image_url ? 'image' : 'color',
-          });
+          }));
         }
       }
     } else if (variantMode === 'size_only') {
       for (const size of sizes) {
-        combinations.push({
+        combinations.push(carryOver(size, {
           id: `temp-${Date.now()}-${Math.random()}`,
           name: size,
           option2: null,
@@ -268,11 +318,11 @@ export default function ProductEditor({ productId }: { productId: string }) {
           _size: size,
           _disabled: false,
           _appearanceMode: 'color',
-        });
+        }));
       }
     } else {
       for (const color of colors) {
-        combinations.push({
+        combinations.push(carryOver(color.name, {
           id: `temp-${Date.now()}-${Math.random()}`,
           name: color.name,
           option2: color.name,
@@ -283,14 +333,14 @@ export default function ProductEditor({ productId }: { productId: string }) {
           _color: color.name,
           _disabled: false,
           _appearanceMode: color.image_url ? 'image' : 'color',
-        });
+        }));
       }
     }
 
     setVariants(combinations);
     setBulkPrice('');
     setBulkStock('');
-    toast.success(`Generated ${combinations.length} variant${combinations.length !== 1 ? 's' : ''}!`);
+    toast.success(`Generated ${combinations.length} variant${combinations.length !== 1 ? 's' : ''} — existing prices & stock kept`);
   }
 
   async function handleSave() {
@@ -400,15 +450,25 @@ export default function ProductEditor({ productId }: { productId: string }) {
       }
 
       // --- SAVE VARIANTS ---
+      // If the admin changed the product's base price, carry the new price into
+      // every variant that still had the OLD base price (i.e. was never given a
+      // custom price). Without this, the storefront/POS keeps showing the old
+      // variant price even though the product price was updated.
+      const newBasePrice = parseFloat(price) || 0;
+      const basePriceChanged = loadedBasePrice != null && newBasePrice !== loadedBasePrice;
+
       // 1. Build upsert payload — strip temp IDs, exclude disabled combinations
       const variantsToUpsert = variants.filter(v => !v._disabled).map(v => {
+        const variantPrice = basePriceChanged && Number(v.price) === loadedBasePrice
+          ? newBasePrice
+          : (v.price || 0);
         const payload: any = {
           product_id: targetId,
           name: v.name,
           option2: v.option2,
           option3: v.option3 || null,
           image_url: v.image_url || null,
-          price: v.price || 0,
+          price: variantPrice,
           quantity: parseInt(v.quantity?.toString() || '0') || 0,
         };
         if (v.id && !v.id.toString().startsWith('temp-')) {
@@ -1022,18 +1082,18 @@ export default function ProductEditor({ productId }: { productId: string }) {
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={color.image_url} alt="" className="w-full h-full object-cover" />
                             <button type="button"
-                              onClick={() => { const nc = [...builderColors]; nc[ci].image_url = null; setBuilderColors(nc); }}
+                              onClick={() => updateBuilderColor(ci, { image_url: null })}
                               className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
                               <i className="ri-close-line text-white text-sm"></i>
                             </button>
                           </div>
                         ) : (
                           <input type="color" value={color.hex || '#000000'}
-                            onChange={e => { const nc = [...builderColors]; nc[ci].hex = e.target.value; setBuilderColors(nc); }}
+                            onChange={e => updateBuilderColor(ci, { hex: e.target.value })}
                             className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5 shrink-0" />
                         )}
                         <input type="text" value={color.name}
-                          onChange={e => { const nc = [...builderColors]; nc[ci].name = e.target.value; setBuilderColors(nc); }}
+                          onChange={e => updateBuilderColor(ci, { name: e.target.value })}
                           placeholder="Color name (e.g. Black)"
                           className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400" />
                         <label className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 cursor-pointer hover:bg-purple-50 hover:border-purple-300 transition-colors shrink-0" title="Upload image instead of color">
@@ -1046,7 +1106,8 @@ export default function ProductEditor({ productId }: { productId: string }) {
                                 const { error } = await supabase.storage.from('products').upload(filePath, file, { upsert: true });
                                 if (error) throw error;
                                 const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(filePath);
-                                const nc = [...builderColors]; nc[ci].image_url = publicUrl; setBuilderColors(nc);
+                                updateBuilderColor(ci, { image_url: publicUrl });
+                                toast.success('Image added to color — hit Save to keep it');
                               } catch (err: any) { toast.error('Upload failed: ' + err.message); }
                               e.target.value = '';
                             }} />
@@ -1093,9 +1154,9 @@ export default function ProductEditor({ productId }: { productId: string }) {
                   </p>
                 ) : null}
                 {variants.length > 0 && (
-                  <span className="text-sm text-amber-600 flex items-center gap-1">
-                    <i className="ri-alert-line"></i>
-                    Regenerating resets prices &amp; stock
+                  <span className="text-sm text-emerald-600 flex items-center gap-1">
+                    <i className="ri-shield-check-line"></i>
+                    Existing prices &amp; stock are kept when regenerating
                   </span>
                 )}
               </div>
@@ -1573,11 +1634,18 @@ export default function ProductEditor({ productId }: { productId: string }) {
                             muted
                             playsInline
                             loop
+                            preload="metadata"
                             onMouseOver={e => e.currentTarget.play()}
                             onMouseOut={e => e.currentTarget.pause()}
                           />
                         ) : (
-                          <img src={image.url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
+                          <img
+                            src={image.url}
+                            alt={`Product ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                          />
                         )}
                         {isVideo && (
                           <div className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full">

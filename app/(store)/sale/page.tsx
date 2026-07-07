@@ -71,7 +71,7 @@ export default function SalePage() {
             price: Number(p.price) || 0,
             originalPrice: p.compare_at_price ? Number(p.compare_at_price) : undefined,
             image:
-              p.product_images?.[0]?.url || 'https://via.placeholder.com/800x800?text=No+Image',
+              p.product_images?.[0]?.url || '/placeholder-product.png',
             rating: Number(p.rating_avg) || 0,
             inStock: effectiveStock > 0,
             category: cat?.name,

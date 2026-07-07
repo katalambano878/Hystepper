@@ -168,7 +168,7 @@ export default async function ReviewOrderPage({
               const image =
                 item.product_images?.[0]?.url ||
                 item.metadata?.image ||
-                'https://via.placeholder.com/120?text=Item';
+                '/placeholder-product.png';
 
               const reviewable = Boolean(slug);
               const href = reviewable ? `/product/${slug}?review=write#reviews` : '#';

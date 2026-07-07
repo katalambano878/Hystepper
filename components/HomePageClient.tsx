@@ -79,7 +79,7 @@ export default function HomePageClient({
               originalPrice: p.compare_at_price,
               image: p.product_images?.find((img: any) => img.position === 0)?.url
                 || p.product_images?.[0]?.url
-                || 'https://via.placeholder.com/800x800?text=No+Image',
+                || '/placeholder-product.png',
               rating: p.rating_avg || 0,
               reviewCount: p.review_count || 0,
               slug: p.slug,
@@ -131,7 +131,7 @@ export default function HomePageClient({
                 originalPrice: p.compare_at_price,
                 image: p.product_images?.find((img: any) => img.position === 0)?.url
                   || p.product_images?.[0]?.url
-                  || 'https://via.placeholder.com/800x800?text=No+Image',
+                  || '/placeholder-product.png',
                 rating: p.rating_avg || 0,
                 reviewCount: p.review_count || 0,
                 slug: p.slug,

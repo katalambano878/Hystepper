@@ -34,7 +34,7 @@ export default function ProductCard({
   const discount = originalPrice ? Math.round((1 - price / originalPrice) * 100) : 0;
   const [hoveredColor, setHoveredColor] = useState<string | null>(null);
 
-  const fallbackImage = typeof image === 'string' && image ? image : 'https://via.placeholder.com/400x400?text=Product';
+  const fallbackImage = typeof image === 'string' && image ? image : '/placeholder-product.png';
   const hoverColorImage = colors?.find(c => c?.name === hoveredColor)?.image;
   const displayImage = (hoveredColor && typeof hoverColorImage === 'string' && hoverColorImage)
     ? hoverColorImage

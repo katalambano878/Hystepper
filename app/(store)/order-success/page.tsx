@@ -442,7 +442,7 @@ function OrderSuccessContent() {
                   <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={item.metadata?.image || 'https://via.placeholder.com/150'}
+                      src={item.metadata?.image || '/placeholder-product.png'}
                       alt={item.product_name}
                       className="w-full h-full object-cover object-center"
                       loading="lazy"

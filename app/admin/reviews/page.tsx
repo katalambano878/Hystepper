@@ -70,7 +70,7 @@ export default function AdminReviewsPage() {
           },
           product: {
             name: r.products?.name || 'Unknown Product',
-            image: r.products?.product_images?.[0]?.url || 'https://via.placeholder.com/150'
+            image: r.products?.product_images?.[0]?.url || '/placeholder-product.png'
           },
           rating: r.rating,
           comment: r.content,

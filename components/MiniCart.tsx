@@ -67,7 +67,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
                     <div className="w-20 h-20 bg-white rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={item.image || 'https://via.placeholder.com/400x400?text=Product'}
+                        src={item.image || '/placeholder-product.png'}
                         alt={item.name || 'Product'}
                         className="w-full h-full object-cover object-center"
                         loading="lazy"

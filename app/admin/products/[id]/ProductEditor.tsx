@@ -53,6 +53,64 @@ async function findUniqueSlug(baseSlug: string, excludeProductId?: string | null
   return `${safeBase}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+// Reconcile the variant builder (size chips / colour list) into the concrete
+// `variants` array that actually gets saved. This guarantees that sizes/colours
+// the admin picked are persisted even if they never clicked "Generate Variants".
+// Existing variants (and their stock/price/disabled state) are always preserved;
+// only genuinely missing combinations are appended.
+function mergeBuilderVariants(
+  existing: any[],
+  mode: VariantMode,
+  sizesStr: string,
+  colors: { id: string; name: string; hex: string; image_url: string | null }[],
+  basePrice: number
+): any[] {
+  const sizes = [...new Set(sizesStr.split(',').map(s => s.trim()).filter(Boolean))];
+  const activeColors = colors.filter(c => c.name.trim());
+  const byName = new Set(existing.map(v => v.name));
+  const result = [...existing];
+  let seq = 0;
+  const ensure = (name: string, build: () => any) => {
+    if (byName.has(name)) return;
+    byName.add(name);
+    result.push(build());
+  };
+  const tempId = () => `temp-${Date.now()}-${seq++}-${Math.random()}`;
+
+  if (mode === 'size_color') {
+    for (const size of sizes) {
+      for (const color of activeColors) {
+        const name = `${size} / ${color.name}`;
+        ensure(name, () => ({
+          id: tempId(), name, option2: color.name,
+          option3: color.image_url ? null : (color.hex || null),
+          image_url: color.image_url || null, price: basePrice, quantity: 0,
+          _size: size, _color: color.name, _disabled: false,
+          _appearanceMode: color.image_url ? 'image' : 'color',
+        }));
+      }
+    }
+  } else if (mode === 'size_only') {
+    for (const size of sizes) {
+      ensure(size, () => ({
+        id: tempId(), name: size, option2: null, option3: null, image_url: null,
+        price: basePrice, quantity: 0, _size: size, _disabled: false, _appearanceMode: 'color',
+      }));
+    }
+  } else {
+    for (const color of activeColors) {
+      ensure(color.name, () => ({
+        id: tempId(), name: color.name, option2: color.name,
+        option3: color.image_url ? null : (color.hex || null),
+        image_url: color.image_url || null, price: basePrice, quantity: 0,
+        _color: color.name, _disabled: false,
+        _appearanceMode: color.image_url ? 'image' : 'color',
+      }));
+    }
+  }
+  return result;
+}
+
 export default function ProductEditor({ productId }: { productId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -457,8 +515,15 @@ export default function ProductEditor({ productId }: { productId: string }) {
       const newBasePrice = parseFloat(price) || 0;
       const basePriceChanged = loadedBasePrice != null && newBasePrice !== loadedBasePrice;
 
+      // 0. Fold any builder sizes/colours the admin picked into the concrete
+      // variant list, so new sizes save even if "Generate Variants" wasn't clicked.
+      const effectiveVariants = mergeBuilderVariants(variants, variantMode, builderSizes, builderColors, newBasePrice);
+      if (effectiveVariants.length !== variants.length) {
+        setVariants(effectiveVariants);
+      }
+
       // 1. Build upsert payload — strip temp IDs, exclude disabled combinations
-      const variantsToUpsert = variants.filter(v => !v._disabled).map(v => {
+      const variantsToUpsert = effectiveVariants.filter(v => !v._disabled).map(v => {
         const variantPrice = basePriceChanged && Number(v.price) === loadedBasePrice
           ? newBasePrice
           : (v.price || 0);
@@ -491,7 +556,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
             .delete()
             .eq('product_id', targetId)
             .not('id', 'in', `(${keptIds.join(',')})`);
-        } else if (variants.length === 0) {
+        } else if (effectiveVariants.length === 0) {
           // User deleted every variant
           await supabase.from('product_variants').delete().eq('product_id', targetId);
         } else {
@@ -1314,6 +1379,13 @@ export default function ProductEditor({ productId }: { productId: string }) {
                         setVariants(prev => prev.map((vv, i) => i === index ? { ...vv, _disabled: true } : vv));
                       } else {
                         setVariants(variants.filter((_, i) => i !== index));
+                        // Keep the size builder in sync so save-reconcile doesn't re-add it.
+                        if (variantMode === 'size_only') {
+                          const removedSize = v._size || v.name;
+                          setBuilderSizes(prev =>
+                            prev.split(',').map(s => s.trim()).filter(Boolean).filter(s => s !== removedSize).join(', ')
+                          );
+                        }
                       }
                     };
 

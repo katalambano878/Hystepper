@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import LazyImage from '@/components/LazyImage';
 
 type VariantMode = 'size_only' | 'size_color' | 'color_only';
 const PRESET_SHOE_SIZES = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
@@ -1711,12 +1712,12 @@ export default function ProductEditor({ productId }: { productId: string }) {
                             onMouseOut={e => e.currentTarget.pause()}
                           />
                         ) : (
-                          <img
+                          <LazyImage
                             src={image.url}
                             alt={`Product ${index + 1}`}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                            decoding="async"
+                            fill
+                            sizes="(max-width: 768px) 50vw, 25vw"
+                            className="w-full h-full"
                           />
                         )}
                         {isVideo && (

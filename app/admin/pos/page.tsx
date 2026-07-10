@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { compareSizes } from '@/lib/sort-sizes';
+import LazyImage from '@/components/LazyImage';
 
 interface Variant {
     id: string;
@@ -861,12 +862,12 @@ export default function POSPage() {
                                         className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden border border-gray-100 group flex flex-col h-full"
                                     >
                                         <div className="aspect-square relative bg-gray-50 shrink-0">
-                                            <img
+                                            <LazyImage
                                                 src={product.image}
                                                 alt={product.name}
-                                                loading="lazy"
-                                                decoding="async"
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                fill
+                                                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                                                className="w-full h-full group-hover:scale-105 transition-transform duration-300"
                                             />
                                             <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
                                                 Qty: {totalStock}

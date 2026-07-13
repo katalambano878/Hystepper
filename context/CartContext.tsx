@@ -47,6 +47,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // every consumer to re-render when the callback identity would change.
     const cartRef = useRef<CartItem[]>([]);
     useEffect(() => { cartRef.current = cart; }, [cart]);
+    // Guards revalidateCart against concurrent/rapid-fire runs (focus +
+    // visibilitychange both fire when returning to the app on mobile).
+    const revalidateStateRef = useRef({ inFlight: false, lastRun: 0 });
 
     // Load cart from localStorage on mount (sanitize so no invalid data causes crashes)
     useEffect(() => {
@@ -159,6 +162,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const current = cartRef.current;
         if (current.length === 0) return;
 
+        // Returning to the app fires `focus` and `visibilitychange` together —
+        // run one revalidation, not two, and never overlap an in-flight one.
+        const now = Date.now();
+        if (revalidateStateRef.current.inFlight || now - revalidateStateRef.current.lastRun < 3000) return;
+        revalidateStateRef.current = { inFlight: true, lastRun: now };
+
         const productIds = Array.from(new Set(current.map(i => i.id).filter(Boolean)));
         const variantIds = Array.from(
             new Set(current.map(i => i.variantId).filter((v): v is string => typeof v === 'string' && v.length > 0))
@@ -251,6 +260,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             }
         } catch (err) {
             console.warn('Cart revalidation failed:', err);
+        } finally {
+            revalidateStateRef.current.inFlight = false;
         }
     };
 

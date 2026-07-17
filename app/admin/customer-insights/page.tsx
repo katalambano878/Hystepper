@@ -42,10 +42,12 @@ export default function CustomerInsightsPage() {
 
       if (profileError) throw profileError;
 
-      // 2. Fetch Orders for calculations
+      // 2. Fetch Orders for calculations — cancelled/refunded orders are not
+      // real spend, so exclude them from customer totals and segments.
       const { data: orders, error: orderError } = await supabase
         .from('orders')
-        .select('user_id, total, created_at, status');
+        .select('user_id, total, created_at, status')
+        .not('status', 'in', '(cancelled,refunded)');
 
       if (orderError) throw orderError;
 

@@ -27,6 +27,19 @@ interface HeroSlide {
     button_link: string;
 }
 
+interface AnnouncementBanner {
+    id: string;
+    name: string;
+    title: string;
+    subtitle: string;
+    background_color: string;
+    text_color: string;
+    button_text: string;
+    button_url: string;
+    is_active: boolean;
+    sort_order: number;
+}
+
 const DEFAULT_HERO_SLIDE: Omit<HeroSlide, 'id'> = {
     image: '/hero-new.jpeg',
     title: 'Stay Sleek in Style',
@@ -53,6 +66,10 @@ export default function SettingsPage() {
     // Hero slides state
     const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
     const [uploadingSlideId, setUploadingSlideId] = useState<string | null>(null);
+
+    // Announcement banners state (top bar)
+    const [announcements, setAnnouncements] = useState<AnnouncementBanner[]>([]);
+    const [editingAnnouncement, setEditingAnnouncement] = useState<AnnouncementBanner | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -107,6 +124,25 @@ export default function SettingsPage() {
             if (zonesError) throw zonesError;
             setDeliveryZones(zonesData || []);
 
+            // Fetch top announcement banners
+            const { data: bannersData } = await supabase
+                .from('banners')
+                .select('id, name, title, subtitle, background_color, text_color, button_text, button_url, is_active, sort_order')
+                .eq('position', 'top')
+                .order('sort_order', { ascending: true });
+            setAnnouncements((bannersData || []).map((b: any) => ({
+                id: b.id,
+                name: b.name || '',
+                title: b.title || '',
+                subtitle: b.subtitle || '',
+                background_color: b.background_color || '#111827',
+                text_color: b.text_color || '#ffffff',
+                button_text: b.button_text || '',
+                button_url: b.button_url || '',
+                is_active: !!b.is_active,
+                sort_order: b.sort_order || 0,
+            })));
+
         } catch (err: any) {
             console.error('Error fetching settings:', err);
             toast.error('Failed to load settings');
@@ -133,6 +169,8 @@ export default function SettingsPage() {
 
             if (error) throw error;
             toast.success('Settings saved successfully');
+            // Bust the storefront settings cache so changes show right away.
+            try { sessionStorage.removeItem('hy_cms_settings'); } catch { /* ignore */ }
         } catch (err: any) {
             console.error('Error saving settings:', err);
             toast.error('Failed to save settings');
@@ -312,6 +350,77 @@ export default function SettingsPage() {
         }
     }
 
+    // ---------------------------------------------------------------
+    // Announcement banner handlers (top bar)
+    // ---------------------------------------------------------------
+    async function handleSaveAnnouncement(e: React.FormEvent) {
+        e.preventDefault();
+        if (!editingAnnouncement) return;
+        if (!editingAnnouncement.title.trim()) {
+            toast.error('Announcement text is required');
+            return;
+        }
+        setSaving(true);
+        try {
+            const payload: any = {
+                name: editingAnnouncement.name || editingAnnouncement.title.slice(0, 60),
+                type: 'announcement',
+                title: editingAnnouncement.title.trim(),
+                subtitle: editingAnnouncement.subtitle.trim() || null,
+                background_color: editingAnnouncement.background_color || '#111827',
+                text_color: editingAnnouncement.text_color || '#ffffff',
+                button_text: editingAnnouncement.button_text.trim() || null,
+                button_url: editingAnnouncement.button_url.trim() || null,
+                is_active: editingAnnouncement.is_active,
+                position: 'top',
+                sort_order: editingAnnouncement.sort_order || 0,
+                updated_at: new Date().toISOString(),
+            };
+            if (editingAnnouncement.id) payload.id = editingAnnouncement.id;
+
+            const { error } = await supabase.from('banners').upsert(payload);
+            if (error) throw error;
+
+            toast.success('Announcement saved');
+            setEditingAnnouncement(null);
+            try { sessionStorage.removeItem('hy_banners'); } catch { /* ignore */ }
+            fetchData();
+        } catch (err: any) {
+            console.error('Error saving announcement:', err);
+            toast.error(err?.message || 'Failed to save announcement');
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function handleDeleteAnnouncement(id: string) {
+        if (!confirm('Delete this announcement?')) return;
+        try {
+            const { error } = await supabase.from('banners').delete().eq('id', id);
+            if (error) throw error;
+            setAnnouncements(prev => prev.filter(a => a.id !== id));
+            try { sessionStorage.removeItem('hy_banners'); } catch { /* ignore */ }
+            toast.success('Announcement deleted');
+        } catch (err: any) {
+            console.error('Error deleting announcement:', err);
+            toast.error('Failed to delete announcement');
+        }
+    }
+
+    async function handleToggleAnnouncement(banner: AnnouncementBanner) {
+        try {
+            const { error } = await supabase
+                .from('banners')
+                .update({ is_active: !banner.is_active, updated_at: new Date().toISOString() })
+                .eq('id', banner.id);
+            if (error) throw error;
+            setAnnouncements(prev => prev.map(a => a.id === banner.id ? { ...a, is_active: !a.is_active } : a));
+            try { sessionStorage.removeItem('hy_banners'); } catch { /* ignore */ }
+        } catch (err: any) {
+            toast.error('Failed to update announcement');
+        }
+    }
+
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen">
             <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
@@ -334,8 +443,11 @@ export default function SettingsPage() {
                         {[
                             { id: 'general', label: 'General Info', icon: 'ri-store-2-line' },
                             { id: 'hero', label: 'Hero Section', icon: 'ri-image-2-line' },
+                            { id: 'announcements', label: 'Announcement Bar', icon: 'ri-megaphone-line' },
+                            { id: 'popup', label: 'Welcome Popup', icon: 'ri-window-line' },
                             { id: 'contact', label: 'Contact & Social', icon: 'ri-contacts-line' },
                             { id: 'store', label: 'Store Config', icon: 'ri-settings-4-line' },
+                            { id: 'tracking', label: 'Tracking & Pixels', icon: 'ri-line-chart-line' },
                             { id: 'delivery', label: 'Delivery Zones', icon: 'ri-truck-line' },
                         ].map((tab) => (
                             <button
@@ -916,11 +1028,384 @@ export default function SettingsPage() {
                             </form>
                         )}
 
+                        {/* Announcement Bar Tab */}
+                        {activeTab === 'announcements' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-gray-900">Announcement Bar</h2>
+                                        <p className="text-sm text-gray-500 mt-1">The message strip shown at the very top of the website. Multiple active announcements rotate automatically.</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setEditingAnnouncement({
+                                            id: '', name: '', title: '', subtitle: '',
+                                            background_color: '#111827', text_color: '#ffffff',
+                                            button_text: '', button_url: '', is_active: true,
+                                            sort_order: announcements.length,
+                                        })}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+                                    >
+                                        <i className="ri-add-line"></i> New
+                                    </button>
+                                </div>
+
+                                {announcements.length === 0 ? (
+                                    <div className="text-center py-10 text-gray-500">
+                                        <i className="ri-megaphone-line text-4xl text-gray-300 block mb-2"></i>
+                                        No announcements yet. The site shows the default message
+                                        (&quot;Shop Premium Footwear — Nationwide Delivery Available&quot;) until you add one.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {announcements.map(banner => (
+                                            <div key={banner.id} className="flex items-center gap-3 p-4 border border-gray-200 rounded-xl">
+                                                <div
+                                                    className="hidden sm:flex px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 max-w-[180px] truncate"
+                                                    style={{ backgroundColor: banner.background_color, color: banner.text_color }}
+                                                >
+                                                    {banner.title || 'Preview'}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 truncate">{banner.title}</p>
+                                                    {banner.subtitle && <p className="text-sm text-gray-500 truncate">{banner.subtitle}</p>}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleAnnouncement(banner)}
+                                                    className={`relative w-12 h-6 rounded-full transition-colors duration-200 shrink-0 ${banner.is_active ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                                    title={banner.is_active ? 'Active — click to hide' : 'Hidden — click to show'}
+                                                >
+                                                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ${banner.is_active ? 'translate-x-6' : 'translate-x-0'}`}></span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingAnnouncement(banner)}
+                                                    className="text-gray-400 hover:text-emerald-600 transition-colors p-1"
+                                                >
+                                                    <i className="ri-pencil-line text-lg"></i>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteAnnouncement(banner.id)}
+                                                    className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                >
+                                                    <i className="ri-delete-bin-line text-lg"></i>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Edit Announcement Modal */}
+                                {editingAnnouncement && (
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                                        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                                            <h3 className="text-lg font-bold text-gray-900 mb-4">
+                                                {editingAnnouncement.id ? 'Edit Announcement' : 'New Announcement'}
+                                            </h3>
+                                            <form onSubmit={handleSaveAnnouncement} className="space-y-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Announcement text</label>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        value={editingAnnouncement.title}
+                                                        onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, title: e.target.value })}
+                                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                        placeholder="e.g. Shop Premium Footwear — Nationwide Delivery Available"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Extra text <span className="text-gray-400 font-normal">(optional, shown after the main text)</span></label>
+                                                    <input
+                                                        type="text"
+                                                        value={editingAnnouncement.subtitle}
+                                                        onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, subtitle: e.target.value })}
+                                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">Background</label>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="color"
+                                                                value={editingAnnouncement.background_color}
+                                                                onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, background_color: e.target.value })}
+                                                                className="w-10 h-10 rounded cursor-pointer border border-gray-200"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                value={editingAnnouncement.background_color}
+                                                                onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, background_color: e.target.value })}
+                                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">Text colour</label>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="color"
+                                                                value={editingAnnouncement.text_color}
+                                                                onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, text_color: e.target.value })}
+                                                                className="w-10 h-10 rounded cursor-pointer border border-gray-200"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                value={editingAnnouncement.text_color}
+                                                                onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, text_color: e.target.value })}
+                                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">Button text <span className="text-gray-400 font-normal">(optional)</span></label>
+                                                        <input
+                                                            type="text"
+                                                            value={editingAnnouncement.button_text}
+                                                            onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, button_text: e.target.value })}
+                                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                                                            placeholder="Shop Now"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">Button link</label>
+                                                        <input
+                                                            type="text"
+                                                            value={editingAnnouncement.button_url}
+                                                            onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, button_url: e.target.value })}
+                                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                                                            placeholder="/shop"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={editingAnnouncement.is_active}
+                                                        onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, is_active: e.target.checked })}
+                                                        className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 border-gray-300"
+                                                    />
+                                                    <span className="text-sm text-gray-700">Show on the website</span>
+                                                </label>
+
+                                                {/* Live preview */}
+                                                <div
+                                                    className="py-2 px-4 text-center text-sm rounded-lg"
+                                                    style={{ backgroundColor: editingAnnouncement.background_color, color: editingAnnouncement.text_color }}
+                                                >
+                                                    <span className="font-medium">{editingAnnouncement.title || 'Your announcement text'}</span>
+                                                    {editingAnnouncement.subtitle && <span className="opacity-90 ml-2">{editingAnnouncement.subtitle}</span>}
+                                                </div>
+
+                                                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingAnnouncement(null)}
+                                                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        type="submit"
+                                                        disabled={saving}
+                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                    >
+                                                        Save Announcement
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Welcome Popup Tab */}
+                        {activeTab === 'popup' && (
+                            <form onSubmit={handleSaveSettings} className="space-y-6">
+                                <div className="border-b border-gray-100 pb-4 mb-6">
+                                    <h2 className="text-lg font-semibold text-gray-900">Welcome Popup</h2>
+                                    <p className="text-sm text-gray-500 mt-1">An optional popup shown to visitors when they land on the website — great for promotions, newsletter sign-ups, or announcements.</p>
+                                </div>
+
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="font-medium text-gray-900">Enable Welcome Popup</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => updateSetting('welcome_popup_enabled', settings.welcome_popup_enabled === 'true' ? 'false' : 'true')}
+                                            className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${settings.welcome_popup_enabled === 'true' ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                        >
+                                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ${settings.welcome_popup_enabled === 'true' ? 'translate-x-6' : 'translate-x-0'}`}></span>
+                                        </button>
+                                    </div>
+                                    <p className="text-sm text-gray-500">Turn the popup on or off without losing your content.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Heading</label>
+                                        <input
+                                            type="text"
+                                            value={settings.welcome_popup_title || ''}
+                                            onChange={(e) => updateSetting('welcome_popup_title', e.target.value)}
+                                            placeholder="e.g. Welcome to Hy_stepper!"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
+                                        <textarea
+                                            rows={3}
+                                            value={settings.welcome_popup_message || ''}
+                                            onChange={(e) => updateSetting('welcome_popup_message', e.target.value)}
+                                            placeholder="e.g. Enjoy nationwide delivery on all orders. Sign up today for exclusive offers!"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Image URL <span className="text-gray-400 font-normal">(optional)</span></label>
+                                        <input
+                                            type="text"
+                                            value={settings.welcome_popup_image || ''}
+                                            onChange={(e) => updateSetting('welcome_popup_image', e.target.value)}
+                                            placeholder="https://…"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Button text</label>
+                                            <input
+                                                type="text"
+                                                value={settings.welcome_popup_button_text || ''}
+                                                onChange={(e) => updateSetting('welcome_popup_button_text', e.target.value)}
+                                                placeholder="Shop Now"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Button link</label>
+                                            <input
+                                                type="text"
+                                                value={settings.welcome_popup_button_link || ''}
+                                                onChange={(e) => updateSetting('welcome_popup_button_link', e.target.value)}
+                                                placeholder="/shop"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Delay before showing (seconds)</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={60}
+                                                value={settings.welcome_popup_delay_seconds ?? 3}
+                                                onChange={(e) => updateSetting('welcome_popup_delay_seconds', e.target.value)}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">How often to show</label>
+                                            <select
+                                                value={settings.welcome_popup_frequency || 'once'}
+                                                onChange={(e) => updateSetting('welcome_popup_frequency', e.target.value)}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white"
+                                            >
+                                                <option value="once">Once per visitor</option>
+                                                <option value="daily">Once per day</option>
+                                                <option value="always">Every visit</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pt-6 border-t border-gray-100 flex justify-end">
+                                    <button
+                                        type="submit"
+                                        disabled={saving}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {saving && <i className="ri-loader-4-line animate-spin"></i>}
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {/* Tracking & Pixels Tab */}
+                        {activeTab === 'tracking' && (
+                            <form onSubmit={handleSaveSettings} className="space-y-6">
+                                <div className="border-b border-gray-100 pb-4 mb-6">
+                                    <h2 className="text-lg font-semibold text-gray-900">Tracking &amp; Pixels</h2>
+                                    <p className="text-sm text-gray-500 mt-1">Connect Google Analytics 4 and Meta (Facebook) Pixel. Once saved, page views and purchases are tracked automatically on the storefront.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Google Analytics 4 Measurement ID</label>
+                                        <input
+                                            type="text"
+                                            value={settings.ga4_measurement_id || ''}
+                                            onChange={(e) => updateSetting('ga4_measurement_id', e.target.value.trim())}
+                                            placeholder="G-XXXXXXXXXX"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all font-mono"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Find it in Google Analytics → Admin → Data Streams → your web stream. Starts with <span className="font-mono">G-</span>.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Meta (Facebook) Pixel ID</label>
+                                        <input
+                                            type="text"
+                                            value={settings.meta_pixel_id || ''}
+                                            onChange={(e) => updateSetting('meta_pixel_id', e.target.value.trim())}
+                                            placeholder="1234567890123456"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all font-mono"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Find it in Meta Events Manager → Data Sources → your pixel. A 15-16 digit number.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-blue-50 rounded-lg border border-blue-100 p-4 text-sm text-blue-800">
+                                    <p className="font-semibold mb-1"><i className="ri-information-line mr-1"></i>What gets tracked</p>
+                                    <ul className="list-disc ml-5 space-y-0.5">
+                                        <li>Every page view on the storefront</li>
+                                        <li>Completed purchases (order number, value, items) — powers conversion reports</li>
+                                    </ul>
+                                    <p className="mt-2">Conversion rates then appear inside Google Analytics / Meta Events Manager.</p>
+                                </div>
+
+                                <div className="pt-6 border-t border-gray-100 flex justify-end">
+                                    <button
+                                        type="submit"
+                                        disabled={saving}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {saving && <i className="ri-loader-4-line animate-spin"></i>}
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
                         {/* Delivery Zones Tab */}
                         {activeTab === 'delivery' && (
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
-                                    <h2 className="text-lg font-semibold text-gray-900">Delivery Zones</h2>
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-gray-900">Delivery Zones</h2>
+                                        <a href="/admin/settings/delivery" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+                                            Open full delivery manager (methods, discounts, free delivery) <i className="ri-arrow-right-line"></i>
+                                        </a>
+                                    </div>
                                     <button
                                         onClick={() => {
                                             setEditingZone({ id: '', name: '', base_fee: 0, is_accra: false, is_active: true });

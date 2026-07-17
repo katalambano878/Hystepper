@@ -5,6 +5,14 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
+interface DeliveryMethod {
+    id: string;
+    name: string;
+    fee: number;
+    description?: string;
+    active: boolean;
+}
+
 interface DeliveryZone {
     id: string;
     name: string;
@@ -13,6 +21,13 @@ interface DeliveryZone {
     transport_service: string | null;
     is_accra: boolean;
     is_active: boolean;
+    free_delivery: boolean;
+    discount_percent: number;
+    methods: DeliveryMethod[];
+}
+
+function makeMethodId() {
+    return `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function DeliverySettingsPage() {
@@ -28,7 +43,10 @@ export default function DeliverySettingsPage() {
         per_item_fee: 0,
         transport_service: '',
         is_accra: false,
-        is_active: true
+        is_active: true,
+        free_delivery: false,
+        discount_percent: 0,
+        methods: [] as DeliveryMethod[]
     });
 
     useEffect(() => {
@@ -59,7 +77,18 @@ export default function DeliverySettingsPage() {
             per_item_fee: zone.per_item_fee || 0,
             transport_service: zone.transport_service || '',
             is_accra: zone.is_accra,
-            is_active: zone.is_active
+            is_active: zone.is_active,
+            free_delivery: !!zone.free_delivery,
+            discount_percent: Number(zone.discount_percent) || 0,
+            methods: Array.isArray(zone.methods)
+                ? zone.methods.map((m: any) => ({
+                    id: m.id || makeMethodId(),
+                    name: m.name || '',
+                    fee: Number(m.fee) || 0,
+                    description: m.description || '',
+                    active: m.active !== false,
+                }))
+                : []
         });
         setEditingId(zone.id);
         setIsEditing(true);
@@ -72,7 +101,10 @@ export default function DeliverySettingsPage() {
             per_item_fee: 0,
             transport_service: '',
             is_accra: false,
-            is_active: true
+            is_active: true,
+            free_delivery: false,
+            discount_percent: 0,
+            methods: []
         });
         setEditingId(null);
         setIsEditing(true);
@@ -89,6 +121,17 @@ export default function DeliverySettingsPage() {
                 transport_service: formData.transport_service || null,
                 is_accra: formData.is_accra,
                 is_active: formData.is_active,
+                free_delivery: formData.free_delivery,
+                discount_percent: Math.min(100, Math.max(0, formData.discount_percent || 0)),
+                methods: formData.methods
+                    .filter(m => m.name.trim())
+                    .map(m => ({
+                        id: m.id,
+                        name: m.name.trim(),
+                        fee: Number(m.fee) || 0,
+                        description: (m.description || '').trim() || undefined,
+                        active: m.active !== false,
+                    })),
                 updated_at: new Date().toISOString()
             };
 
@@ -219,6 +262,122 @@ export default function DeliverySettingsPage() {
                             </label>
                         </div>
                     </div>
+
+                    {/* ── Fee adjustments ── */}
+                    <div className="mt-6 pt-6 border-t border-gray-100">
+                        <h3 className="font-bold text-gray-900 mb-1">Fee Adjustments</h3>
+                        <p className="text-sm text-gray-500 mb-4">Waive or discount the delivery fee for this location — applies to every method and to the base fee.</p>
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-between">
+                                <div>
+                                    <p className="font-medium text-gray-900">Free delivery</p>
+                                    <p className="text-sm text-gray-500">Customers in this zone pay GH₵ 0.00 for delivery.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, free_delivery: !formData.free_delivery })}
+                                    className={`relative w-12 h-6 rounded-full transition-colors duration-200 shrink-0 ${formData.free_delivery ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                >
+                                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ${formData.free_delivery ? 'translate-x-6' : 'translate-x-0'}`}></span>
+                                </button>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold mb-2">Delivery Fee Discount (%)</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    disabled={formData.free_delivery}
+                                    value={formData.discount_percent}
+                                    onChange={e => setFormData({ ...formData, discount_percent: parseFloat(e.target.value) || 0 })}
+                                    className="w-full px-4 py-2 border rounded-lg focus:ring-emerald-500 disabled:opacity-50 disabled:bg-gray-100"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">e.g. 50 = customers pay half the delivery fee. Ignored when free delivery is on.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ── Delivery methods ── */}
+                    <div className="mt-6 pt-6 border-t border-gray-100">
+                        <h3 className="font-bold text-gray-900 mb-1">Delivery Methods <span className="text-gray-400 font-normal text-sm">(optional)</span></h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                            Add the delivery options customers in this zone can choose at checkout (e.g. VIP, OA, Doorstep / FedEx),
+                            each with its own fee. If none are added, the standard base-fee formula is used instead.
+                        </p>
+                        <div className="space-y-3">
+                            {formData.methods.map((m, mi) => (
+                                <div key={m.id} className="flex flex-wrap items-center gap-3 bg-gray-50 rounded-xl border border-gray-200 p-3">
+                                    <input
+                                        type="text"
+                                        value={m.name}
+                                        onChange={e => setFormData({
+                                            ...formData,
+                                            methods: formData.methods.map((x, i) => i === mi ? { ...x, name: e.target.value } : x)
+                                        })}
+                                        placeholder="Method name — e.g. VIP"
+                                        className="flex-1 min-w-[140px] px-3 py-2 border rounded-lg focus:ring-emerald-500 bg-white"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={m.description || ''}
+                                        onChange={e => setFormData({
+                                            ...formData,
+                                            methods: formData.methods.map((x, i) => i === mi ? { ...x, description: e.target.value } : x)
+                                        })}
+                                        placeholder="Note shown to customer (optional)"
+                                        className="flex-1 min-w-[180px] px-3 py-2 border rounded-lg focus:ring-emerald-500 bg-white"
+                                    />
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-sm text-gray-500">GH₵</span>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step="0.01"
+                                            value={m.fee}
+                                            onChange={e => setFormData({
+                                                ...formData,
+                                                methods: formData.methods.map((x, i) => i === mi ? { ...x, fee: parseFloat(e.target.value) || 0 } : x)
+                                            })}
+                                            className="w-24 px-3 py-2 border rounded-lg focus:ring-emerald-500 bg-white"
+                                        />
+                                    </div>
+                                    <label className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-600">
+                                        <input
+                                            type="checkbox"
+                                            checked={m.active}
+                                            onChange={e => setFormData({
+                                                ...formData,
+                                                methods: formData.methods.map((x, i) => i === mi ? { ...x, active: e.target.checked } : x)
+                                            })}
+                                            className="w-4 h-4 text-emerald-600 rounded"
+                                        />
+                                        Visible
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({
+                                            ...formData,
+                                            methods: formData.methods.filter((_, i) => i !== mi)
+                                        })}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                    >
+                                        <i className="ri-delete-bin-line"></i>
+                                    </button>
+                                </div>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => setFormData({
+                                    ...formData,
+                                    methods: [...formData.methods, { id: makeMethodId(), name: '', fee: 0, description: '', active: true }]
+                                })}
+                                className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors text-sm flex items-center justify-center gap-1.5"
+                            >
+                                <i className="ri-add-line"></i> Add Delivery Method
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="flex justify-end space-x-3 mt-6">
                         <button
                             onClick={() => setIsEditing(false)}
@@ -243,6 +402,7 @@ export default function DeliverySettingsPage() {
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Region Name</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Base Fee</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Per-Item Fee</th>
+                            <th className="text-left py-4 px-6 font-semibold text-gray-700">Methods / Perks</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Transport</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Type</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Status</th>
@@ -256,6 +416,27 @@ export default function DeliverySettingsPage() {
                                 <td className="py-4 px-6 text-gray-700">GH₵ {zone.base_fee?.toFixed(2)}</td>
                                 <td className="py-4 px-6 text-gray-700">
                                     {zone.per_item_fee > 0 ? `GH₵ ${zone.per_item_fee.toFixed(2)}` : '—'}
+                                </td>
+                                <td className="py-4 px-6">
+                                    <div className="flex flex-wrap gap-1">
+                                        {(Array.isArray(zone.methods) ? zone.methods : []).filter((m: any) => m?.name).map((m: any) => (
+                                            <span
+                                                key={m.id || m.name}
+                                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.active !== false ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-400 line-through'}`}
+                                            >
+                                                {m.name} · GH₵{Number(m.fee || 0).toFixed(0)}
+                                            </span>
+                                        ))}
+                                        {zone.free_delivery && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">FREE delivery</span>
+                                        )}
+                                        {!zone.free_delivery && Number(zone.discount_percent) > 0 && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">-{Number(zone.discount_percent)}% fee</span>
+                                        )}
+                                        {(!zone.methods || zone.methods.length === 0) && !zone.free_delivery && !(Number(zone.discount_percent) > 0) && (
+                                            <span className="text-gray-400 text-xs">—</span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="py-4 px-6 text-gray-700">
                                     {zone.transport_service || '—'}

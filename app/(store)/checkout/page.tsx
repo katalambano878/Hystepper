@@ -105,6 +105,32 @@ export default function CheckoutPage() {
   const activeZone = regions.find(r => r.name === shippingData.region);
   const isAccra = selectedRegionType === 'greater_accra';
 
+  // Per-zone delivery methods (configured in Admin → Settings → Delivery).
+  // When a zone has methods, the customer must pick one and its fee replaces
+  // the base/per-item formula.
+  const [selectedMethodId, setSelectedMethodId] = useState('');
+  const zoneMethods: any[] = Array.isArray(activeZone?.methods)
+    ? activeZone.methods.filter((m: any) => m && m.name && m.active !== false)
+    : [];
+  const hasMethods = zoneMethods.length > 0;
+  const selectedMethod = hasMethods
+    ? zoneMethods.find((m: any) => String(m.id ?? m.name) === selectedMethodId) || null
+    : null;
+
+  // Zone-level fee adjustments (free delivery / % discount) set by the admin.
+  const zoneDiscountPercent = Math.min(100, Math.max(0, Number(activeZone?.discount_percent) || 0));
+  const zoneFreeDelivery = !!activeZone?.free_delivery;
+  const applyZoneFeeAdjustments = (fee: number) => {
+    if (zoneFreeDelivery) return 0;
+    if (zoneDiscountPercent > 0) return Math.max(0, fee * (1 - zoneDiscountPercent / 100));
+    return fee;
+  };
+
+  // Reset the picked method whenever the delivery area changes.
+  useEffect(() => {
+    setSelectedMethodId('');
+  }, [shippingData.region]);
+
   useEffect(() => {
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -168,15 +194,19 @@ export default function CheckoutPage() {
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const baseFee = activeZone?.base_fee || 0;
   const perItemFee = activeZone?.per_item_fee || 0;
-  const outsideAccraTooManyItems = !isAccra && activeZone && totalItems >= 3;
-  const zoneFee = isAccra
-    ? baseFee
-    : totalItems <= 1
+  // The "3+ items → manual quote" rule only applies to the legacy formula;
+  // zones with explicit delivery methods always have a flat, known fee.
+  const outsideAccraTooManyItems = !isAccra && activeZone && totalItems >= 3 && !hasMethods;
+  const zoneFee = hasMethods
+    ? (selectedMethod ? Number(selectedMethod.fee) || 0 : 0)
+    : isAccra
       ? baseFee
-      : totalItems === 2
-        ? baseFee + perItemFee
-        : 0;
-  const shippingCost = zoneFee;
+      : totalItems <= 1
+        ? baseFee
+        : totalItems === 2
+          ? baseFee + perItemFee
+          : 0;
+  const shippingCost = applyZoneFeeAdjustments(zoneFee);
 
   const pointsDiscount = (redeemPoints && loyaltyPoints >= 15 && !couponApplied) ? Math.min(loyaltyPoints, subtotal) : 0;
   const totalDiscount = couponApplied ? couponDiscount : pointsDiscount;
@@ -203,6 +233,9 @@ export default function CheckoutPage() {
     if (!selectedRegionType) newErrors.region = 'Region is required';
     if (selectedRegionType === 'greater_accra' && !shippingData.region) newErrors.region = 'Please select your delivery area';
     if (selectedRegionType === 'other_regions' && !shippingData.region) newErrors.region = 'Please select your city';
+    if (hasMethods && !selectedMethod && !settings.deliveryUnavailable) {
+      newErrors.deliveryMethod = 'Please choose a delivery method';
+    }
 
     // Email is optional — but validate format if provided
     if (shippingData.email && !/\S+@\S+\.\S+/.test(shippingData.email)) {
@@ -402,7 +435,7 @@ export default function CheckoutPage() {
           shipping_total: shippingCost,
           discount_total: totalDiscount,
           total: total,
-          shipping_method: 'standard',
+          shipping_method: selectedMethod?.name || 'standard',
           payment_method: gateway,
           payment_option: paymentOption,
           delivery_notes: deliveryNotes,
@@ -415,6 +448,10 @@ export default function CheckoutPage() {
             first_name: shippingData.firstName,
             last_name: shippingData.lastName,
             region: shippingData.region,
+            delivery_zone_id: activeZone?.id || null,
+            delivery_method: selectedMethod?.name || null,
+            delivery_fee_waived: zoneFreeDelivery || undefined,
+            delivery_fee_discount_percent: zoneDiscountPercent > 0 ? zoneDiscountPercent : undefined,
             payable_now: payableNow,
             delivery_fee_due: deliveryFeeToPayLater,
             coupon_code: couponApplied?.code || null,
@@ -791,7 +828,9 @@ export default function CheckoutPage() {
                               className="w-full text-left px-4 py-2.5 hover:bg-gold-50 transition-colors flex items-center justify-between cursor-pointer"
                             >
                               <span className="text-gray-900">{z.name}</span>
-                              <span className="text-sm font-semibold text-gold-700">GH₵{z.base_fee.toFixed(0)}</span>
+                              <span className="text-sm font-semibold text-gold-700">
+                                {z.free_delivery ? 'FREE' : `GH₵${z.base_fee.toFixed(0)}`}
+                              </span>
                             </button>
                           ))
                         )}
@@ -869,6 +908,60 @@ export default function CheckoutPage() {
                           )}
                         </div>
                       </div>
+                    ) : hasMethods ? (
+                      <div data-shipping-error={errors.deliveryMethod ? 'true' : undefined} className="scroll-mt-24">
+                        <p className="text-sm font-semibold text-gray-900 mb-2">Choose a delivery method *</p>
+                        <div className="space-y-3">
+                          {zoneMethods.map((m: any) => {
+                            const methodKey = String(m.id ?? m.name);
+                            const rawFee = Number(m.fee) || 0;
+                            const finalFee = applyZoneFeeAdjustments(rawFee);
+                            const isSelected = selectedMethodId === methodKey;
+                            return (
+                              <label
+                                key={methodKey}
+                                className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'border-gold-500 bg-gold-50' : errors.deliveryMethod ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'}`}
+                              >
+                                <div className="flex items-center">
+                                  <input
+                                    type="radio"
+                                    name="delivery_method"
+                                    checked={isSelected}
+                                    onChange={() => {
+                                      setSelectedMethodId(methodKey);
+                                      setErrors((prev: any) => ({ ...prev, deliveryMethod: '' }));
+                                    }}
+                                    className="w-5 h-5 text-gold-600 mr-3"
+                                  />
+                                  <div>
+                                    <p className="font-semibold text-gray-900">{m.name}</p>
+                                    {m.description && <p className="text-sm text-gray-600">{m.description}</p>}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  {finalFee < rawFee && (
+                                    <p className="text-xs text-gray-400 line-through">GH₵ {rawFee.toFixed(2)}</p>
+                                  )}
+                                  <p className="font-bold text-gray-900">
+                                    {finalFee === 0 ? 'FREE' : `GH₵ ${finalFee.toFixed(2)}`}
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {errors.deliveryMethod && <p className="text-sm text-red-600 mt-2">{errors.deliveryMethod}</p>}
+                        {zoneFreeDelivery && (
+                          <p className="text-sm text-emerald-700 font-medium mt-2 flex items-center gap-1">
+                            <i className="ri-gift-line"></i> Free delivery to {activeZone?.name} right now!
+                          </p>
+                        )}
+                        {!zoneFreeDelivery && zoneDiscountPercent > 0 && (
+                          <p className="text-sm text-emerald-700 font-medium mt-2 flex items-center gap-1">
+                            <i className="ri-percent-line"></i> {zoneDiscountPercent}% off delivery to {activeZone?.name} applied
+                          </p>
+                        )}
+                      </div>
                     ) : (
                       <>
                         <div className="p-4 border-2 border-gold-300 bg-gold-50 rounded-lg">
@@ -886,7 +979,14 @@ export default function CheckoutPage() {
                                 }
                               </p>
                             </div>
-                            <p className="font-bold text-gray-900">GH₵ {shippingCost.toFixed(2)}</p>
+                            <div className="text-right">
+                              {(zoneFreeDelivery || zoneDiscountPercent > 0) && zoneFee > shippingCost && (
+                                <p className="text-xs text-gray-400 line-through">GH₵ {zoneFee.toFixed(2)}</p>
+                              )}
+                              <p className="font-bold text-gray-900">
+                                {shippingCost === 0 && zoneFreeDelivery ? 'FREE' : `GH₵ ${shippingCost.toFixed(2)}`}
+                              </p>
+                            </div>
                           </div>
                         </div>
 

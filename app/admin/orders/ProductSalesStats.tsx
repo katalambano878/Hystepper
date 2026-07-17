@@ -57,11 +57,8 @@ export default function ProductSalesStats({ isOpen, onClose }: { isOpen: boolean
           )
         `);
 
-            // Ideally we filter by status too (exclude cancelled?)
-            // User didn't specify, but usually "sales" implies completed/processing.
-            // I'll filter out 'cancelled' and 'pending' (if pending means abandoned cart? No, pending usually means placed).
-            // I'll just filter out 'cancelled'.
-            query = query.neq('orders.status', 'cancelled');
+            // Exclude cancelled AND refunded orders — neither counts as a sale.
+            query = query.not('orders.status', 'in', '(cancelled,refunded)');
 
             if (startDate) {
                 query = query.gte('orders.created_at', startDate);

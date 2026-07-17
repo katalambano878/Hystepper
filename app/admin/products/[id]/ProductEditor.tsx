@@ -57,8 +57,10 @@ async function findUniqueSlug(baseSlug: string, excludeProductId?: string | null
 // Reconcile the variant builder (size chips / colour list) into the concrete
 // `variants` array that actually gets saved. This guarantees that sizes/colours
 // the admin picked are persisted even if they never clicked "Generate Variants".
-// Existing variants (and their stock/price/disabled state) are always preserved;
-// only genuinely missing combinations are appended.
+// Existing variants (and their stock/price/disabled state) are preserved when
+// their size/colour is still in the builder; combinations whose size or colour
+// was REMOVED from the builder are pruned so they also disappear from the
+// storefront after save. Genuinely missing combinations are appended.
 function mergeBuilderVariants(
   existing: any[],
   mode: VariantMode,
@@ -68,8 +70,36 @@ function mergeBuilderVariants(
 ): any[] {
   const sizes = [...new Set(sizesStr.split(',').map(s => s.trim()).filter(Boolean))];
   const activeColors = colors.filter(c => c.name.trim());
-  const byName = new Set(existing.map(v => v.name));
-  const result = [...existing];
+
+  const norm = (s: any) => String(s ?? '').trim().toLowerCase();
+  const sizeSet = new Set(sizes.map(norm));
+  const colorSet = new Set(activeColors.map(c => norm(c.name)));
+
+  const variantSize = (v: any) =>
+    norm(v._size || (typeof v.name === 'string' && v.name.includes(' / ') ? v.name.split(' / ')[0] : v.name));
+  const variantColor = (v: any) => norm(v._color || v.option2);
+
+  // Drop variants whose size/colour the admin removed from the builder.
+  // Safety: only prune when the builder actually has entries for that
+  // dimension — an empty builder (e.g. right after switching modes) must
+  // never wipe existing variants.
+  const canPruneBySize = sizeSet.size > 0;
+  const canPruneByColor = colorSet.size > 0;
+  const kept = existing.filter(v => {
+    if (mode === 'size_color') {
+      const sizeOk = !canPruneBySize || sizeSet.has(variantSize(v));
+      const colorOk = !canPruneByColor || colorSet.has(variantColor(v));
+      return sizeOk && colorOk;
+    }
+    if (mode === 'color_only') {
+      return !canPruneByColor || colorSet.has(variantColor(v));
+    }
+    // size_only
+    return !canPruneBySize || sizeSet.has(norm(v._size || v.name));
+  });
+
+  const byName = new Set(kept.map(v => v.name));
+  const result = [...kept];
   let seq = 0;
   const ensure = (name: string, build: () => any) => {
     if (byName.has(name)) return;
@@ -162,6 +192,11 @@ export default function ProductEditor({ productId }: { productId: string }) {
   const [builderColors, setBuilderColors] = useState<{ id: string; name: string; hex: string; image_url: string | null }[]>([]);
   const [bulkPrice, setBulkPrice] = useState('');
   const [bulkStock, setBulkStock] = useState('');
+
+  // Stock History
+  const [stockMovements, setStockMovements] = useState<any[]>([]);
+  const [stockHistoryLoading, setStockHistoryLoading] = useState(false);
+  const [stockHistoryLoaded, setStockHistoryLoaded] = useState(false);
 
   // Delivery notice must be declared at top level (used in fetchInitialData + handleSave)
   const [deliveryNotice, setDeliveryNotice] = useState('none');
@@ -402,6 +437,34 @@ export default function ProductEditor({ productId }: { productId: string }) {
     toast.success(`Generated ${combinations.length} variant${combinations.length !== 1 ? 's' : ''} — existing prices & stock kept`);
   }
 
+  // Lazy-load stock history the first time the tab is opened.
+  useEffect(() => {
+    if (activeTab !== 'history' || productId === 'new' || stockHistoryLoaded) return;
+    let cancelled = false;
+    (async () => {
+      setStockHistoryLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('stock_movements')
+          .select('*')
+          .eq('product_id', productId)
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (error) throw error;
+        if (!cancelled) {
+          setStockMovements(data || []);
+          setStockHistoryLoaded(true);
+        }
+      } catch (err) {
+        console.error('Error loading stock history:', err);
+        if (!cancelled) toast.error('Failed to load stock history');
+      } finally {
+        if (!cancelled) setStockHistoryLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, productId, stockHistoryLoaded]);
+
   async function handleSave() {
     try {
       setSaving(true);
@@ -617,7 +680,8 @@ export default function ProductEditor({ productId }: { productId: string }) {
     { id: 'pricing', label: 'Pricing & Inventory', icon: 'ri-price-tag-3-line' },
     { id: 'variants', label: 'Variants', icon: 'ri-layout-grid-line' },
     { id: 'images', label: 'Images', icon: 'ri-image-line' },
-    { id: 'seo', label: 'SEO', icon: 'ri-search-line' }
+    { id: 'seo', label: 'SEO', icon: 'ri-search-line' },
+    ...(productId !== 'new' ? [{ id: 'history', label: 'Stock History', icon: 'ri-history-line' }] : [])
   ];
 
   if (loading) {
@@ -1885,6 +1949,82 @@ export default function ProductEditor({ productId }: { productId: string }) {
                 />
                 <p className="text-sm text-gray-500 mt-2">Separate keywords with commas</p>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">Stock History</h3>
+                  <p className="text-gray-600">Every stock change for this product — sales, restocks, cancellations and manual edits</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStockHistoryLoaded(false)}
+                  className="px-4 py-2 border-2 border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:border-gray-300 flex items-center gap-2"
+                >
+                  <i className="ri-refresh-line"></i> Refresh
+                </button>
+              </div>
+
+              {stockHistoryLoading ? (
+                <div className="py-12 text-center text-gray-500">Loading stock history…</div>
+              ) : stockMovements.length === 0 ? (
+                <div className="py-12 text-center text-gray-500">
+                  <i className="ri-history-line text-4xl text-gray-300 block mb-2"></i>
+                  No stock movements recorded yet. Changes are logged automatically from now on.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">Date &amp; Time</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Variant</th>
+                        <th className="text-right py-3 px-4 font-semibold text-gray-700">Change</th>
+                        <th className="text-right py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">Stock After</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Reason</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Reference</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">By</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {stockMovements.map((m) => {
+                        const reasonLabels: Record<string, { label: string; cls: string }> = {
+                          sale: { label: 'Sale', cls: 'bg-blue-100 text-blue-700' },
+                          order_cancelled: { label: 'Order cancelled (restock)', cls: 'bg-amber-100 text-amber-700' },
+                          item_cancelled: { label: 'Item cancelled (restock)', cls: 'bg-amber-100 text-amber-700' },
+                          item_returned: { label: 'Item returned (restock)', cls: 'bg-orange-100 text-orange-700' },
+                          manual_adjustment: { label: 'Manual adjustment', cls: 'bg-gray-100 text-gray-700' },
+                          initial_stock: { label: 'Stock added', cls: 'bg-emerald-100 text-emerald-700' },
+                          variant_removed: { label: 'Variant removed', cls: 'bg-red-100 text-red-700' },
+                        };
+                        const reason = reasonLabels[m.reason] || { label: m.reason, cls: 'bg-gray-100 text-gray-700' };
+                        return (
+                          <tr key={m.id} className="hover:bg-gray-50">
+                            <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                              {new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td className="py-3 px-4 text-gray-900 font-medium">{m.variant_name || '—'}</td>
+                            <td className={`py-3 px-4 text-right font-bold whitespace-nowrap ${m.change > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {m.change > 0 ? `+${m.change}` : m.change}
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-700">{m.quantity_after ?? '—'}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${reason.cls}`}>
+                                {reason.label}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-gray-600 whitespace-nowrap">{m.reference || '—'}</td>
+                            <td className="py-3 px-4 text-gray-600 truncate max-w-[160px]">{m.user_email || 'System'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

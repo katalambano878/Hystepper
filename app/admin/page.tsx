@@ -6,8 +6,9 @@ import { supabase } from '@/lib/supabase';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function AdminDashboard() {
-  const [dateRange, setDateRange] = useState('7days'); // logic not implemented for this demo, just UI
+  const [dateRange, setDateRange] = useState('7days');
   const [loading, setLoading] = useState(true);
+  const [paidOrders, setPaidOrders] = useState<any[]>([]);
 
   // Real Stats
   const [stats, setStats] = useState([
@@ -66,38 +67,13 @@ export default function AdminDashboard() {
         if (ordersError) throw ordersError;
 
         const paidOrders = ordersData || [];
+        setPaidOrders(paidOrders);
 
         const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.total || 0), 0);
         const totalOrders = paidOrders.length;
         const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
         const uniqueCustomers = new Set(paidOrders.map((o) => o.email).filter(Boolean)).size;
-
-
-        // Process Chart Data (Last 7 Days)
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (6 - i));
-          return d.toISOString().split('T')[0];
-        });
-
-        const chartMap = last7Days.reduce((acc: any, date) => {
-          acc[date] = 0;
-          return acc;
-        }, {});
-
-        paidOrders.forEach(order => {
-          const date = new Date(order.created_at).toISOString().split('T')[0];
-          if (chartMap[date] !== undefined) {
-            chartMap[date] += (order.total || 0);
-          }
-        });
-
-        const processedChartData = Object.keys(chartMap).map(date => ({
-          date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          revenue: chartMap[date]
-        }));
-        setChartData(processedChartData);
 
         setStats([
           {
@@ -195,6 +171,32 @@ export default function AdminDashboard() {
     fetchDashboardData();
   }, []);
 
+  // Revenue Trend chart — rebuilt whenever the date-range selector changes.
+  useEffect(() => {
+    const days = dateRange === '30days' ? 30 : dateRange === '90days' ? 90 : 7;
+
+    const dayKeys = Array.from({ length: days }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1 - i));
+      return d.toISOString().split('T')[0];
+    });
+
+    const chartMap: Record<string, number> = {};
+    dayKeys.forEach(date => { chartMap[date] = 0; });
+
+    paidOrders.forEach(order => {
+      const date = new Date(order.created_at).toISOString().split('T')[0];
+      if (chartMap[date] !== undefined) {
+        chartMap[date] += (order.total || 0);
+      }
+    });
+
+    setChartData(dayKeys.map(date => ({
+      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      revenue: chartMap[date]
+    })));
+  }, [paidOrders, dateRange]);
+
   const statusColors: any = {
     'pending': 'bg-amber-100 text-amber-700',
     'processing': 'bg-blue-100 text-blue-700',
@@ -265,6 +267,7 @@ export default function AdminDashboard() {
               >
                 <option value="7days">Last 7 Days</option>
                 <option value="30days">Last 30 Days</option>
+                <option value="90days">Last 90 Days</option>
               </select>
             </div>
             <div className="h-80 w-full">

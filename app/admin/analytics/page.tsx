@@ -13,6 +13,7 @@ export default function AnalyticsPage() {
   const [salesData, setSalesData] = useState<any[]>([]);
   const [categoryRevenue, setCategoryRevenue] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [trackingConfigured, setTrackingConfigured] = useState(false);
 
   const [metrics, setMetrics] = useState({
     revenue: 0,
@@ -43,6 +44,15 @@ export default function AnalyticsPage() {
 
       const isoStart = startDate.toISOString();
 
+      // Is GA4 / Meta Pixel tracking configured?
+      const { data: trackingSettings } = await supabase
+        .from('store_settings')
+        .select('key, value')
+        .in('key', ['ga4_measurement_id', 'meta_pixel_id']);
+      setTrackingConfigured(
+        (trackingSettings || []).some(s => typeof s.value === 'string' && s.value.trim().length > 0)
+      );
+
       // Fetch Orders for Revenue & Count
       const { data: orders, error: orderError } = await supabase
         .from('orders')
@@ -53,28 +63,29 @@ export default function AnalyticsPage() {
 
       if (orderError) throw orderError;
 
-      // Fetch Order Items for Products & Categories
-      // This might be heavy for large DBs, but fine for typical small shop admin
-      const { data: items, error: itemError } = await supabase
-        .from('order_items')
-        .select(`
-            *,
-            products (name, categories(name))
-         `)
-        .gte('created_at', isoStart); // Assuming order_items has created_at or join orders.. 
-      // Actually order_items usually doesn't have created_at directly in some schemas, 
-      // so we should join orders to filter by date.
-      // Simpler: fetch order_items for the fetched orders IDs.
-
+      // Fetch order items for the fetched order IDs (covers website AND POS
+      // orders — both live in the same orders/order_items tables).
+      // NOTE: order_items has unit_price/total_price, NOT `price` — selecting
+      // a non-existent column made this query fail silently, which is why
+      // "Top Performing Products" showed "No sales data yet".
       let validItems: any[] = [];
       if (orders && orders.length > 0) {
         const orderIds = orders.map(o => o.id);
-        const { data: fetchedItems } = await supabase
-          .from('order_items')
-          .select('quantity, price, products(name, categories(name))')
-          .in('order_id', orderIds);
-
-        if (fetchedItems) validItems = fetchedItems;
+        // Chunk the IN() list so very busy periods don't exceed URL limits.
+        for (let i = 0; i < orderIds.length; i += 100) {
+          const chunk = orderIds.slice(i, i + 100);
+          const { data: fetchedItems, error: itemsError } = await supabase
+            .from('order_items')
+            .select('quantity, unit_price, total_price, product_name, status, products(name, categories(name))')
+            .in('order_id', chunk);
+          if (itemsError) {
+            console.error('Analytics order_items fetch failed:', itemsError);
+            break;
+          }
+          if (fetchedItems) validItems.push(...fetchedItems);
+        }
+        // Ignore individually cancelled/returned line items.
+        validItems = validItems.filter(it => !it.status || it.status === 'active');
       }
 
       // Process Metrics
@@ -125,7 +136,7 @@ export default function AnalyticsPage() {
       validItems.forEach(item => {
         const catName = item.products?.categories?.name || 'Uncategorized';
         if (!catMap[catName]) catMap[catName] = { name: catName, value: 0 };
-        catMap[catName].value += (item.price * item.quantity);
+        catMap[catName].value += Number(item.total_price ?? (item.unit_price || 0) * item.quantity) || 0;
       });
       // Convert to array for Recharts Pie
       const catArray = Object.values(catMap).map((c: any) => ({ name: c.name, value: c.value }));
@@ -134,9 +145,9 @@ export default function AnalyticsPage() {
       // Process Top Products
       const prodMap: Record<string, any> = {};
       validItems.forEach(item => {
-        const pName = item.products?.name || 'Unknown';
+        const pName = item.products?.name || item.product_name || 'Unknown';
         if (!prodMap[pName]) prodMap[pName] = { name: pName, revenue: 0, units: 0 };
-        prodMap[pName].revenue += (item.price * item.quantity);
+        prodMap[pName].revenue += Number(item.total_price ?? (item.unit_price || 0) * item.quantity) || 0;
         prodMap[pName].units += item.quantity;
       });
       const topProdArray = Object.values(prodMap).sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 5);
@@ -223,8 +234,29 @@ export default function AnalyticsPage() {
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-1">Conversion Rate</p>
-            <p className="text-3xl font-bold text-gray-900">--</p>
-            <p className="text-xs text-gray-400 mt-1">Setup Tracking</p>
+            {trackingConfigured ? (
+              <>
+                <p className="text-2xl font-bold text-gray-900">Tracking Active</p>
+                <a
+                  href="https://analytics.google.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-emerald-600 hover:text-emerald-700 mt-1 inline-block font-medium"
+                >
+                  View in Google Analytics <i className="ri-external-link-line"></i>
+                </a>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-bold text-gray-900">--</p>
+                <Link
+                  href="/admin/settings"
+                  className="text-xs text-amber-600 hover:text-amber-700 mt-1 inline-block font-medium"
+                >
+                  Setup Tracking <i className="ri-arrow-right-line"></i>
+                </Link>
+              </>
+            )}
           </div>
         </div>
 

@@ -192,6 +192,7 @@ function ShopContent() {
             query = query.order('rating_avg', { ascending: false });
             break;
           case 'new':
+          case 'newest': // alias used by some nav links
             query = query.order('created_at', { ascending: false });
             break;
           case 'popular':

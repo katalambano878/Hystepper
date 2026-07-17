@@ -9,6 +9,8 @@ import { CMSProvider } from '@/context/CMSContext';
 const CookieConsent = dynamic(() => import('@/components/CookieConsent'), { ssr: false });
 const WhatsAppButton = dynamic(() => import('@/components/WhatsAppButton'), { ssr: false });
 const OfflineIndicator = dynamic(() => import('@/components/OfflineIndicator'), { ssr: false });
+const TrackingScripts = dynamic(() => import('@/components/TrackingScripts'), { ssr: false });
+const WelcomePopup = dynamic(() => import('@/components/WelcomePopup'), { ssr: false });
 
 export default function StoreLayout({
   children,
@@ -25,6 +27,8 @@ export default function StoreLayout({
         <OfflineIndicator />
         <CookieConsent />
         <WhatsAppButton />
+        <TrackingScripts />
+        <WelcomePopup />
       </div>
     </CMSProvider>
   );

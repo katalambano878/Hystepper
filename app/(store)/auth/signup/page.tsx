@@ -23,6 +23,7 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +63,9 @@ export default function SignupPage() {
         email: formData.email,
         password: formData.password,
         options: {
+          // Make sure the confirmation email links back to THIS site
+          // (never localhost / the Supabase default).
+          emailRedirectTo: `${window.location.origin}/account`,
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
@@ -94,11 +98,9 @@ export default function SignupPage() {
             password: formData.password,
           });
           if (signInError) {
-            // Email-confirmation is enforced at the project level and
-            // can't be bypassed from the client. Tell the user clearly.
-            setAuthError(
-              'Account created, but email confirmation is required by the project. Disable "Confirm email" in Supabase → Auth → Sign-in/Sign-up to skip verification.'
-            );
+            // Email confirmation is required — show the customer a clean,
+            // friendly message (never internal/developer instructions).
+            setConfirmationSent(true);
             setIsLoading(false);
             return;
           }
@@ -122,6 +124,28 @@ export default function SignupPage() {
           <p className="text-gray-600">Join us and start shopping today</p>
         </div>
 
+        {confirmationSent ? (
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-emerald-100 rounded-full flex items-center justify-center">
+              <i className="ri-mail-check-line text-3xl text-emerald-600"></i>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
+            <p className="text-gray-600 mb-6">
+              Your account has been created! We&apos;ve sent a confirmation link to{' '}
+              <span className="font-semibold text-gray-900">{formData.email}</span>.
+              Click the link in that email to activate your account, then sign in.
+            </p>
+            <Link
+              href="/auth/login"
+              className="inline-block bg-gold-600 hover:bg-gold-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
+            >
+              Go to Sign In
+            </Link>
+            <p className="text-sm text-gray-500 mt-4">
+              Didn&apos;t get the email? Check your spam folder or try signing in — you may already be verified.
+            </p>
+          </div>
+        ) : (
         <div className="bg-white rounded-xl shadow-sm p-8">
           {authError && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
@@ -292,6 +316,7 @@ export default function SignupPage() {
             </Link>
           </p>
         </div>
+        )}
 
         <div className="mt-8 text-center">
           <Link href="/" className="text-gray-600 hover:text-gray-900 font-medium whitespace-nowrap">

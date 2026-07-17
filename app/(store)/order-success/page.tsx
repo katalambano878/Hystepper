@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { trackPurchase } from '@/components/TrackingScripts';
 
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
@@ -92,6 +93,28 @@ function OrderSuccessContent() {
       cancelled = true;
     };
   }, [orderNumber, paymentSuccessFlag]);
+
+  // Fire a GA4 / Meta Pixel purchase conversion once per order (guarded via
+  // sessionStorage so refreshes don't double-count).
+  useEffect(() => {
+    if (!order?.order_number) return;
+    if ((order.payment_status || '').toLowerCase() !== 'paid') return;
+    const guardKey = `hy_purchase_tracked_${order.order_number}`;
+    try {
+      if (sessionStorage.getItem(guardKey)) return;
+      sessionStorage.setItem(guardKey, '1');
+    } catch { /* ignore */ }
+    trackPurchase({
+      orderNumber: order.order_number,
+      total: Number(order.total) || 0,
+      currency: order.currency || 'GHS',
+      items: (order.order_items || []).map((it: any) => ({
+        name: it.product_name,
+        quantity: it.quantity,
+        price: Number(it.unit_price) || 0,
+      })),
+    });
+  }, [order]);
 
   // Light background poll while the order is still pending so the page
   // flips to "Payment received" automatically once admin/webhook updates

@@ -194,16 +194,24 @@ export default function Header() {
               <div className="mt-8">
                 <p className="text-sm text-gray-500 uppercase tracking-widest mb-4">Popular Searches</p>
                 <div className="flex flex-wrap gap-3">
-                  {['Heels', 'Sandals', 'New Arrivals', 'Sale'].map((term) => (
+                  {/* Each suggestion routes to a destination that actually
+                      returns results: text search, newest sort, or the sale
+                      page — no dead-end chips. */}
+                  {[
+                    { label: 'Heels', href: '/shop?search=Heels' },
+                    { label: 'Bags', href: '/shop?category=bags-handbags' },
+                    { label: 'New Arrivals', href: '/shop?sort=new' },
+                    { label: 'Sale', href: '/sale' },
+                  ].map((term) => (
                     <button
-                      key={term}
+                      key={term.label}
                       onClick={() => {
-                        setSearchQuery(term);
-                        window.location.href = `/shop?search=${encodeURIComponent(term)}`;
+                        setIsSearchOpen(false);
+                        window.location.href = term.href;
                       }}
                       className="px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-full text-sm text-gray-700 transition-colors"
                     >
-                      {term}
+                      {term.label}
                     </button>
                   ))}
                 </div>

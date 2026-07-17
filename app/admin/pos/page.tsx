@@ -309,10 +309,17 @@ export default function POSPage() {
         if (!selectedZone) return 0;
         const baseFee = Number(selectedZone.base_fee) || 0;
         const perItem = Number(selectedZone.per_item_fee) || 0;
-        if (selectedZone.is_accra) return baseFee;
-        if (totalCartItems <= 1) return baseFee;
-        if (totalCartItems === 2) return baseFee + perItem;
-        return 0; // 3+ items outside Accra → manual quote required
+        let fee: number;
+        if (selectedZone.is_accra) fee = baseFee;
+        else if (totalCartItems <= 1) fee = baseFee;
+        else if (totalCartItems === 2) fee = baseFee + perItem;
+        else return 0; // 3+ items outside Accra → manual quote required
+
+        // Zone-level waivers/discounts from Admin → Settings → Delivery.
+        if (selectedZone.free_delivery) return 0;
+        const discount = Math.min(100, Math.max(0, Number(selectedZone.discount_percent) || 0));
+        if (discount > 0) fee = Math.max(0, fee * (1 - discount / 100));
+        return fee;
     })();
 
     const parsedManualFee = Math.max(0, Number.parseFloat(manualDeliveryFee || '0') || 0);

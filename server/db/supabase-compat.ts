@@ -776,8 +776,26 @@ export function createClient(_url?: string, _key?: string): SupabaseCompatClient
       return new QueryBuilder(table);
     },
     storage: createStorageClient(),
-    async rpc(_fn: string, _args?: Record<string, any>) {
-      return { data: null, error: { message: "rpc() not supported in pg-compat" } };
+    // Calls a public.* SQL function with named arguments, mirroring
+    // PostgREST's /rpc/<fn> behaviour for scalar-returning functions
+    // (all server-side RPCs here return jsonb or boolean scalars).
+    async rpc(fn: string, args?: Record<string, any>) {
+      try {
+        if (!PG_IDENT.test(fn)) throw new Error(`Unsafe function name: ${fn}`);
+        const entries = Object.entries(args || {});
+        for (const [name] of entries) {
+          if (!PG_IDENT.test(name)) throw new Error(`Unsafe argument name: ${name}`);
+        }
+        const params = entries.map(([, v]) =>
+          v !== null && typeof v === "object" && !(v instanceof Date) ? JSON.stringify(v) : v
+        );
+        const argSql = entries.map(([name], i) => `${ident(name)} => $${i + 1}`).join(", ");
+        const sql = `SELECT public.${ident(fn)}(${argSql}) AS result`;
+        const { rows } = await getPool().query(sql, params);
+        return { data: rows[0]?.result ?? null, error: null };
+      } catch (e: any) {
+        return { data: null, error: { message: e?.message || String(e) } };
+      }
     },
   };
 }

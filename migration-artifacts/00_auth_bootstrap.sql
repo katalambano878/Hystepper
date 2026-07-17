@@ -50,6 +50,8 @@ CREATE INDEX IF NOT EXISTS users_instance_id_email_idx ON auth.users (instance_i
 CREATE INDEX IF NOT EXISTS users_instance_id_idx ON auth.users (instance_id);
 
 -- PostgREST / app JWT helpers (also used by any leftover SQL that calls auth.uid()).
+-- PostgREST v9+ exposes JWT claims as the single `request.jwt.claims` JSON GUC,
+-- so parse that first; legacy per-claim GUCs kept as fallbacks.
 CREATE OR REPLACE FUNCTION auth.uid()
 RETURNS uuid
 LANGUAGE sql
@@ -57,6 +59,7 @@ STABLE
 AS $$
   SELECT NULLIF(
     COALESCE(
+      NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub',
       current_setting('request.jwt.claim.sub', true),
       current_setting('app.current_user_id', true)
     ),
@@ -70,6 +73,7 @@ LANGUAGE sql
 STABLE
 AS $$
   SELECT COALESCE(
+    NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role',
     NULLIF(current_setting('request.jwt.claim.role', true), ''),
     'anon'
   );
@@ -95,3 +99,25 @@ CREATE OR REPLACE VIEW public.users AS
 GRANT SELECT ON public.users TO hystepper;
 GRANT ALL ON ALL TABLES IN SCHEMA auth TO hystepper;
 ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO hystepper;
+
+-- Supabase-compatible API roles. PostgREST connects as `hystepper` and
+-- SET ROLEs to anon/authenticated per request; those roles are subject to RLS.
+-- The app's direct pool connection (`hystepper`) acts as the service role and
+-- bypasses RLS, matching the old service-role key semantics.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN BYPASSRLS; END IF;
+END $$;
+GRANT anon, authenticated, service_role TO hystepper;
+ALTER ROLE hystepper BYPASSRLS;
+
+-- Supabase grants full table access to the API roles and lets RLS filter rows.
+GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE hystepper IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE hystepper IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE hystepper IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;

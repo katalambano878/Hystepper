@@ -48,7 +48,10 @@ async function proxy(req: NextRequest, pathParts: string[]) {
   }
 
   const upstream = await fetch(target, init);
-  const body = await upstream.arrayBuffer();
+  // 204/205/304 must not carry a body — Response() throws otherwise
+  // (PostgREST returns 204 for updates/deletes without return=representation).
+  const bodyless = upstream.status === 204 || upstream.status === 205 || upstream.status === 304;
+  const body = bodyless ? null : await upstream.arrayBuffer();
   const out = new NextResponse(body, { status: upstream.status });
   for (const [k, v] of Object.entries(corsHeaders())) out.headers.set(k, v);
   const cr = upstream.headers.get("content-range");

@@ -113,7 +113,6 @@ export default function RootLayout({
   return (
     <html lang="en-GH">
       <head>
-        <link rel="preconnect" href="https://rwsentatgbmxlfaecnqm.supabase.co" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

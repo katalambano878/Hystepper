@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   images: {
     remotePatterns: [
       {
@@ -10,6 +11,14 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '**.supabase.in',
+      },
+      {
+        protocol: 'https',
+        hostname: 'hystepper.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.hystepper.com',
       },
       {
         protocol: 'https',

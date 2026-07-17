@@ -1,15 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import { query } from '@/server/db/pool';
 
 /**
- * Fully removes a staff member.
- *
- * Deleting only the `staff` row (as the client used to do) leaves the
- * underlying auth login account behind. That orphaned account then blocks
- * re-adding the same email later ("account already exists"), which is exactly
- * the bug this endpoint fixes. We delete the staff row AND the auth user (the
- * profile row cascades from the auth user) using the service role so RLS can't
- * silently block it.
+ * Fully removes a staff member (staff row + auth.users + profile).
  */
 export async function POST(request: Request) {
   try {
@@ -19,13 +13,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Staff id is required.' }, { status: 400 });
     }
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
-    // Look up the staff row first so we know which auth user to remove.
     const { data: staffRow, error: lookupError } = await supabaseAdmin
       .from('staff')
       .select('id, user_id, email')
@@ -40,7 +27,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Staff member not found.' }, { status: 404 });
     }
 
-    // Remove the staff row.
     const { error: deleteStaffError } = await supabaseAdmin
       .from('staff')
       .delete()
@@ -50,16 +36,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: deleteStaffError.message }, { status: 400 });
     }
 
-    // Remove the auth login account so the email is freed up for re-use.
-    // A missing/already-deleted user shouldn't fail the whole operation.
     if (staffRow.user_id) {
-      const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(staffRow.user_id);
-      if (deleteUserError && !/not found/i.test(deleteUserError.message)) {
-        return NextResponse.json(
-          { error: `Staff row removed, but login account could not be deleted: ${deleteUserError.message}` },
-          { status: 207 }
-        );
-      }
+      await query(`DELETE FROM public.profiles WHERE id = $1`, [staffRow.user_id]);
+      await query(`DELETE FROM auth.users WHERE id = $1`, [staffRow.user_id]);
     }
 
     return NextResponse.json({ success: true });

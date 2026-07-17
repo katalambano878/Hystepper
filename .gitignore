@@ -33,3 +33,8 @@ yarn-error.log*
 
 # Admin scripts & logs (may contain credentials)
 scripts/admin_creation_log*.txt
+
+.storage/
+migration-artifacts/data/
+*.pg-pw
+migration-artifacts/data/

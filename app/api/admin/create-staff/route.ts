@@ -1,5 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import {
+  createUser,
+  findUserByEmail,
+  updateUserMetadata,
+  updateUserPassword,
+} from '@/server/auth';
+import { query } from '@/server/db/pool';
 
 export async function POST(request: Request) {
   try {
@@ -13,93 +20,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 });
     }
 
-    // Use service role key to create user without email confirmation
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
     const cleanEmail = email.trim().toLowerCase();
+    let userId: string | undefined;
+    let createdFreshUser = false;
 
-    // Create auth account
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: cleanEmail,
-      password,
-      email_confirm: true, // Skip email confirmation
-      user_metadata: { full_name },
-    });
-
-    let userId = authData?.user?.id;
-    // Only auth users we create in this request may be rolled back on failure;
-    // a reused orphan account must be left intact.
-    let createdFreshUser = !authError && !!userId;
-
-    if (authError) {
-      const alreadyExists =
-        authError.message.includes('already registered') ||
-        authError.message.includes('already exists') ||
-        authError.message.toLowerCase().includes('email');
-
-      if (!alreadyExists) {
-        return NextResponse.json({ error: authError.message }, { status: 400 });
-      }
-
-      // An auth account with this email already exists. It might be an orphan
-      // left behind by an old delete that only removed the staff row. Find it,
-      // and if there's no staff row attached, repair it (reset password +
-      // metadata) and reuse it. If a staff row IS attached, it's a genuine
-      // duplicate and we reject.
-      const { data: existingProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .ilike('email', cleanEmail)
-        .maybeSingle();
-
-      const existingUserId = existingProfile?.id;
-
-      if (!existingUserId) {
-        // Email is taken in auth but we can't resolve the id to repair it.
-        return NextResponse.json({ error: 'An account with that email already exists.' }, { status: 409 });
-      }
-
+    const existing = await findUserByEmail(cleanEmail);
+    if (existing) {
       const { data: existingStaff } = await supabaseAdmin
         .from('staff')
         .select('id')
-        .eq('user_id', existingUserId)
+        .eq('user_id', existing.id)
         .maybeSingle();
 
       if (existingStaff) {
         return NextResponse.json({ error: 'A staff member with that email already exists.' }, { status: 409 });
       }
 
-      // Orphaned login account — reset its password & name, then reuse it.
-      const { error: repairError } = await supabaseAdmin.auth.admin.updateUserById(existingUserId, {
+      await updateUserPassword(existing.id, password);
+      await updateUserMetadata(existing.id, { full_name });
+      userId = existing.id;
+      createdFreshUser = false;
+    } else {
+      const user = await createUser({
+        email: cleanEmail,
         password,
         user_metadata: { full_name },
+        email_confirm: true,
       });
-      if (repairError) {
-        return NextResponse.json({ error: repairError.message }, { status: 400 });
-      }
-
-      userId = existingUserId;
-      createdFreshUser = false;
+      userId = user.id;
+      createdFreshUser = true;
     }
 
-    // Insert staff record linked to the auth user
     const { error: staffError } = await supabaseAdmin.from('staff').insert({
       user_id: userId,
-      email: email.trim().toLowerCase(),
+      email: cleanEmail,
       full_name: full_name.trim(),
       role,
       permissions,
     });
 
     if (staffError) {
-      // Roll back only if we created the auth user in this request; a reused
-      // orphan account must not be deleted as a side effect.
-      if (userId && createdFreshUser) await supabaseAdmin.auth.admin.deleteUser(userId);
-      if (staffError.message.includes('unique')) {
+      if (userId && createdFreshUser) {
+        await query(`DELETE FROM public.profiles WHERE id = $1`, [userId]);
+        await query(`DELETE FROM auth.users WHERE id = $1`, [userId]);
+      }
+      if ((staffError.message || '').includes('unique')) {
         return NextResponse.json({ error: 'A staff member with that email already exists.' }, { status: 409 });
       }
       return NextResponse.json({ error: staffError.message }, { status: 400 });

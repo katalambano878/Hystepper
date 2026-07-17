@@ -10,8 +10,21 @@ async function isMaintenanceModeEnabled(): Promise<boolean> {
     return cachedMaintenance.value;
   }
   try {
-    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/store_settings?key=eq.maintenance_mode&select=value&limit=1`;
-    const res = await fetch(url, {
+    // Prefer direct PostgREST (avoids recursive fetch through this middleware).
+    const base = (
+      process.env.POSTGREST_URL ||
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      ''
+    ).replace(/\/$/, '');
+    const url = `${base}/store_settings?key=eq.maintenance_mode&select=value&limit=1`;
+    // When base is the app origin (…/rest/v1), keep path shape:
+    const finalUrl = base.includes('/rest/v1')
+      ? `${base}/store_settings?key=eq.maintenance_mode&select=value&limit=1`
+      : base.endsWith(':3000') || base.includes('hystepper-rest')
+        ? `${base}/store_settings?key=eq.maintenance_mode&select=value&limit=1`
+        : `${base}/rest/v1/store_settings?key=eq.maintenance_mode&select=value&limit=1`;
+
+    const res = await fetch(finalUrl, {
       headers: {
         apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
@@ -19,7 +32,9 @@ async function isMaintenanceModeEnabled(): Promise<boolean> {
       cache: 'no-store',
     });
     const data: Array<{ value: string }> = await res.json();
-    const enabled = data?.[0]?.value === 'true';
+    // store_settings.value is jsonb — may arrive as boolean/string
+    const raw = data?.[0]?.value as unknown;
+    const enabled = raw === true || raw === 'true' || raw === '"true"';
     cachedMaintenance = { value: enabled, at: now };
     return enabled;
   } catch {
@@ -30,21 +45,25 @@ async function isMaintenanceModeEnabled(): Promise<boolean> {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Never gate backend gateway paths or static assets.
+  if (
+    pathname.startsWith('/rest/') ||
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/storage/') ||
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/_next/') ||
+    pathname === '/maintenance' ||
+    pathname.startsWith('/favicon') ||
+    /\.[^/]+$/.test(pathname)
+  ) {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith('/admin')) {
     const response = NextResponse.next();
     response.headers.set('X-Robots-Tag', 'noindex, nofollow');
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     return response;
-  }
-
-  if (
-    pathname === '/maintenance' ||
-    pathname.startsWith('/api/') ||
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/favicon') ||
-    /\.[^/]+$/.test(pathname)
-  ) {
-    return NextResponse.next();
   }
 
   const inMaintenance = await isMaintenanceModeEnabled();

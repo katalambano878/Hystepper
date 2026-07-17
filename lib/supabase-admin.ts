@@ -1,34 +1,22 @@
-import { createClient } from '@supabase/supabase-js';
-
 /**
- * Server-side Supabase client with the service role key.
- * ONLY import this in API routes / server actions — never in client
- * components. It bypasses RLS, so always authorize the caller first.
- *
- * Exported as a lazy singleton so hot-reload and serverless cold-starts
- * don't spin up dozens of clients.
+ * Server-side admin client — plain Postgres via the supabase-js compatibility
+ * layer (bypasses RLS the same way the old service-role key did).
+ * ONLY import from API routes / server components / server actions.
  */
+import { createClient, type SupabaseCompatClient } from "@/server/db/supabase-compat";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let _admin: SupabaseCompatClient | null = null;
 
-if (!supabaseUrl) {
-    // Fail loud at import time in dev — in prod Vercel surfaces the env too.
-    console.error('[supabaseAdmin] Missing NEXT_PUBLIC_SUPABASE_URL');
-}
-if (!supabaseServiceKey) {
-    console.error(
-        '[supabaseAdmin] CRITICAL: Missing SUPABASE_SERVICE_ROLE_KEY — privileged operations will fail'
-    );
+export function getSupabaseAdmin(): SupabaseCompatClient {
+  if (!_admin) _admin = createClient();
+  return _admin;
 }
 
-export const supabaseAdmin = createClient(
-    supabaseUrl || '',
-    supabaseServiceKey || '',
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-        },
-    }
-);
+/** Lazy singleton matching the previous `supabaseAdmin` export shape. */
+export const supabaseAdmin = new Proxy({} as SupabaseCompatClient, {
+  get(_target, prop) {
+    const client = getSupabaseAdmin();
+    const value = (client as any)[prop];
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

@@ -6,7 +6,6 @@ import Footer from '@/components/Footer';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { CMSProvider } from '@/context/CMSContext';
 
-const CookieConsent = dynamic(() => import('@/components/CookieConsent'), { ssr: false });
 const WhatsAppButton = dynamic(() => import('@/components/WhatsAppButton'), { ssr: false });
 const OfflineIndicator = dynamic(() => import('@/components/OfflineIndicator'), { ssr: false });
 const TrackingScripts = dynamic(() => import('@/components/TrackingScripts'), { ssr: false });
@@ -25,7 +24,6 @@ export default function StoreLayout({
         <Footer />
         <MobileBottomNav />
         <OfflineIndicator />
-        <CookieConsent />
         <WhatsAppButton />
         <TrackingScripts />
         <WelcomePopup />

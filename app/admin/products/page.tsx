@@ -51,7 +51,8 @@ export default function ProductsPage() {
           product_images(url, position)
         `)
         .not('product_images.url', 'ilike', 'data:video%')
-        .limit(1, { foreignTable: 'product_images' });
+        .order('position', { foreignTable: 'product_images', ascending: true })
+        .limit(3, { foreignTable: 'product_images' });
 
       // Apply sorting
       if (sortBy === 'newest') query = query.order('created_at', { ascending: false });
@@ -69,8 +70,10 @@ export default function ProductsPage() {
         const transformedProducts = data.map(p => ({
           ...p,
           category: p.categories?.name || 'Uncategorized',
-          image: p.product_images?.find((img: any) => img.position === 0)?.url
-            || p.product_images?.[0]?.url
+          // Skip videos — an .mp4 can't render inside an image tag
+          image: (p.product_images || [])
+            .filter((img: any) => img?.url && !/\.(mp4|webm|ogg|mov)$/i.test(img.url) && !img.url.startsWith('data:video'))
+            .sort((a: any, b: any) => (a.position ?? 99) - (b.position ?? 99))[0]?.url
             || '/placeholder-product.png',
           variantsCount: p.product_variants?.[0]?.count || 0,
           stock: p.quantity,

@@ -120,7 +120,7 @@ export default function POSPage() {
                 .select(`
                     id, name, price, quantity, sku,
                     categories(name),
-                    product_images(url),
+                    product_images(url, position),
                     product_variants(id, name, sku, price, quantity, option1, option2, image_url)
                 `)
                 .order('name');
@@ -132,7 +132,11 @@ export default function POSPage() {
                     price: p.price,
                     quantity: p.quantity,
                     category: p.categories?.name || 'Uncategorized',
-                    image: p.product_images?.[0]?.url || '/placeholder-product.png',
+                    // First non-video image by position — videos can't render in an img tag
+                    image: (p.product_images || [])
+                        .filter((img: any) => img?.url && !/\.(mp4|webm|ogg|mov)$/i.test(img.url) && !img.url.startsWith('data:video'))
+                        .sort((a: any, b: any) => (a.position ?? 99) - (b.position ?? 99))[0]?.url
+                        || '/placeholder-product.png',
                     sku: p.sku,
                     variants: (p.product_variants || []).map((v: any) => ({
                         id: v.id,

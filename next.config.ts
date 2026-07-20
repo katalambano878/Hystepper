@@ -36,6 +36,21 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Auth route aliases. The real pages live under /auth/*, but links (header,
+  // admin-configured CTAs like the welcome popup) sometimes use the shorter
+  // conventional paths. Redirect them so none dead-end on a 404.
+  async redirects() {
+    return [
+      { source: "/sign-up", destination: "/auth/signup", permanent: false },
+      { source: "/signup", destination: "/auth/signup", permanent: false },
+      { source: "/register", destination: "/auth/signup", permanent: false },
+      { source: "/sign-in", destination: "/auth/login", permanent: false },
+      { source: "/signin", destination: "/auth/login", permanent: false },
+      { source: "/login", destination: "/auth/login", permanent: false },
+      { source: "/forgot-password", destination: "/auth/forgot-password", permanent: false },
+      { source: "/reset-password", destination: "/auth/reset-password", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

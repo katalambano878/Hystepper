@@ -34,6 +34,10 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  .animate-marquee {
+    animation: marquee var(--marquee-duration, 18s) linear infinite;
+  }
 }
 
 @keyframes fadeInUp {
@@ -71,5 +75,25 @@
   }
   to {
     transform: translateX(0);
+  }
+}
+
+/* Continuous right-to-left ticker; content is duplicated so -50% loops seamlessly */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
   }
 }

@@ -1292,6 +1292,7 @@ export default function SettingsPage() {
                                                 type="text"
                                                 value={settings.welcome_popup_button_link || ''}
                                                 onChange={(e) => updateSetting('welcome_popup_button_link', e.target.value)}
+                                                onBlur={(e) => updateSetting('welcome_popup_button_link', e.target.value.trim())}
                                                 placeholder="/shop"
                                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                                             />

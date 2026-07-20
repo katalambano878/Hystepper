@@ -148,6 +148,17 @@ export default function ProductEditor({ productId }: { productId: string }) {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
 
+  // Allow deep-linking to a specific editor tab, e.g. ?tab=history from the
+  // inventory page's stock-history shortcut.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    if (!requested) return;
+    const valid = ['general', 'pricing', 'variants', 'images', 'seo', 'history'];
+    if (valid.includes(requested) && !(requested === 'history' && productId === 'new')) {
+      setActiveTab(requested);
+    }
+  }, [productId]);
+
   // Product State
   const [productName, setProductName] = useState('');
   const [category, setCategory] = useState('');
@@ -1760,7 +1771,7 @@ export default function ProductEditor({ productId }: { productId: string }) {
               {/* Image Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {images.filter(img => img?.url).map((image, index) => {
-                  const isVideo = image.url.startsWith('data:video') || image.url.match(/\.(mp4|webm|ogg)$/i);
+                  const isVideo = image.url.startsWith('data:video') || image.url.match(/\.(mp4|webm|ogg|mov)$/i);
                   return (
                     <div key={index} className="relative group">
                       <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-200">

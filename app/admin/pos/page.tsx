@@ -214,7 +214,9 @@ export default function POSPage() {
                     variantId: variant.id,
                     name: product.name,
                     variantLabel: label,
-                    price: variant.price,
+                    // Variants that were never individually priced can carry a
+                    // stale/zero price — never charge less than intended.
+                    price: Number(variant.price) > 0 ? Number(variant.price) : Number(product.price) || 0,
                     image: variant.image_url || product.image,
                     sku: variant.sku,
                     stock: variant.quantity,

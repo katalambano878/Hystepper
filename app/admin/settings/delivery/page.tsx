@@ -396,7 +396,8 @@ export default function DeliverySettingsPage() {
             )}
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px]">
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Region Name</th>
@@ -406,7 +407,7 @@ export default function DeliverySettingsPage() {
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Transport</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Type</th>
                             <th className="text-left py-4 px-6 font-semibold text-gray-700">Status</th>
-                            <th className="text-left py-4 px-6 font-semibold text-gray-700">Actions</th>
+                            <th className="text-left py-4 px-6 font-semibold text-gray-700 sticky right-0 bg-gray-50 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -458,17 +459,21 @@ export default function DeliverySettingsPage() {
                                         <span className="text-gray-400 text-sm font-medium">Inactive</span>
                                     )}
                                 </td>
-                                <td className="py-4 px-6">
+                                <td className="py-4 px-6 sticky right-0 bg-white shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]">
                                     <div className="flex space-x-2">
                                         <button
                                             onClick={() => handleEdit(zone)}
                                             className="p-2 hover:bg-blue-50 text-blue-600 rounded transition"
+                                            title="Edit zone"
+                                            aria-label={`Edit ${zone.name}`}
                                         >
                                             <i className="ri-pencil-line"></i>
                                         </button>
                                         <button
                                             onClick={() => handleDelete(zone.id)}
                                             className="p-2 hover:bg-red-50 text-red-600 rounded transition"
+                                            title="Delete zone"
+                                            aria-label={`Delete ${zone.name}`}
                                         >
                                             <i className="ri-delete-bin-line"></i>
                                         </button>
@@ -478,6 +483,7 @@ export default function DeliverySettingsPage() {
                         ))}
                     </tbody>
                 </table>
+                </div>
                 {zones.length === 0 && (
                     <div className="p-8 text-center text-gray-500">
                         No delivery zones found. Add one to get started.

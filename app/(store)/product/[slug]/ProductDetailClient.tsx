@@ -567,7 +567,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         ? colorOverrideImage.trim()
                         : (images[selectedImage] ?? fallback);
                       const safeSrc = typeof currentMedia === 'string' && currentMedia.trim() ? currentMedia.trim() : fallback;
-                      const isVideo = safeSrc.startsWith('data:video') || /\.(mp4|webm|ogg)$/i.test(safeSrc);
+                      const isVideo = safeSrc.startsWith('data:video') || /\.(mp4|webm|ogg|mov)$/i.test(safeSrc);
 
                       if (isVideo) {
                         return (
@@ -649,7 +649,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   {Array.isArray(product.images) && product.images.length > 1 && (
                     <div className="grid grid-cols-5 gap-3">
                       {product.images.filter((img: any) => img).map((image: string, index: number) => {
-                        const isVideo = typeof image === 'string' && (image.startsWith('data:video') || /\.(mp4|webm|ogg)$/i.test(image));
+                        const isVideo = typeof image === 'string' && (image.startsWith('data:video') || /\.(mp4|webm|ogg|mov)$/i.test(image));
                         const isSelected = !colorOverrideImage && selectedImage === index;
                         return (
                           <button

@@ -25,7 +25,8 @@ export default function WelcomePopup() {
     const message = getSetting('welcome_popup_message');
     const image = getSetting('welcome_popup_image');
     const buttonText = getSetting('welcome_popup_button_text');
-    const buttonLink = getSetting('welcome_popup_button_link') || '/shop';
+    // Trim — a pasted trailing space turns the URL into e.g. "/auth/signup%20" (404)
+    const buttonLink = (getSetting('welcome_popup_button_link') || '').trim() || '/shop';
     const delaySeconds = Math.max(0, Number(getSetting('welcome_popup_delay_seconds')) || 3);
     const frequency = getSetting('welcome_popup_frequency') || 'once';
 

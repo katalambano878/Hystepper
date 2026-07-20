@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
@@ -18,6 +18,9 @@ export default function AnnouncementBar() {
     const [banners, setBanners] = useState<Banner[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+    const [shouldScroll, setShouldScroll] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         fetchBanners();
@@ -88,6 +91,20 @@ export default function AnnouncementBar() {
 
     const visibleBanners = banners.filter(b => !dismissed.has(b.id));
 
+    // Scroll (marquee) whenever the banner text is too wide to fit — this is
+    // what makes long announcements move on mobile like they used to.
+    useEffect(() => {
+        const check = () => {
+            const container = containerRef.current;
+            const content = contentRef.current;
+            if (!container || !content) return;
+            setShouldScroll(content.scrollWidth > container.clientWidth);
+        };
+        check();
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, [banners, currentIndex, dismissed]);
+
     if (visibleBanners.length === 0) {
         // Show default banner if no custom banners
         return (
@@ -99,33 +116,60 @@ export default function AnnouncementBar() {
 
     const currentBanner = visibleBanners[currentIndex % visibleBanners.length];
 
+    const bannerContent = (hidden = false) => (
+        <span
+            aria-hidden={hidden}
+            className="inline-flex items-center gap-4 whitespace-nowrap"
+        >
+            <span className="font-medium">
+                {currentBanner.title}
+                {currentBanner.subtitle && (
+                    <span className="opacity-90 ml-2">{currentBanner.subtitle}</span>
+                )}
+            </span>
+            {currentBanner.button_text && currentBanner.button_url && (
+                <Link
+                    href={currentBanner.button_url}
+                    tabIndex={hidden ? -1 : undefined}
+                    className="px-3 py-1 rounded-full text-xs font-semibold transition-opacity hover:opacity-80"
+                    style={{
+                        backgroundColor: currentBanner.text_color,
+                        color: currentBanner.background_color,
+                    }}
+                >
+                    {currentBanner.button_text}
+                </Link>
+            )}
+        </span>
+    );
+
     return (
         <div
-            className="py-2 px-4 text-center text-sm relative transition-colors duration-500"
+            className="py-2 px-4 text-center text-sm relative transition-colors duration-500 overflow-hidden"
             style={{
                 backgroundColor: currentBanner.background_color,
                 color: currentBanner.text_color,
             }}
         >
-            <div key={currentBanner.id} className="max-w-7xl mx-auto flex items-center justify-center gap-4 animate-fade-in">
-                <p className="font-medium">
-                    {currentBanner.title}
-                    {currentBanner.subtitle && (
-                        <span className="opacity-90 ml-2">{currentBanner.subtitle}</span>
-                    )}
-                </p>
+            <div ref={containerRef} className="max-w-7xl mx-auto overflow-hidden pl-8 pr-8">
+                {/* Invisible copy used only to measure whether the text overflows */}
+                <div ref={contentRef} aria-hidden className="absolute invisible whitespace-nowrap h-0 overflow-hidden">
+                    {bannerContent(true)}
+                </div>
 
-                {currentBanner.button_text && currentBanner.button_url && (
-                    <Link
-                        href={currentBanner.button_url}
-                        className="px-3 py-1 rounded-full text-xs font-semibold transition-opacity hover:opacity-80"
-                        style={{
-                            backgroundColor: currentBanner.text_color,
-                            color: currentBanner.background_color,
-                        }}
+                {shouldScroll ? (
+                    <div
+                        key={`${currentBanner.id}-marquee`}
+                        className="flex w-max animate-marquee"
+                        style={{ ['--marquee-duration' as any]: `${Math.max(14, Math.round((currentBanner.title.length + (currentBanner.subtitle?.length || 0)) / 3))}s` }}
                     >
-                        {currentBanner.button_text}
-                    </Link>
+                        <span className="pr-16">{bannerContent()}</span>
+                        <span className="pr-16">{bannerContent(true)}</span>
+                    </div>
+                ) : (
+                    <div key={currentBanner.id} className="flex items-center justify-center gap-4 animate-fade-in">
+                        {bannerContent()}
+                    </div>
                 )}
             </div>
 

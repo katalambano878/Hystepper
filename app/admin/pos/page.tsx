@@ -132,10 +132,11 @@ export default function POSPage() {
                     price: p.price,
                     quantity: p.quantity,
                     category: p.categories?.name || 'Uncategorized',
-                    // First non-video image by position — videos can't render in an img tag
+                    // First non-video gallery image, else first colour-variant photo
                     image: (p.product_images || [])
                         .filter((img: any) => img?.url && !/\.(mp4|webm|ogg|mov)$/i.test(img.url) && !img.url.startsWith('data:video'))
                         .sort((a: any, b: any) => (a.position ?? 99) - (b.position ?? 99))[0]?.url
+                        || (p.product_variants || []).find((v: any) => v?.image_url && !/\.(mp4|webm|ogg|mov)$/i.test(v.image_url))?.image_url
                         || '/placeholder-product.png',
                     sku: p.sku,
                     variants: (p.product_variants || []).map((v: any) => ({

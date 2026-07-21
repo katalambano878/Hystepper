@@ -47,7 +47,7 @@ export default function ProductsPage() {
         .select(`
           *,
           categories(name),
-          product_variants(count),
+          product_variants(image_url),
           product_images(url, position)
         `)
         .not('product_images.url', 'ilike', 'data:video%')
@@ -70,12 +70,16 @@ export default function ProductsPage() {
         const transformedProducts = data.map(p => ({
           ...p,
           category: p.categories?.name || 'Uncategorized',
-          // Skip videos — an .mp4 can't render inside an image tag
+          // Prefer gallery photos; fall back to a colour-variant photo when the
+          // product gallery was never filled (common for older bag listings).
           image: (p.product_images || [])
             .filter((img: any) => img?.url && !/\.(mp4|webm|ogg|mov)$/i.test(img.url) && !img.url.startsWith('data:video'))
             .sort((a: any, b: any) => (a.position ?? 99) - (b.position ?? 99))[0]?.url
+            || (p.product_variants || []).find((v: any) => v?.image_url && !/\.(mp4|webm|ogg|mov)$/i.test(v.image_url))?.image_url
             || '/placeholder-product.png',
-          variantsCount: p.product_variants?.[0]?.count || 0,
+          variantsCount: Array.isArray(p.product_variants)
+            ? (p.product_variants[0]?.count ?? p.product_variants.length)
+            : 0,
           stock: p.quantity,
           sales: 0, // Placeholder for now
           rating: p.rating_avg || 0

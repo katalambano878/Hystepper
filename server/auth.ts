@@ -129,20 +129,25 @@ export async function createUser(opts: {
   const id = crypto.randomUUID();
   const hash = hashPassword(opts.password);
   const meta = opts.user_metadata || {};
-  const confirmed = opts.email_confirm !== false ? new Date().toISOString() : null;
+  const autoConfirm = opts.email_confirm !== false;
+  const confirmed = autoConfirm ? new Date().toISOString() : null;
+  const confirmationToken = autoConfirm ? null : randomBytes(32).toString("hex");
   const { rows } = await query<any>(
     `INSERT INTO auth.users (
       id, instance_id, aud, role, email, encrypted_password,
-      email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+      email_confirmed_at, confirmation_token, confirmation_sent_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
     ) VALUES (
       $1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-      $2, $3, $4, $5::jsonb, $6::jsonb, now(), now()
+      $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, now(), now()
     ) RETURNING *`,
     [
       id,
       opts.email.trim().toLowerCase(),
       hash,
       confirmed,
+      confirmationToken,
+      confirmationToken ? new Date().toISOString() : null,
       JSON.stringify({ provider: "email", providers: ["email"] }),
       JSON.stringify(meta),
     ]
@@ -155,6 +160,60 @@ export async function createUser(opts: {
     [id, opts.email.trim().toLowerCase(), meta.full_name || [meta.first_name, meta.last_name].filter(Boolean).join(" ") || null]
   );
   return rowToUser(rows[0]);
+}
+
+export async function getConfirmationToken(userId: string): Promise<string | null> {
+  const { rows } = await query<{ confirmation_token: string | null }>(
+    `SELECT confirmation_token FROM auth.users WHERE id = $1 LIMIT 1`,
+    [userId]
+  );
+  return rows[0]?.confirmation_token || null;
+}
+
+/** Issue (or rotate) a signup confirmation token for an unconfirmed user. */
+export async function setConfirmationToken(email: string): Promise<string | null> {
+  const row = await findUserByEmail(email);
+  if (!row || row.email_confirmed_at) return null;
+  const token = randomBytes(32).toString("hex");
+  await query(
+    `UPDATE auth.users
+     SET confirmation_token = $1, confirmation_sent_at = now(), updated_at = now()
+     WHERE id = $2`,
+    [token, row.id]
+  );
+  return token;
+}
+
+export async function findUserByConfirmationToken(token: string) {
+  const { rows } = await query<any>(
+    `SELECT * FROM auth.users
+     WHERE confirmation_token = $1
+       AND deleted_at IS NULL
+       AND email_confirmed_at IS NULL
+     LIMIT 1`,
+    [token]
+  );
+  return rows[0] || null;
+}
+
+export async function confirmUserEmail(userId: string): Promise<AppUser | null> {
+  const { rows } = await query<any>(
+    `UPDATE auth.users
+     SET email_confirmed_at = COALESCE(email_confirmed_at, now()),
+         confirmation_token = '',
+         confirmation_sent_at = NULL,
+         updated_at = now()
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING *`,
+    [userId]
+  );
+  return rows[0] ? rowToUser(rows[0]) : null;
+}
+
+export function emailConfirmRequired(): boolean {
+  // Default ON for storefront signups. Set AUTH_REQUIRE_EMAIL_CONFIRM=false to disable.
+  const v = (process.env.AUTH_REQUIRE_EMAIL_CONFIRM ?? "true").toLowerCase();
+  return v !== "false" && v !== "0" && v !== "off";
 }
 
 export async function updateUserPassword(userId: string, password: string) {

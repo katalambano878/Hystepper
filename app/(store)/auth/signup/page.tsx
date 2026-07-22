@@ -78,7 +78,15 @@ export default function SignupPage() {
       if (error) throw error;
 
       if (data.user) {
-        // Fire-and-forget welcome notification.
+        // Email verification is required — signUp returns no usable session
+        // until the customer clicks the confirmation link we emailed them.
+        if (!data.session || !data.user.email_confirmed_at) {
+          setConfirmationSent(true);
+          setIsLoading(false);
+          return;
+        }
+
+        // Only reached if email confirmation is disabled server-side.
         fetch('/api/notifications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -88,23 +96,6 @@ export default function SignupPage() {
           }),
         }).catch(err => console.error('Welcome notification error:', err));
 
-        // We want signup to feel instant — no email verification step.
-        // If the project still has email-confirmations on, signUp returns
-        // no session; we explicitly sign in with the same credentials so
-        // the customer lands straight on /account either way.
-        if (!data.session) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: formData.email,
-            password: formData.password,
-          });
-          if (signInError) {
-            // Email confirmation is required — show the customer a clean,
-            // friendly message (never internal/developer instructions).
-            setConfirmationSent(true);
-            setIsLoading(false);
-            return;
-          }
-        }
         router.push('/account');
         router.refresh();
       }
@@ -137,12 +128,35 @@ export default function SignupPage() {
             </p>
             <Link
               href="/auth/login"
-              className="inline-block bg-gold-600 hover:bg-gold-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
+              className="inline-block bg-gray-900 hover:bg-gray-800 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
             >
               Go to Sign In
             </Link>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
+                  await fetch(`${base}/auth/v1/resend`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+                    },
+                    body: JSON.stringify({ email: formData.email, type: 'signup' }),
+                  });
+                  setAuthError('');
+                  alert('A new confirmation email has been sent. Please check your inbox (and spam).');
+                } catch {
+                  alert('Could not resend right now. Please try again in a moment.');
+                }
+              }}
+              className="block w-full mt-4 text-sm text-emerald-700 hover:text-emerald-900 font-medium underline"
+            >
+              Resend confirmation email
+            </button>
             <p className="text-sm text-gray-500 mt-4">
-              Didn&apos;t get the email? Check your spam folder or try signing in — you may already be verified.
+              Didn&apos;t get the email? Check your spam folder.
             </p>
           </div>
         ) : (

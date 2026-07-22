@@ -56,9 +56,41 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      setAuthError(error.message || 'Failed to sign in. Please check your credentials.');
+      const msg = String(error?.message || '');
+      const code = String(error?.code || error?.error || '');
+      if (
+        code === 'email_not_confirmed' ||
+        /email not confirmed|confirm your email/i.test(msg)
+      ) {
+        setAuthError(
+          'Please confirm your email before signing in. Check your inbox for the confirmation link, or use “Resend confirmation” below.'
+        );
+      } else {
+        setAuthError(msg || 'Failed to sign in. Please check your credentials.');
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const resendConfirmation = async () => {
+    if (!formData.email) {
+      setAuthError('Enter your email above, then tap Resend confirmation.');
+      return;
+    }
+    try {
+      const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
+      await fetch(`${base}/auth/v1/resend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+        },
+        body: JSON.stringify({ email: formData.email, type: 'signup' }),
+      });
+      setAuthError('If this account still needs confirmation, a new email has been sent.');
+    } catch {
+      setAuthError('Could not resend confirmation right now. Please try again shortly.');
     }
   };
 
@@ -73,7 +105,16 @@ export default function LoginPage() {
         <div className="bg-white rounded-xl shadow-sm p-8">
           {authError && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-              {authError}
+              <p>{authError}</p>
+              {/confirm/i.test(authError) && (
+                <button
+                  type="button"
+                  onClick={resendConfirmation}
+                  className="mt-2 underline font-medium text-red-800 hover:text-red-950"
+                >
+                  Resend confirmation email
+                </button>
+              )}
             </div>
           )}
 

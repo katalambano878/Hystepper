@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  confirmUserEmail,
   createUser,
+  emailConfirmRequired,
+  findUserByConfirmationToken,
   findUserByEmail,
   findUserById,
   findUserByRecoveryToken,
+  getConfirmationToken,
   mintAccessToken,
   rowToUser,
   sessionPayload,
+  setConfirmationToken,
   setRecoveryToken,
   touchSignIn,
   updateUserMetadata,
@@ -14,6 +19,11 @@ import {
   verifyAccessToken,
   verifyPassword,
 } from "@/server/auth";
+import {
+  buildConfirmUrl,
+  confirmationEmailHtml,
+  sendAuthEmail,
+} from "@/server/auth-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +49,20 @@ function bearer(req: NextRequest): string | null {
   return m ? m[1] : null;
 }
 
+async function sendSignupConfirmation(user: { id: string; email: string; user_metadata?: Record<string, any> }) {
+  let token = await getConfirmationToken(user.id);
+  if (!token) {
+    token = await setConfirmationToken(user.email);
+  }
+  if (!token) return false;
+  const firstName = user.user_metadata?.first_name || user.user_metadata?.full_name?.split?.(" ")?.[0];
+  return sendAuthEmail({
+    to: user.email,
+    subject: "Welcome to Hy_stepper — confirm your email",
+    html: confirmationEmailHtml(buildConfirmUrl(token), firstName),
+  });
+}
+
 async function handleToken(req: NextRequest) {
   const url = new URL(req.url);
   const grant = url.searchParams.get("grant_type") || "";
@@ -58,8 +82,12 @@ async function handleToken(req: NextRequest) {
     if (!row || !(await verifyPassword(row, password))) {
       return err("Invalid login credentials", 400, "invalid_grant");
     }
-    if (!row.email_confirmed_at && process.env.AUTH_REQUIRE_EMAIL_CONFIRM === "true") {
-      return err("Email not confirmed", 400, "email_not_confirmed");
+    if (!row.email_confirmed_at && emailConfirmRequired()) {
+      return err(
+        "Please confirm your email before signing in. Check your inbox for the confirmation link.",
+        400,
+        "email_not_confirmed"
+      );
     }
     const user = rowToUser(row);
     await touchSignIn(user.id);
@@ -90,12 +118,36 @@ async function handleSignup(req: NextRequest) {
   if (!email || !password) return err("Email and password required");
   const existing = await findUserByEmail(email);
   if (existing) return err("User already registered", 400, "user_already_exists");
+
+  const requireConfirm = emailConfirmRequired();
   const user = await createUser({
     email,
     password,
     user_metadata: body.data || body.user_metadata || {},
-    email_confirm: true, // auto-confirm for storefront reliability; emails optional
+    email_confirm: !requireConfirm,
   });
+
+  if (requireConfirm) {
+    await sendSignupConfirmation(user);
+    // GoTrue-compatible: return the user but no session until they confirm.
+    return json({
+      id: user.id,
+      aud: user.aud,
+      role: user.role,
+      email: user.email,
+      email_confirmed_at: null,
+      phone: user.phone,
+      confirmed_at: null,
+      last_sign_in_at: null,
+      app_metadata: user.app_metadata,
+      user_metadata: user.user_metadata,
+      identities: [],
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+      is_anonymous: false,
+    });
+  }
+
   const access = await mintAccessToken(user);
   return json(await sessionPayload(user, access));
 }
@@ -136,19 +188,10 @@ async function handleRecover(req: NextRequest) {
     try {
       const base = process.env.NEXT_PUBLIC_APP_URL || "https://hystepper.com";
       const link = `${base}/auth/reset-password#access_token=${token}&type=recovery`;
-      // Fire-and-forget style; ignore failures for response
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: process.env.AUTH_EMAIL_FROM || "Hy_stepper <noreply@hystepper.com>",
-          to: [email],
-          subject: "Reset your Hy_stepper password",
-          html: `<p>Reset your password:</p><p><a href="${link}">${link}</a></p>`,
-        }),
+      await sendAuthEmail({
+        to: email,
+        subject: "Reset your Hy_stepper password",
+        html: `<p>Reset your password:</p><p><a href="${link}">${link}</a></p>`,
       });
     } catch {
       /* ignore */
@@ -158,10 +201,20 @@ async function handleRecover(req: NextRequest) {
 }
 
 async function handleVerify(req: NextRequest) {
-  // Password recovery completion via token_hash / type=recovery
   const body = await req.json().catch(() => ({}));
   const token = String(body.token || body.token_hash || "");
   const type = String(body.type || "");
+
+  if ((type === "signup" || type === "email") && token) {
+    const row = await findUserByConfirmationToken(token);
+    if (!row) return err("Invalid or expired confirmation link", 401, "otp_expired");
+    const user = await confirmUserEmail(row.id);
+    if (!user) return err("Could not confirm email", 400);
+    const access = await mintAccessToken(user);
+    await touchSignIn(user.id);
+    return json(await sessionPayload(user, access));
+  }
+
   if (type === "recovery" && token) {
     const row = await findUserByRecoveryToken(token);
     if (!row) return err("Invalid recovery token", 401);
@@ -170,6 +223,20 @@ async function handleVerify(req: NextRequest) {
     return json(await sessionPayload(user, access));
   }
   return err("Unsupported verify request");
+}
+
+/** Resend signup confirmation email. Always returns success to avoid enumeration. */
+async function handleResend(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  const email = String(body.email || "").trim().toLowerCase();
+  const type = String(body.type || "signup");
+  if (email && type === "signup") {
+    const row = await findUserByEmail(email);
+    if (row && !row.email_confirmed_at) {
+      await sendSignupConfirmation(rowToUser(row));
+    }
+  }
+  return json({ message: "If that email needs confirmation, a new link was sent" });
 }
 
 async function handleLogout() {
@@ -185,6 +252,28 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path?: stri
   const p = path.join("/");
   if (p === "user") return handleUser(req);
   if (p === "health") return json({ version: "hystepper-auth", name: "GoTrue" });
+
+  // Email-click style: /auth/v1/verify?token=...&type=signup&redirect_to=...
+  if (p === "verify") {
+    const url = new URL(req.url);
+    const token = url.searchParams.get("token") || url.searchParams.get("token_hash") || "";
+    const type = url.searchParams.get("type") || "signup";
+    const redirectTo =
+      url.searchParams.get("redirect_to") ||
+      `${process.env.NEXT_PUBLIC_APP_URL || "https://hystepper.com"}/auth/login?confirmed=1`;
+
+    if ((type === "signup" || type === "email") && token) {
+      const row = await findUserByConfirmationToken(token);
+      if (row) {
+        await confirmUserEmail(row.id);
+        return NextResponse.redirect(redirectTo);
+      }
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL || "https://hystepper.com"}/auth/login?error=invalid_confirmation`
+      );
+    }
+  }
+
   return err(`Not found: ${p}`, 404);
 }
 
@@ -195,6 +284,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ path?: str
   if (p === "signup") return handleSignup(req);
   if (p === "recover") return handleRecover(req);
   if (p === "verify") return handleVerify(req);
+  if (p === "resend") return handleResend(req);
   if (p === "logout") return handleLogout();
   return err(`Not found: ${p}`, 404);
 }

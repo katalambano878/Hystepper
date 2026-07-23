@@ -24,11 +24,19 @@ export default function PWAInstaller() {
     window.addEventListener('appinstalled', () => setIsInstalled(true));
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js')
-        .then(registration => {
-          console.log('Service Worker registered:', registration);
+      navigator.serviceWorker
+        .register('/service-worker.js')
+        .then(async (registration) => {
+          // Force an update check so phones pick up cache-busting SW builds.
+          try {
+            await registration.update();
+          } catch {
+            /* ignore */
+          }
+          registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
+          navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_CACHE' });
         })
-        .catch(error => {
+        .catch((error) => {
           console.error('Service Worker registration failed:', error);
         });
     }

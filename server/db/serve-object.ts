@@ -17,10 +17,16 @@ export async function serveStorageObject(
   }
 
   const { fullPath, size, contentType } = meta;
+  const isVideo = contentType.startsWith("video/");
+  // Videos must not be "immutable" — phones that cached the old non-Range
+  // responses would keep a broken player forever. Images can stay long-lived.
+  const cacheControl = isVideo
+    ? "public, max-age=300, must-revalidate"
+    : "public, max-age=31536000, immutable";
   const baseHeaders: Record<string, string> = {
     "Content-Type": contentType,
     "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=31536000, immutable",
+    "Cache-Control": cacheControl,
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Expose-Headers": "Accept-Ranges, Content-Range, Content-Length, Content-Type",
   };

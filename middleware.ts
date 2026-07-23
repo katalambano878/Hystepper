@@ -74,7 +74,15 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  // HTML document navigations should always revalidate so phones don't keep
+  // stale product/page shells after a deploy.
+  const response = NextResponse.next();
+  const accept = request.headers.get('accept') || '';
+  if (accept.includes('text/html')) {
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+  }
+  return response;
 }
 
 export const config = {

@@ -569,6 +569,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       : (images[selectedImage] ?? fallback);
                     const safeSrc = typeof currentMedia === 'string' && currentMedia.trim() ? currentMedia.trim() : fallback;
                     const isVideo = safeSrc.startsWith('data:video') || /\.(mp4|webm|ogg|mov)$/i.test(safeSrc);
+                    // Bust long-lived browser caches of broken pre-Range video responses.
+                    const videoSrc = (() => {
+                      if (!isVideo || safeSrc.startsWith('data:')) return safeSrc;
+                      try {
+                        const u = new URL(safeSrc, 'https://hystepper.com');
+                        u.searchParams.set('v', 'range-1');
+                        return u.toString();
+                      } catch {
+                        return safeSrc;
+                      }
+                    })();
 
                     return (
                   <div
@@ -591,8 +602,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                           ) || undefined;
                         return (
                           <video
-                            key={safeSrc}
-                            src={safeSrc}
+                            key={videoSrc}
+                            src={videoSrc}
                             className="w-full h-full object-cover bg-black"
                             controls
                             playsInline
@@ -600,7 +611,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             controlsList="nodownload"
                             poster={poster}
                           >
-                            <source src={safeSrc} type="video/mp4" />
+                            <source src={videoSrc} type="video/mp4" />
                           </video>
                         );
                       }

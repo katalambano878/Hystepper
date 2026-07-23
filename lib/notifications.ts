@@ -232,7 +232,10 @@ function formatPhoneNumber(phone: string): string {
 export async function sendSMS({ to, message }: { to: string; message: string }) {
     // Official Moolre SMS auth is X-API-VASKEY only (payment USER/PUBKEY must not
     // be mixed in — that returns AIN01 Authentication Error).
-    const smsVasKey = (process.env.MOOLRE_SMS_API_KEY || '').trim();
+    // Coolify sometimes stores JWT env values wrapped in quotes; strip them.
+    const smsVasKey = (process.env.MOOLRE_SMS_API_KEY || '')
+        .trim()
+        .replace(/^['"]+|['"]+$/g, '');
     if (!smsVasKey) {
         console.warn('[SMS] Missing MOOLRE_SMS_API_KEY. Skipping.');
         return { success: false, message: 'SMS credentials missing', data: null };

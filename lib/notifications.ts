@@ -230,25 +230,16 @@ function formatPhoneNumber(phone: string): string {
 }
 
 export async function sendSMS({ to, message }: { to: string; message: string }) {
-    // Moolre SMS API can reuse the payment credentials, or use a dedicated
-    // SMS user + pubkey. If MOOLRE_SMS_API_USER is set, its pubkey must be
-    // paired with it (no mix-and-match with the payment pubkey).
-    const isCustomSmsUser = !!process.env.MOOLRE_SMS_API_USER;
-    const smsUser = process.env.MOOLRE_SMS_API_USER || process.env.MOOLRE_API_USER;
-    const smsVasKey = process.env.MOOLRE_SMS_API_KEY || process.env.MOOLRE_API_KEY;
-
-    let smsPubKey = process.env.MOOLRE_SMS_API_PUBKEY;
-    if (!isCustomSmsUser) {
-        smsPubKey = smsPubKey || process.env.MOOLRE_API_PUBKEY;
-    }
-
-    if (!smsVasKey || !smsUser) {
-        console.warn('[SMS] Missing Moolre credentials (VASKEY or USER). Skipping.');
+    // Official Moolre SMS auth is X-API-VASKEY only (payment USER/PUBKEY must not
+    // be mixed in — that returns AIN01 Authentication Error).
+    const smsVasKey = (process.env.MOOLRE_SMS_API_KEY || '').trim();
+    if (!smsVasKey) {
+        console.warn('[SMS] Missing MOOLRE_SMS_API_KEY. Skipping.');
         return { success: false, message: 'SMS credentials missing', data: null };
     }
 
     const recipient = formatPhoneNumber(to);
-    const senderId = process.env.MOOLRE_SMS_SENDER_ID || 'Hy-Stepper';
+    const senderId = (process.env.MOOLRE_SMS_SENDER_ID || 'Hy-Stepper').trim();
 
     try {
         console.log(`[SMS] Sending to ${maskPhone(recipient)} via ${senderId}`);
@@ -257,8 +248,6 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
             headers: {
                 'Content-Type': 'application/json',
                 'X-API-VASKEY': smsVasKey,
-                'X-API-USER': smsUser,
-                'X-API-PUBKEY': smsPubKey || '',
             },
             body: JSON.stringify({
                 type: 1,
@@ -267,14 +256,15 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
             }),
         });
 
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-            const text = await response.text();
+        const text = await response.text();
+        let result: any = null;
+        try {
+            result = JSON.parse(text);
+        } catch {
             console.error('[SMS] Non-JSON response:', text.slice(0, 200));
             return { success: false, status: 0, error: text.slice(0, 200) };
         }
 
-        const result = await response.json();
         console.log('[SMS] Result:', result.status === 1 ? 'Success' : 'Failed', '| code:', result.code);
         if (result.status !== 1) {
             console.log('[SMS] Full response:', JSON.stringify(result).slice(0, 500));

@@ -248,7 +248,7 @@ export default function FAQsPage() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-{/*           <Link href="/shipping" className="bg-gray-50 p-8 rounded-2xl hover:shadow-lg transition-all cursor-pointer">
+          <Link href="/shipping" className="bg-gray-50 p-8 rounded-2xl hover:shadow-lg transition-all cursor-pointer">
             <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
               <i className="ri-truck-line text-2xl text-emerald-700"></i>
             </div>
@@ -256,7 +256,7 @@ export default function FAQsPage() {
             <p className="text-gray-600 leading-relaxed">
               Learn about delivery times, costs, and tracking your orders
             </p>
-          </Link> */}
+          </Link>
 
           <Link href="/policy" className="bg-gray-50 p-8 rounded-2xl hover:shadow-lg transition-all cursor-pointer">
             <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-4">

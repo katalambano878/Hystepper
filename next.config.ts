@@ -51,6 +51,12 @@ const nextConfig: NextConfig = {
       { source: "/reset-password", destination: "/auth/reset-password", permanent: false },
       { source: "/confirm", destination: "/auth/confirm", permanent: false },
       { source: "/confirm-email", destination: "/auth/confirm", permanent: false },
+      // Legacy / broken storefront paths → working destinations
+      { source: "/account/orders", destination: "/account?tab=orders", permanent: false },
+      { source: "/order-tracking", destination: "/account?tab=orders", permanent: false },
+      { source: "/track-order", destination: "/account?tab=orders", permanent: false },
+      { source: "/collections/:slug", destination: "/shop?category=:slug", permanent: false },
+      { source: "/collection/:slug", destination: "/shop?category=:slug", permanent: false },
     ];
   },
 };

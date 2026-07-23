@@ -425,7 +425,7 @@ export default function HomePageClient({
                 <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Discounted Items</h2>
                 <p className="text-gray-500">Grab these deals before they&apos;re gone</p>
               </div>
-              <Link href="/shop?sort=discount" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer group transition-all">
+              <Link href="/sale" className="hidden sm:inline-flex items-center text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap cursor-pointer group transition-all">
                 View All Deals
                 <i className="ri-arrow-right-line ml-2 transform group-hover:translate-x-1 transition-transform"></i>
               </Link>
@@ -441,7 +441,7 @@ export default function HomePageClient({
 
             <div className="text-center mt-10 sm:hidden">
               <Link
-                href="/shop?sort=discount"
+                href="/sale"
                 className="inline-flex items-center gap-2 bg-gold-600 hover:bg-gold-700 text-white px-8 py-3.5 rounded-full font-medium transition-all hover:shadow-lg hover:-translate-y-1 group"
               >
                 View All Deals

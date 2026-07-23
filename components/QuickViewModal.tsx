@@ -92,7 +92,7 @@ export default function QuickViewModal({ product, isOpen, onClose }: QuickViewMo
               <div className="flex flex-col">
                 <div className="mb-2">
                   <Link 
-                    href={`/categories?category=${product.category}`}
+                    href={`/categories/${encodeURIComponent(String(product.category || '').toLowerCase())}`}
                     className="text-sm text-emerald-700 hover:text-emerald-800 font-medium whitespace-nowrap"
                   >
                     {product.category}

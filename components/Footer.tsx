@@ -137,8 +137,8 @@ export default function Footer() {
             <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-5">Support</h4>
             <ul className="space-y-3 text-sm">
               <li><Link href="/contact" className="text-gray-400 hover:text-gold-400 transition-colors">Contact Us</Link></li>
-              {/* <li><Link href="/order-tracking" className="text-gray-400 hover:text-gold-400 transition-colors">Track My Order</Link></li> */}
-              {/* <li><Link href="/shipping" className="text-gray-400 hover:text-gold-400 transition-colors">Shipping Info</Link></li> */}
+              <li><Link href="/account?tab=orders" className="text-gray-400 hover:text-gold-400 transition-colors">Track My Order</Link></li>
+              <li><Link href="/shipping" className="text-gray-400 hover:text-gold-400 transition-colors">Shipping Info</Link></li>
               <li><Link href="/policy" className="text-gray-400 hover:text-gold-400 transition-colors">Exchange & Refund Policy</Link></li>
             </ul>
           </div>

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // regenerate every hour
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://hystepper.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://hystepper.com';
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

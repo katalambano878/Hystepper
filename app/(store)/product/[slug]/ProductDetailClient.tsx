@@ -127,7 +127,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             id, name, slug, description, price, compare_at_price, quantity, sku,
             category_id, rating_avg, product_code, material, heel_height, style_name,
             sizing_notes, metadata,
-            categories(name),
+            categories(name, slug),
             product_variants(id, name, sku, option1, option2, option3, quantity, image_url),
             product_images(url, position)
           `)
@@ -163,10 +163,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           .filter((img: any) => !img.url.startsWith('data:video') && img.url.length < 500_000)
           .sort((a: any, b: any) => (Number(a?.position) ?? 0) - (Number(b?.position) ?? 0))
           .map((img: any) => img.url);
+        const categoryRow = Array.isArray(productData.categories)
+          ? productData.categories[0]
+          : productData.categories;
         const transformedProduct = {
           ...productData,
           images: Array.isArray(rawImages) ? rawImages : [],
-          category: (Array.isArray(productData.categories) ? productData.categories[0] : productData.categories)?.name || 'Shop',
+          category: categoryRow?.name || 'Shop',
+          categorySlug: categoryRow?.slug || '',
           rating: productData.rating_avg || 0,
           reviewCount: 0, // Placeholder
           stockCount: productData.quantity,
@@ -518,11 +522,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     category: product.category
   });
 
-  const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://hystepper.vercel.app';
+  const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://hystepper.com';
+  const categoryHref = product.categorySlug
+    ? `/shop?category=${encodeURIComponent(product.categorySlug)}`
+    : `/categories/${encodeURIComponent(String(product.category || 'shop').toLowerCase())}`;
   const breadcrumbSchema = generateBreadcrumbSchema([
     { name: 'Home', url: siteUrl },
     { name: 'Shop', url: `${siteUrl}/shop` },
-    { name: product.category, url: `${siteUrl}/shop?category=${product.category.toLowerCase().replace(/\s+/g, '-')}` },
+    { name: product.category, url: `${siteUrl}${categoryHref}` },
     { name: product.name, url: `${siteUrl}/product/${slug}` },
   ]);
 
@@ -541,7 +548,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               <i className="ri-arrow-right-s-line text-gray-300"></i>
               <Link href="/shop" className="text-gray-500 hover:text-gold-600 transition-colors">Shop</Link>
               <i className="ri-arrow-right-s-line text-gray-300"></i>
-              <Link href={`/categories/${product.category.toLowerCase()}`} className="text-gray-500 hover:text-gold-600 transition-colors">{product.category}</Link>
+              <Link href={categoryHref} className="text-gray-500 hover:text-gold-600 transition-colors">{product.category}</Link>
               <i className="ri-arrow-right-s-line text-gray-300"></i>
               <span className="text-gray-900 truncate max-w-[200px]">{product.name}</span>
             </nav>

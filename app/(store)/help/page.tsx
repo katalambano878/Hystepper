@@ -261,17 +261,17 @@ export default function HelpCenterPage() {
               <span className="text-purple-700 font-semibold whitespace-nowrap">View Policy →</span>
             </Link>
 
-{/*             <Link
-              href="/order-tracking"
+            <Link
+              href="/account?tab=orders"
               className="bg-white rounded-xl shadow-sm p-6 hover:shadow-lg transition-all text-center"
             >
               <div className="w-16 h-16 flex items-center justify-center bg-amber-100 rounded-full mx-auto mb-4">
                 <i className="ri-map-pin-line text-3xl text-amber-700"></i>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Track Order</h3>
-              <p className="text-gray-600 text-sm mb-4">Check your order status</p>
+              <p className="text-gray-600 text-sm mb-4">Check your order status in your account</p>
               <span className="text-amber-700 font-semibold whitespace-nowrap">Track Now →</span>
-            </Link> */}
+            </Link>
           </div>
         </div>
       </main>

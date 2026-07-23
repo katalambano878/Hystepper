@@ -110,7 +110,21 @@ function ShopContent() {
         // Filtering by the direct foreign key is unambiguous and avoids the
         // edge cases of filtering through an `!inner` embed.
         if (selectedCategory !== 'all') {
-          const categoryObj = categories.find(c => c.slug === selectedCategory);
+          const normalize = (v: string) =>
+            String(v || '')
+              .toLowerCase()
+              .replace(/&/g, ' and ')
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-+|-+$/g, '');
+          const needle = normalize(selectedCategory);
+          // Accept slug, display name, or legacy slugs (e.g. women-s-sandals → Shoes).
+          const categoryObj = categories.find((c) => {
+            return (
+              normalize(c.slug) === needle ||
+              normalize(c.name) === needle ||
+              (needle === 'women-s-sandals' && normalize(c.slug) === 'shoes')
+            );
+          });
 
           if (categoryObj) {
             // Selected category + its direct children (1 level of nesting).

@@ -25,18 +25,11 @@ const articles: any = {
         <li>You'll be redirected to the tracking page with real-time updates</li>
       </ol>
       
-      {/* <h3>Method 2: Track on Website</h3>
+      <h3>Method 2: Track in Your Account</h3>
       <ol>
-        <li>Go to the <a href="/order-tracking">Order Tracking</a> page</li>
-        <li>Enter your order number and email address</li>
-        <li>Click "Track Order" to see your delivery status</li>
-      </ol> */}
-      
-      <h3>Method 3: Track in Your Account</h3>
-      <ol>
-        <li>Log in to your account</li>
-        <li>Go to "Order History"</li>
-        <li>Click on any order to see detailed tracking information</li>
+        <li>Log in to your <a href="/account?tab=orders">account</a></li>
+        <li>Open the Order History tab</li>
+        <li>Select any order to see its status and delivery details</li>
       </ol>
       
       <h2>Understanding Tracking Statuses</h2>

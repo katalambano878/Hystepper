@@ -561,32 +561,47 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               {/* Left Column: Images */}
               <div className="lg:col-span-7 animate-fade-in-up">
                 <div className="sticky top-24">
+                  {(() => {
+                    const images = Array.isArray(product.images) ? product.images : [];
+                    const fallback = images[0] || '/placeholder-product.png';
+                    const currentMedia = (colorOverrideImage && typeof colorOverrideImage === 'string' && colorOverrideImage.trim())
+                      ? colorOverrideImage.trim()
+                      : (images[selectedImage] ?? fallback);
+                    const safeSrc = typeof currentMedia === 'string' && currentMedia.trim() ? currentMedia.trim() : fallback;
+                    const isVideo = safeSrc.startsWith('data:video') || /\.(mp4|webm|ogg|mov)$/i.test(safeSrc);
+
+                    return (
                   <div
                     className="group relative aspect-[4/5] rounded-3xl overflow-hidden bg-gray-50 mb-4 shadow-sm border border-gray-100 select-none touch-pan-y"
-                    onTouchStart={handleMediaTouchStart}
-                    onTouchEnd={handleMediaTouchEnd}
+                    // Don't steal touch events from native video controls on iOS.
+                    onTouchStart={isVideo ? undefined : handleMediaTouchStart}
+                    onTouchEnd={isVideo ? undefined : handleMediaTouchEnd}
                   >
                     {/* Main Media Display — color override takes priority */}
                     {(() => {
-                      const images = Array.isArray(product.images) ? product.images : [];
-                      const fallback = images[0] || '/placeholder-product.png';
-                      const currentMedia = (colorOverrideImage && typeof colorOverrideImage === 'string' && colorOverrideImage.trim())
-                        ? colorOverrideImage.trim()
-                        : (images[selectedImage] ?? fallback);
-                      const safeSrc = typeof currentMedia === 'string' && currentMedia.trim() ? currentMedia.trim() : fallback;
-                      const isVideo = safeSrc.startsWith('data:video') || /\.(mp4|webm|ogg|mov)$/i.test(safeSrc);
-
                       if (isVideo) {
+                        // iOS Safari needs playsInline + Range-capable URLs (storage route).
+                        // Prefer the first non-video image as poster so the player isn't black.
+                        const poster =
+                          images.find(
+                            (img: string) =>
+                              typeof img === 'string' &&
+                              !img.startsWith('data:video') &&
+                              !/\.(mp4|webm|ogg|mov)$/i.test(img)
+                          ) || undefined;
                         return (
                           <video
+                            key={safeSrc}
                             src={safeSrc}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover bg-black"
                             controls
                             playsInline
-                            muted
                             preload="metadata"
-                            poster={images[0] !== safeSrc ? images[0] : undefined}
-                          />
+                            controlsList="nodownload"
+                            poster={poster}
+                          >
+                            <source src={safeSrc} type="video/mp4" />
+                          </video>
                         );
                       }
 
@@ -622,7 +637,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       </span>
                     )}
 
-                    {Array.isArray(product.images) && product.images.length > 1 && !colorOverrideImage && (
+                    {Array.isArray(product.images) && product.images.length > 1 && !colorOverrideImage && !isVideo && (
                       <>
                         <button
                           type="button"
@@ -652,6 +667,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       </>
                     )}
                   </div>
+                    );
+                  })()}
 
                   {Array.isArray(product.images) && product.images.length > 1 && (
                     <div className="grid grid-cols-5 gap-3">
@@ -667,7 +684,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                           >
                             {isVideo ? (
                               <div className="w-full h-full bg-gray-900 flex items-center justify-center relative">
-                                <video src={typeof image === 'string' ? image : ''} className="w-full h-full object-cover opacity-70" muted />
+                                <video
+                                  src={typeof image === 'string' ? image : ''}
+                                  className="w-full h-full object-cover opacity-70"
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                />
                                 <i className="ri-play-circle-fill text-white text-2xl absolute z-10 drop-shadow-md"></i>
                               </div>
                             ) : (

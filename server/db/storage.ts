@@ -5,7 +5,8 @@
 // `supabase.storage.from(bucket).upload()/createSignedUrl()/getPublicUrl()`.
 
 import { createHmac } from "crypto";
-import { promises as fs } from "fs";
+import { createReadStream, promises as fs } from "fs";
+import type { ReadStream } from "fs";
 import path from "path";
 
 const STORAGE_ROOT =
@@ -57,6 +58,16 @@ function safeJoin(bucket: string, objectPath: string): string {
   return full;
 }
 
+async function resolveContentType(full: string, objectPath: string): Promise<string> {
+  try {
+    const meta = JSON.parse(await fs.readFile(full + ".meta.json", "utf8"));
+    if (meta.contentType) return meta.contentType;
+  } catch {
+    /* fall through */
+  }
+  return guessContentType(objectPath);
+}
+
 export async function readObject(
   bucket: string,
   objectPath: string
@@ -64,17 +75,39 @@ export async function readObject(
   try {
     const full = safeJoin(bucket, objectPath);
     const bytes = await fs.readFile(full);
-    let contentType = "application/octet-stream";
-    try {
-      const meta = JSON.parse(await fs.readFile(full + ".meta.json", "utf8"));
-      if (meta.contentType) contentType = meta.contentType;
-    } catch {
-      contentType = guessContentType(objectPath);
-    }
-    return { bytes, contentType };
+    return { bytes, contentType: await resolveContentType(full, objectPath) };
   } catch {
     return null;
   }
+}
+
+/** Stat + content-type for streaming / Range responses (needed for iOS video). */
+export async function statObject(
+  bucket: string,
+  objectPath: string
+): Promise<{ fullPath: string; size: number; contentType: string } | null> {
+  try {
+    const full = safeJoin(bucket, objectPath);
+    const st = await fs.stat(full);
+    if (!st.isFile()) return null;
+    return {
+      fullPath: full,
+      size: st.size,
+      contentType: await resolveContentType(full, objectPath),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function openObjectStream(
+  fullPath: string,
+  opts?: { start?: number; end?: number }
+): ReadStream {
+  if (opts && typeof opts.start === "number" && typeof opts.end === "number") {
+    return createReadStream(fullPath, { start: opts.start, end: opts.end });
+  }
+  return createReadStream(fullPath);
 }
 
 function guessContentType(p: string): string {
@@ -86,6 +119,11 @@ function guessContentType(p: string): string {
     webp: "image/webp",
     gif: "image/gif",
     pdf: "application/pdf",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    webm: "video/webm",
+    ogg: "video/ogg",
+    m4v: "video/mp4",
   };
   return map[ext] || "application/octet-stream";
 }

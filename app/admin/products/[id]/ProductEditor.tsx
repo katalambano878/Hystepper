@@ -1777,13 +1777,30 @@ export default function ProductEditor({ productId }: { productId: string }) {
                       <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-200">
                         {isVideo ? (
                           <video
-                            src={image.url}
+                            src={
+                              image.url.startsWith('data:')
+                                ? image.url
+                                : `${image.url.split('#')[0]}${image.url.includes('?') ? '&' : '?'}v=range-1#t=0.001`
+                            }
                             className="w-full h-full object-cover"
                             muted
+                            defaultMuted
                             playsInline
                             loop
                             preload="metadata"
-                            onMouseOver={e => e.currentTarget.play()}
+                            onLoadedMetadata={(e) => {
+                              const v = e.currentTarget;
+                              v.muted = true;
+                              v.volume = 0;
+                              if (v.currentTime < 0.05) {
+                                try { v.currentTime = 0.05; } catch { /* ignore */ }
+                              }
+                            }}
+                            onPlay={(e) => {
+                              e.currentTarget.muted = true;
+                              e.currentTarget.volume = 0;
+                            }}
+                            onMouseOver={e => { e.currentTarget.muted = true; void e.currentTarget.play(); }}
                             onMouseOut={e => e.currentTarget.pause()}
                           />
                         ) : (

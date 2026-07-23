@@ -25,6 +25,33 @@ function isLightColor(hex: string | null): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 160;
 }
 
+function isProductVideoUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  return url.startsWith('data:video') || /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(url);
+}
+
+/** Cache-bust + #t=0.001 so browsers paint a first-frame preview (not a black box). */
+function videoPreviewSrc(url: string): string {
+  if (!url || url.startsWith('data:')) return url;
+  try {
+    const u = new URL(url, 'https://hystepper.com');
+    u.searchParams.set('v', 'range-1');
+    u.hash = '';
+    return `${u.toString()}#t=0.001`;
+  } catch {
+    const base = url.split('#')[0];
+    const joiner = base.includes('?') ? '&' : '?';
+    return `${base}${joiner}v=range-1#t=0.001`;
+  }
+}
+
+/** Keep storefront product videos silent even if the user unmutes native controls. */
+function keepVideoSilent(video: HTMLVideoElement) {
+  video.muted = true;
+  video.defaultMuted = true;
+  video.volume = 0;
+}
+
 export default function ProductDetailClient({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
   const [product, setProduct] = useState<any>(null);
@@ -568,18 +595,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       ? colorOverrideImage.trim()
                       : (images[selectedImage] ?? fallback);
                     const safeSrc = typeof currentMedia === 'string' && currentMedia.trim() ? currentMedia.trim() : fallback;
-                    const isVideo = safeSrc.startsWith('data:video') || /\.(mp4|webm|ogg|mov)$/i.test(safeSrc);
-                    // Bust long-lived browser caches of broken pre-Range video responses.
-                    const videoSrc = (() => {
-                      if (!isVideo || safeSrc.startsWith('data:')) return safeSrc;
-                      try {
-                        const u = new URL(safeSrc, 'https://hystepper.com');
-                        u.searchParams.set('v', 'range-1');
-                        return u.toString();
-                      } catch {
-                        return safeSrc;
-                      }
-                    })();
+                    const isVideo = isProductVideoUrl(safeSrc);
+                    const videoSrc = isVideo ? videoPreviewSrc(safeSrc) : safeSrc;
 
                     return (
                   <div
@@ -596,20 +613,31 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         const poster =
                           images.find(
                             (img: string) =>
-                              typeof img === 'string' &&
-                              !img.startsWith('data:video') &&
-                              !/\.(mp4|webm|ogg|mov)$/i.test(img)
+                              typeof img === 'string' && !isProductVideoUrl(img)
                           ) || undefined;
                         return (
                           <video
                             key={videoSrc}
                             src={videoSrc}
-                            className="w-full h-full object-cover bg-black"
+                            className="w-full h-full object-cover bg-gray-100"
                             controls
+                            muted
+                            defaultMuted
                             playsInline
                             preload="metadata"
-                            controlsList="nodownload"
+                            controlsList="nodownload noplaybackrate"
+                            disablePictureInPicture
                             poster={poster}
+                            onLoadedMetadata={(e) => {
+                              const v = e.currentTarget;
+                              keepVideoSilent(v);
+                              // Force a painted frame when #t= fragment is ignored.
+                              if (v.currentTime < 0.05) {
+                                try { v.currentTime = 0.05; } catch { /* ignore */ }
+                              }
+                            }}
+                            onPlay={(e) => keepVideoSilent(e.currentTarget)}
+                            onVolumeChange={(e) => keepVideoSilent(e.currentTarget)}
                           >
                             <source src={videoSrc} type="video/mp4" />
                           </video>
@@ -684,7 +712,12 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   {Array.isArray(product.images) && product.images.length > 1 && (
                     <div className="grid grid-cols-5 gap-3">
                       {product.images.filter((img: any) => img).map((image: string, index: number) => {
-                        const isVideo = typeof image === 'string' && (image.startsWith('data:video') || /\.(mp4|webm|ogg|mov)$/i.test(image));
+                        const isVideo = isProductVideoUrl(image);
+                        const thumbSrc = isVideo ? videoPreviewSrc(image) : image;
+                        const thumbPoster =
+                          (Array.isArray(product.images) ? product.images : []).find(
+                            (img: string) => typeof img === 'string' && !isProductVideoUrl(img)
+                          ) || undefined;
                         const isSelected = !colorOverrideImage && selectedImage === index;
                         return (
                           <button
@@ -694,13 +727,22 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                               }`}
                           >
                             {isVideo ? (
-                              <div className="w-full h-full bg-gray-900 flex items-center justify-center relative">
+                              <div className="w-full h-full bg-gray-200 flex items-center justify-center relative">
                                 <video
-                                  src={typeof image === 'string' ? image : ''}
-                                  className="w-full h-full object-cover opacity-70"
+                                  src={thumbSrc}
+                                  className="w-full h-full object-cover"
                                   muted
+                                  defaultMuted
                                   playsInline
                                   preload="metadata"
+                                  poster={thumbPoster}
+                                  onLoadedMetadata={(e) => {
+                                    const v = e.currentTarget;
+                                    keepVideoSilent(v);
+                                    if (v.currentTime < 0.05) {
+                                      try { v.currentTime = 0.05; } catch { /* ignore */ }
+                                    }
+                                  }}
                                 />
                                 <i className="ri-play-circle-fill text-white text-2xl absolute z-10 drop-shadow-md"></i>
                               </div>

@@ -16,6 +16,11 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [needsPhoneVerify, setNeedsPhoneVerify] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpInfo, setOtpInfo] = useState('');
+
+  const authBase = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +28,6 @@ export default function LoginPage() {
     setAuthError('');
     setIsLoading(true);
 
-    // Validation
     const newErrors: any = {};
     if (!formData.email) {
       newErrors.email = 'Email is required';
@@ -52,7 +56,7 @@ export default function LoginPage() {
 
       if (data.session) {
         router.push('/account');
-        router.refresh(); // Refresh to update auth state in other components
+        router.refresh();
       }
     } catch (error: any) {
       console.error('Login error:', error);
@@ -60,10 +64,12 @@ export default function LoginPage() {
       const code = String(error?.code || error?.error || '');
       if (
         code === 'email_not_confirmed' ||
-        /email not confirmed|confirm your email/i.test(msg)
+        /email not confirmed|confirm your email|verify your phone/i.test(msg)
       ) {
-        setAuthError(
-          'Please confirm your email before signing in. Check your inbox for the confirmation link, or use “Resend confirmation” below.'
+        setNeedsPhoneVerify(true);
+        setAuthError('');
+        setOtpInfo(
+          'Your account still needs phone verification. Enter the SMS code we already sent, or tap Resend SMS code.'
         );
       } else {
         setAuthError(msg || 'Failed to sign in. Please check your credentials.');
@@ -75,22 +81,56 @@ export default function LoginPage() {
 
   const resendConfirmation = async () => {
     if (!formData.email) {
-      setAuthError('Enter your email above, then tap Resend confirmation.');
+      setAuthError('Enter your email above, then tap Resend SMS code.');
       return;
     }
     try {
-      const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
-      await fetch(`${base}/auth/v1/resend`, {
+      const res = await fetch(`${authBase()}/auth/v1/resend`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
         },
-        body: JSON.stringify({ email: formData.email, type: 'signup' }),
+        body: JSON.stringify({ email: formData.email, type: 'sms' }),
       });
-      setAuthError('If this account still needs confirmation, a new email has been sent.');
-    } catch {
-      setAuthError('Could not resend confirmation right now. Please try again shortly.');
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload.message || payload.error_description || 'Could not resend');
+      }
+      setOtpInfo('If this account needs verification, a new SMS code was sent.');
+      setAuthError('');
+    } catch (e: any) {
+      setAuthError(e?.message || 'Could not resend SMS right now. Please try again shortly.');
+    }
+  };
+
+  const verifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    const cleaned = otp.replace(/\D/g, '');
+    if (!/^\d{6}$/.test(cleaned)) {
+      setAuthError('Enter the 6-digit code from your SMS.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: formData.email,
+        token: cleaned,
+        type: 'signup',
+      });
+      if (error) throw error;
+      if (data.session) {
+        router.push('/account');
+        router.refresh();
+        return;
+      }
+      setAuthError('Verified. Please sign in with your password.');
+      setNeedsPhoneVerify(false);
+    } catch (err: any) {
+      setAuthError(err.message || 'Invalid or expired code.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -106,96 +146,138 @@ export default function LoginPage() {
           {authError && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
               <p>{authError}</p>
-              {/confirm/i.test(authError) && (
-                <button
-                  type="button"
-                  onClick={resendConfirmation}
-                  className="mt-2 underline font-medium text-red-800 hover:text-red-950"
-                >
-                  Resend confirmation email
-                </button>
-              )}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                placeholder="you@example.com"
-              />
-              {errors.email && (
-                <p className="text-sm text-red-600 mt-2">{errors.email}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Password
-              </label>
-              <div className="relative">
+          {needsPhoneVerify ? (
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="w-14 h-14 mx-auto mb-3 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <i className="ri-smartphone-line text-2xl text-emerald-600"></i>
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Verify your phone</h2>
+                <p className="text-sm text-gray-600">{otpInfo}</p>
+              </div>
+              <form onSubmit={verifyOtp} className="space-y-4">
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`w-full px-4 py-3 pr-12 border-2 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  placeholder="Enter your password"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-center text-2xl tracking-[0.4em] font-semibold focus:ring-2 focus:ring-gold-500 focus:border-gold-500"
+                  placeholder="••••••"
                 />
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  type="submit"
+                  disabled={isLoading || otp.length !== 6}
+                  className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50"
                 >
-                  <i className={`${showPassword ? 'ri-eye-off-line' : 'ri-eye-line'} text-xl`}></i>
+                  {isLoading ? 'Verifying...' : 'Verify & sign in'}
                 </button>
-              </div>
-              {errors.password && (
-                <p className="text-sm text-red-600 mt-2">{errors.password}</p>
-              )}
+              </form>
+              <button
+                type="button"
+                onClick={() => resendConfirmation()}
+                className="block w-full text-sm text-emerald-700 hover:text-emerald-900 font-medium underline"
+              >
+                Resend SMS code
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNeedsPhoneVerify(false);
+                  setOtp('');
+                  setAuthError('');
+                }}
+                className="block w-full text-sm text-gray-500 underline"
+              >
+                Back to sign in
+              </button>
             </div>
+          ) : (
+            <>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                    placeholder="you@example.com"
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-red-600 mt-2">{errors.email}</p>
+                  )}
+                </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.rememberMe}
-                  onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
-                  className="w-4 h-4 text-gold-600 rounded focus:ring-gold-500"
-                />
-                <span className="text-sm text-gray-700">Remember me</span>
-              </label>
-              <Link href="/auth/forgot-password" className="text-sm text-gold-600 hover:text-gold-700 font-medium whitespace-nowrap">
-                Forgot password?
-              </Link>
-            </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className={`w-full px-4 py-3 pr-12 border-2 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      placeholder="Enter your password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <i className={`${showPassword ? 'ri-eye-off-line' : 'ri-eye-line'} text-xl`}></i>
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <p className="text-sm text-red-600 mt-2">{errors.password}</p>
+                  )}
+                </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <i className="ri-loader-4-line animate-spin mr-2"></i> Signing in...
-                </span>
-              ) : 'Sign In'}
-            </button>
-          </form>
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.rememberMe}
+                      onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
+                      className="w-4 h-4 text-gold-600 rounded focus:ring-gold-500"
+                    />
+                    <span className="text-sm text-gray-700">Remember me</span>
+                  </label>
+                  <Link href="/auth/forgot-password" className="text-sm text-gold-600 hover:text-gold-700 font-medium whitespace-nowrap">
+                    Forgot password?
+                  </Link>
+                </div>
 
-          <p className="mt-8 text-center text-gray-600">
-            Don't have an account?{' '}
-            <Link href="/auth/signup" className="text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap">
-              Create one now
-            </Link>
-          </p>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
+                >
+                  {isLoading ? (
+                    <span className="flex items-center justify-center">
+                      <i className="ri-loader-4-line animate-spin mr-2"></i> Signing in...
+                    </span>
+                  ) : 'Sign In'}
+                </button>
+              </form>
+
+              <p className="mt-8 text-center text-gray-600">
+                Don&apos;t have an account?{' '}
+                <Link href="/auth/signup" className="text-gold-600 hover:text-gold-700 font-semibold whitespace-nowrap">
+                  Create one now
+                </Link>
+              </p>
+            </>
+          )}
         </div>
 
         <div className="mt-8 text-center">

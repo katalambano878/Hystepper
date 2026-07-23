@@ -7,23 +7,22 @@ import {
   findUserByEmail,
   findUserById,
   findUserByRecoveryToken,
-  getConfirmationToken,
+  findUserBySmsOtp,
   mintAccessToken,
+  normalizeGhanaPhone,
   rowToUser,
   sessionPayload,
-  setConfirmationToken,
   setRecoveryToken,
+  setSmsConfirmationOtp,
   touchSignIn,
   updateUserMetadata,
   updateUserPassword,
   verifyAccessToken,
   verifyPassword,
 } from "@/server/auth";
-import {
-  buildConfirmUrl,
-  confirmationEmailHtml,
-  sendAuthEmail,
-} from "@/server/auth-email";
+import { sendAuthEmail } from "@/server/auth-email";
+import { sendSMS } from "@/lib/notifications";
+import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,18 +48,22 @@ function bearer(req: NextRequest): string | null {
   return m ? m[1] : null;
 }
 
-async function sendSignupConfirmation(user: { id: string; email: string; user_metadata?: Record<string, any> }) {
-  let token = await getConfirmationToken(user.id);
-  if (!token) {
-    token = await setConfirmationToken(user.email);
+async function sendSignupSmsOtp(email: string, opts?: { force?: boolean }) {
+  const issued = await setSmsConfirmationOtp(email, opts);
+  if (!issued) return { ok: false as const, reason: "unavailable" as const };
+  if ("cooldown" in issued && issued.cooldown) {
+    return { ok: false as const, reason: "cooldown" as const };
   }
-  if (!token) return false;
-  const firstName = user.user_metadata?.first_name || user.user_metadata?.full_name?.split?.(" ")?.[0];
-  return sendAuthEmail({
-    to: user.email,
-    subject: "Welcome to Hy_stepper — confirm your email",
-    html: confirmationEmailHtml(buildConfirmUrl(token), firstName),
+  if (!("otp" in issued)) return { ok: false as const, reason: "unavailable" as const };
+  const result = await sendSMS({
+    to: issued.phone,
+    message: `Your Hy-Stepper verification code is ${issued.otp}. It expires in 10 minutes. Do not share this code.`,
   });
+  if (!result?.success) {
+    console.error("[Auth SMS] Failed to send OTP:", result);
+    return { ok: false as const, reason: "send_failed" as const };
+  }
+  return { ok: true as const };
 }
 
 async function handleToken(req: NextRequest) {
@@ -84,7 +87,7 @@ async function handleToken(req: NextRequest) {
     }
     if (!row.email_confirmed_at && emailConfirmRequired()) {
       return err(
-        "Please confirm your email before signing in. Check your inbox for the confirmation link.",
+        "Please verify your phone before signing in. Enter the SMS code we sent, or request a new code.",
         400,
         "email_not_confirmed"
       );
@@ -115,28 +118,51 @@ async function handleSignup(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "");
+  const meta = body.data || body.user_metadata || {};
+  const phoneRaw = String(meta.phone || body.phone || "").trim();
   if (!email || !password) return err("Email and password required");
+
+  const requireConfirm = emailConfirmRequired();
+  const phone = normalizeGhanaPhone(phoneRaw);
+  if (requireConfirm) {
+    if (!phoneRaw) return err("Phone number is required to create an account", 400, "phone_required");
+    if (!phone) {
+      return err(
+        "Enter a valid Ghanaian phone number (e.g. 0241234567)",
+        400,
+        "invalid_phone"
+      );
+    }
+  }
+
   const existing = await findUserByEmail(email);
   if (existing) return err("User already registered", 400, "user_already_exists");
 
-  const requireConfirm = emailConfirmRequired();
   const user = await createUser({
     email,
     password,
-    user_metadata: body.data || body.user_metadata || {},
+    phone,
+    user_metadata: { ...meta, phone: phone || phoneRaw || null },
     email_confirm: !requireConfirm,
   });
 
   if (requireConfirm) {
-    await sendSignupConfirmation(user);
-    // GoTrue-compatible: return the user but no session until they confirm.
+    try {
+      const sms = await sendSignupSmsOtp(user.email, { force: true });
+      if (!sms.ok) {
+        console.error("[Auth] Signup created but SMS OTP failed:", sms.reason);
+      }
+    } catch (e: any) {
+      console.error("[Auth] Signup SMS error:", e?.message || e);
+    }
+    // GoTrue-compatible: return the user but no session until they verify SMS OTP.
     return json({
       id: user.id,
       aud: user.aud,
       role: user.role,
       email: user.email,
       email_confirmed_at: null,
-      phone: user.phone,
+      phone: user.phone || phone,
       confirmed_at: null,
       last_sign_in_at: null,
       app_metadata: user.app_metadata,
@@ -204,6 +230,32 @@ async function handleVerify(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const token = String(body.token || body.token_hash || "");
   const type = String(body.type || "");
+  const email = String(body.email || "").trim().toLowerCase();
+  const clientId = getClientIdentifier(req);
+
+  // SMS OTP verification (primary signup path)
+  if ((type === "sms" || type === "signup") && token && email) {
+    const rl = checkRateLimit(
+      `auth-otp-verify:${clientId}:${email}`,
+      RATE_LIMITS.authOtpVerify
+    );
+    if (!rl.success) {
+      return err("Too many verification attempts. Please try again later.", 429, "over_request_rate_limit");
+    }
+
+    // Prefer SMS OTP when email is supplied (UI flow). Fall through to token-hash for email links.
+    const smsRow = await findUserBySmsOtp(email, token);
+    if (smsRow) {
+      const user = await confirmUserEmail(smsRow.id);
+      if (!user) return err("Could not verify account", 400);
+      const access = await mintAccessToken(user);
+      await touchSignIn(user.id);
+      return json(await sessionPayload(user, access));
+    }
+    if (type === "sms" || /^\d{6}$/.test(token.replace(/\D/g, ""))) {
+      return err("Invalid or expired verification code", 401, "otp_expired");
+    }
+  }
 
   if ((type === "signup" || type === "email") && token) {
     const row = await findUserByConfirmationToken(token);
@@ -225,18 +277,28 @@ async function handleVerify(req: NextRequest) {
   return err("Unsupported verify request");
 }
 
-/** Resend signup confirmation email. Always returns success to avoid enumeration. */
+/** Resend signup SMS OTP. Always returns the same success shape to avoid enumeration. */
 async function handleResend(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const email = String(body.email || "").trim().toLowerCase();
   const type = String(body.type || "signup");
-  if (email && type === "signup") {
+  const generic = { message: "If that account needs verification, a new SMS code was sent" };
+
+  if (email && (type === "signup" || type === "sms")) {
+    const clientId = getClientIdentifier(req);
+    const rl = checkRateLimit(`auth-otp-resend:${clientId}:${email}`, RATE_LIMITS.authOtpResend);
+    if (!rl.success) return json(generic);
+
     const row = await findUserByEmail(email);
     if (row && !row.email_confirmed_at) {
-      await sendSignupConfirmation(rowToUser(row));
+      try {
+        await sendSignupSmsOtp(email);
+      } catch (e: any) {
+        console.error("[Auth] Resend SMS error:", e?.message || e);
+      }
     }
   }
-  return json({ message: "If that email needs confirmation, a new link was sent" });
+  return json(generic);
 }
 
 async function handleLogout() {

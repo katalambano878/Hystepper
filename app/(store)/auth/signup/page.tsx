@@ -6,6 +6,11 @@ import { useRouter } from 'next/navigation';
 import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
 import { supabase } from '@/lib/supabase';
 
+function isValidGhanaPhone(phone: string): boolean {
+  const cleaned = phone.replace(/[\s\-()]/g, '');
+  return /^(\+233|0)\d{9}$/.test(cleaned);
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -15,7 +20,7 @@ export default function SignupPage() {
     phone: '',
     password: '',
     confirmPassword: '',
-    acceptTerms: false, // Fixed key name mismatch from original (was agreeToTerms locally vs acceptTerms in logic)
+    acceptTerms: false,
     newsletter: false
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +28,11 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [confirmationSent, setConfirmationSent] = useState(false);
+  const [awaitingOtp, setAwaitingOtp] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpInfo, setOtpInfo] = useState('');
+
+  const authBase = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +48,11 @@ export default function SignupPage() {
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email';
     }
-    // Phone is optional at signup; we collect it again at checkout.
+    if (!formData.phone) {
+      newErrors.phone = 'Phone number is required';
+    } else if (!isValidGhanaPhone(formData.phone)) {
+      newErrors.phone = 'Enter a valid Ghanaian phone number (e.g. 0241234567)';
+    }
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
@@ -63,13 +76,11 @@ export default function SignupPage() {
         email: formData.email,
         password: formData.password,
         options: {
-          // Make sure the confirmation email links back to THIS site
-          // (never localhost / the Supabase default).
           emailRedirectTo: `${window.location.origin}/account`,
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
-            phone: formData.phone || null,
+            phone: formData.phone,
             newsletter: formData.newsletter,
           },
         },
@@ -78,15 +89,15 @@ export default function SignupPage() {
       if (error) throw error;
 
       if (data.user) {
-        // Email verification is required — signUp returns no usable session
-        // until the customer clicks the confirmation link we emailed them.
         if (!data.session || !data.user.email_confirmed_at) {
-          setConfirmationSent(true);
+          setAwaitingOtp(true);
+          setOtpInfo(
+            `We sent a 6-digit code to ${formData.phone}. Enter it below to activate your account. If it doesn’t arrive within a minute, tap Resend SMS code.`
+          );
           setIsLoading(false);
           return;
         }
 
-        // Only reached if email confirmation is disabled server-side.
         fetch('/api/notifications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -107,6 +118,66 @@ export default function SignupPage() {
     }
   };
 
+  const verifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    const cleaned = otp.replace(/\D/g, '');
+    if (!/^\d{6}$/.test(cleaned)) {
+      setAuthError('Enter the 6-digit code from your SMS.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: formData.email,
+        token: cleaned,
+        type: 'signup',
+      });
+      if (error) throw error;
+      if (data.session) {
+        fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'welcome',
+            payload: { email: formData.email, firstName: formData.firstName, phone: formData.phone },
+          }),
+        }).catch(err => console.error('Welcome notification error:', err));
+        router.push('/account');
+        router.refresh();
+        return;
+      }
+      setAuthError('Verification succeeded but no session was created. Please sign in.');
+    } catch (err: any) {
+      console.error('OTP verify error:', err);
+      setAuthError(err.message || 'Invalid or expired code. Try again or resend.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    setAuthError('');
+    setOtpInfo('');
+    try {
+      const res = await fetch(`${authBase()}/auth/v1/resend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+        },
+        body: JSON.stringify({ email: formData.email, type: 'sms' }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload.message || payload.error_description || 'Could not resend code');
+      }
+      setOtpInfo('If this account needs verification, a new SMS code was sent.');
+    } catch (err: any) {
+      setAuthError(err.message || 'Could not resend right now. Please try again in a moment.');
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6">
       <div className="max-w-md w-full">
@@ -115,48 +186,71 @@ export default function SignupPage() {
           <p className="text-gray-600">Join us and start shopping today</p>
         </div>
 
-        {confirmationSent ? (
-          <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+        {awaitingOtp ? (
+          <div className="bg-white rounded-xl shadow-sm p-8">
             <div className="w-16 h-16 mx-auto mb-4 bg-emerald-100 rounded-full flex items-center justify-center">
-              <i className="ri-mail-check-line text-3xl text-emerald-600"></i>
+              <i className="ri-smartphone-line text-3xl text-emerald-600"></i>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
-            <p className="text-gray-600 mb-6">
-              Your account has been created! We&apos;ve sent a confirmation link to{' '}
-              <span className="font-semibold text-gray-900">{formData.email}</span>.
-              Click the link in that email to activate your account, then sign in.
+            <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Verify your phone</h2>
+            <p className="text-gray-600 mb-6 text-center">
+              {otpInfo || `Enter the 6-digit code we sent to ${formData.phone}.`}
             </p>
-            <Link
-              href="/auth/login"
-              className="inline-block bg-gray-900 hover:bg-gray-800 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
-            >
-              Go to Sign In
-            </Link>
+
+            {authError && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                {authError}
+              </div>
+            )}
+
+            <form onSubmit={verifyOtp} className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  SMS verification code
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-center text-2xl tracking-[0.4em] font-semibold focus:ring-2 focus:ring-gold-500 focus:border-gold-500"
+                  placeholder="••••••"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading || otp.length !== 6}
+                className="w-full bg-gold-600 hover:bg-gold-700 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center">
+                    <i className="ri-loader-4-line animate-spin mr-2"></i> Verifying...
+                  </span>
+                ) : 'Verify & continue'}
+              </button>
+            </form>
+
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
-                  await fetch(`${base}/auth/v1/resend`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-                    },
-                    body: JSON.stringify({ email: formData.email, type: 'signup' }),
-                  });
-                  setAuthError('');
-                  alert('A new confirmation email has been sent. Please check your inbox (and spam).');
-                } catch {
-                  alert('Could not resend right now. Please try again in a moment.');
-                }
-              }}
+              onClick={resendOtp}
               className="block w-full mt-4 text-sm text-emerald-700 hover:text-emerald-900 font-medium underline"
             >
-              Resend confirmation email
+              Resend SMS code
             </button>
-            <p className="text-sm text-gray-500 mt-4">
-              Didn&apos;t get the email? Check your spam folder.
+            <p className="text-sm text-gray-500 mt-4 text-center">
+              Code expires in 10 minutes. Wrong number?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setAwaitingOtp(false);
+                  setOtp('');
+                  setAuthError('');
+                }}
+                className="underline font-medium text-gray-700"
+              >
+                Go back
+              </button>
             </p>
           </div>
         ) : (
@@ -222,15 +316,19 @@ export default function SignupPage() {
 
             <div>
               <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Phone Number <span className="text-gray-400 font-normal text-xs">(optional)</span>
+                Phone Number
               </label>
               <input
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500"
-                placeholder="+233 XX XXX XXXX"
+                className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
+                placeholder="024 XXX XXXX"
               />
+              <p className="text-xs text-gray-500 mt-1">We&apos;ll text a verification code to this number.</p>
+              {errors.phone && (
+                <p className="text-sm text-red-600 mt-1">{errors.phone}</p>
+              )}
             </div>
 
             <div>

@@ -98,6 +98,10 @@ export const RATE_LIMITS = {
     notification: { maxRequests: 20, windowSeconds: 60 },
     /** Webhook/callback inbound — relaxed (providers retry). */
     callback: { maxRequests: 50, windowSeconds: 60 },
+    /** Auth SMS OTP verify attempts. */
+    authOtpVerify: { maxRequests: 8, windowSeconds: 600 },
+    /** Auth SMS OTP resend. */
+    authOtpResend: { maxRequests: 5, windowSeconds: 600 },
     /** Default for everything else. */
     default: { maxRequests: 100, windowSeconds: 60 },
 } satisfies Record<string, RateLimitConfig>;

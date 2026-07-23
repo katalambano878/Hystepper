@@ -4,8 +4,44 @@
  */
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import { query } from "./db/pool";
+
+/** Ghana phone → E.164 (+233…). Returns null if invalid. */
+export function normalizeGhanaPhone(phone: string): string | null {
+  const cleaned = String(phone || "").replace(/\D/g, "");
+  let digits = cleaned;
+  if (digits.startsWith("0") && digits.length === 10) {
+    digits = "233" + digits.slice(1);
+  } else if (digits.length === 9) {
+    digits = "233" + digits;
+  } else if (digits.startsWith("233") && digits.length === 12) {
+    // already good
+  } else {
+    return null;
+  }
+  // Ghana mobiles: +233 + 9 digits (0XXXXXXXXX locally).
+  if (!/^233\d{9}$/.test(digits)) return null;
+  return `+${digits}`;
+}
+
+const SMS_OTP_PREFIX = "sms:";
+const SMS_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const SMS_RESEND_COOLDOWN_MS = 60 * 1000;
+const SMS_OTP_MAX_ATTEMPTS = 8;
+
+export function generateSmsOtp(): string {
+  return String(randomInt(100000, 1000000));
+}
+
+/** Store hashed OTP as `sms:<bcrypt>` so DB leaks don't expose the code. */
+export function smsOtpToken(otp: string): string {
+  return `${SMS_OTP_PREFIX}${bcrypt.hashSync(otp, 8)}`;
+}
+
+export function isSmsOtpToken(token: string | null | undefined): boolean {
+  return !!token && token.startsWith(SMS_OTP_PREFIX);
+}
 
 const ISSUER = "hystepper-auth";
 
@@ -123,41 +159,55 @@ export function hashPassword(password: string): string {
 export async function createUser(opts: {
   email: string;
   password: string;
+  phone?: string | null;
   user_metadata?: Record<string, any>;
   email_confirm?: boolean;
 }): Promise<AppUser> {
   const id = crypto.randomUUID();
   const hash = hashPassword(opts.password);
   const meta = opts.user_metadata || {};
+  const phone =
+    normalizeGhanaPhone(opts.phone || meta.phone || "") ||
+    (opts.phone || meta.phone || null);
   const autoConfirm = opts.email_confirm !== false;
   const confirmed = autoConfirm ? new Date().toISOString() : null;
-  const confirmationToken = autoConfirm ? null : randomBytes(32).toString("hex");
+  // Unconfirmed storefront signups get an SMS OTP (set separately after insert).
+  const confirmationToken = autoConfirm ? null : null;
   const { rows } = await query<any>(
     `INSERT INTO auth.users (
-      id, instance_id, aud, role, email, encrypted_password,
-      email_confirmed_at, confirmation_token, confirmation_sent_at,
+      id, instance_id, aud, role, email, encrypted_password, phone,
+      email_confirmed_at, phone_confirmed_at, confirmation_token, confirmation_sent_at,
       raw_app_meta_data, raw_user_meta_data, created_at, updated_at
     ) VALUES (
       $1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-      $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, now(), now()
+      $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, now(), now()
     ) RETURNING *`,
     [
       id,
       opts.email.trim().toLowerCase(),
       hash,
+      phone,
       confirmed,
+      autoConfirm && phone ? confirmed : null,
       confirmationToken,
-      confirmationToken ? new Date().toISOString() : null,
+      null,
       JSON.stringify({ provider: "email", providers: ["email"] }),
-      JSON.stringify(meta),
+      JSON.stringify({ ...meta, phone: phone || meta.phone || null }),
     ]
   );
   // Ensure profile exists (handle_new_user may or may not fire depending on triggers)
   await query(
-    `INSERT INTO public.profiles (id, email, full_name, role, created_at, updated_at)
-     VALUES ($1, $2, $3, 'customer', now(), now())
-     ON CONFLICT (id) DO NOTHING`,
-    [id, opts.email.trim().toLowerCase(), meta.full_name || [meta.first_name, meta.last_name].filter(Boolean).join(" ") || null]
+    `INSERT INTO public.profiles (id, email, full_name, phone, role, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 'customer', now(), now())
+     ON CONFLICT (id) DO UPDATE SET
+       phone = COALESCE(EXCLUDED.phone, profiles.phone),
+       updated_at = now()`,
+    [
+      id,
+      opts.email.trim().toLowerCase(),
+      meta.full_name || [meta.first_name, meta.last_name].filter(Boolean).join(" ") || null,
+      phone,
+    ]
   );
   return rowToUser(rows[0]);
 }
@@ -170,7 +220,7 @@ export async function getConfirmationToken(userId: string): Promise<string | nul
   return rows[0]?.confirmation_token || null;
 }
 
-/** Issue (or rotate) a signup confirmation token for an unconfirmed user. */
+/** Issue (or rotate) a legacy email-link confirmation token. */
 export async function setConfirmationToken(email: string): Promise<string | null> {
   const row = await findUserByEmail(email);
   if (!row || row.email_confirmed_at) return null;
@@ -182,6 +232,85 @@ export async function setConfirmationToken(email: string): Promise<string | null
     [token, row.id]
   );
   return token;
+}
+
+/**
+ * Issue (or rotate) a 6-digit SMS OTP for an unconfirmed user.
+ * Returns { otp, phone, userId } or null if user is missing/already confirmed/no phone.
+ * On cooldown, returns { cooldown: true } without rotating the OTP.
+ */
+export async function setSmsConfirmationOtp(
+  email: string,
+  opts?: { force?: boolean }
+): Promise<
+  | { otp: string; phone: string; userId: string; cooldown?: false }
+  | { cooldown: true; phone?: string }
+  | null
+> {
+  const row = await findUserByEmail(email);
+  if (!row || row.email_confirmed_at) return null;
+
+  const phone = normalizeGhanaPhone(row.phone || row.raw_user_meta_data?.phone || "");
+  if (!phone) return null;
+
+  if (!opts?.force && row.confirmation_sent_at) {
+    const sentAt = new Date(row.confirmation_sent_at).getTime();
+    const elapsed = Date.now() - sentAt;
+    if (elapsed < SMS_RESEND_COOLDOWN_MS) {
+      return { cooldown: true, phone };
+    }
+  }
+
+  const otp = generateSmsOtp();
+  await query(
+    `UPDATE auth.users
+     SET confirmation_token = $1,
+         confirmation_sent_at = now(),
+         phone = COALESCE(phone, $2),
+         raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"sms_otp_attempts":0}'::jsonb,
+         updated_at = now()
+     WHERE id = $3`,
+    [smsOtpToken(otp), phone, row.id]
+  );
+  return { otp, phone, userId: row.id };
+}
+
+/** Verify SMS OTP for signup. Returns the user row if valid, else null. */
+export async function findUserBySmsOtp(email: string, otp: string) {
+  const cleaned = String(otp || "").replace(/\D/g, "");
+  if (!/^\d{6}$/.test(cleaned)) return null;
+  const row = await findUserByEmail(email);
+  if (!row || row.email_confirmed_at) return null;
+  if (!isSmsOtpToken(row.confirmation_token)) return null;
+  if (!row.confirmation_sent_at) return null;
+  const age = Date.now() - new Date(row.confirmation_sent_at).getTime();
+  if (age > SMS_OTP_TTL_MS) return null;
+
+  const attempts = Number(row.raw_app_meta_data?.sms_otp_attempts || 0);
+  if (attempts >= SMS_OTP_MAX_ATTEMPTS) return null;
+
+  const hash = String(row.confirmation_token).slice(SMS_OTP_PREFIX.length);
+  const ok = bcrypt.compareSync(cleaned, hash);
+  if (!ok) {
+    await query(
+      `UPDATE auth.users
+       SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb)
+         || jsonb_build_object('sms_otp_attempts', $1::int),
+           updated_at = now()
+       WHERE id = $2`,
+      [attempts + 1, row.id]
+    );
+    if (attempts + 1 >= SMS_OTP_MAX_ATTEMPTS) {
+      await query(
+        `UPDATE auth.users
+         SET confirmation_token = '', updated_at = now()
+         WHERE id = $1`,
+        [row.id]
+      );
+    }
+    return null;
+  }
+  return row;
 }
 
 export async function findUserByConfirmationToken(token: string) {
@@ -200,6 +329,7 @@ export async function confirmUserEmail(userId: string): Promise<AppUser | null> 
   const { rows } = await query<any>(
     `UPDATE auth.users
      SET email_confirmed_at = COALESCE(email_confirmed_at, now()),
+         phone_confirmed_at = COALESCE(phone_confirmed_at, now()),
          confirmation_token = '',
          confirmation_sent_at = NULL,
          updated_at = now()
@@ -211,7 +341,7 @@ export async function confirmUserEmail(userId: string): Promise<AppUser | null> 
 }
 
 export function emailConfirmRequired(): boolean {
-  // Default ON for storefront signups. Set AUTH_REQUIRE_EMAIL_CONFIRM=false to disable.
+  // Default ON for storefront signups (now SMS OTP). Set AUTH_REQUIRE_EMAIL_CONFIRM=false to disable.
   const v = (process.env.AUTH_REQUIRE_EMAIL_CONFIRM ?? "true").toLowerCase();
   return v !== "false" && v !== "0" && v !== "off";
 }

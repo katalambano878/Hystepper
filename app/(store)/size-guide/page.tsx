@@ -1,50 +1,6 @@
-'use client';
-
-import { useState } from 'react';
 import Link from 'next/link';
 
 export default function SizeGuidePage() {
-  const [unit, setUnit] = useState<'cm' | 'inches'>('cm');
-
-  const sizeChart = [
-    { eu: 35, uk: 2.5, us: 5, cm: 22.0, inches: 8.66 },
-    { eu: 36, uk: 3.5, us: 6, cm: 22.5, inches: 8.86 },
-    { eu: 37, uk: 4, us: 6.5, cm: 23.5, inches: 9.25 },
-    { eu: 38, uk: 5, us: 7.5, cm: 24.0, inches: 9.45 },
-    { eu: 39, uk: 6, us: 8.5, cm: 25.0, inches: 9.84 },
-    { eu: 40, uk: 6.5, us: 9, cm: 25.5, inches: 10.04 },
-    { eu: 41, uk: 7.5, us: 10, cm: 26.0, inches: 10.24 },
-    { eu: 42, uk: 8, us: 10.5, cm: 27.0, inches: 10.63 },
-    { eu: 43, uk: 9, us: 11.5, cm: 27.5, inches: 10.83 },
-  ];
-
-  const steps = [
-    {
-      number: 1,
-      title: 'Place paper on the floor',
-      description: 'Place a sheet of paper on a hard, flat surface. Stand on the paper with your heel against a wall.',
-      icon: 'ri-file-paper-2-line'
-    },
-    {
-      number: 2,
-      title: 'Mark your foot',
-      description: 'Using a pen or pencil, mark the tip of your longest toe and the back of your heel on the paper.',
-      icon: 'ri-pencil-ruler-2-line'
-    },
-    {
-      number: 3,
-      title: 'Measure the length',
-      description: 'Use a ruler to measure the distance between the two marks. This is your foot length.',
-      icon: 'ri-ruler-line'
-    },
-    {
-      number: 4,
-      title: 'Find your size',
-      description: 'Compare your foot length to our size chart below to find your perfect size. If between sizes, we recommend sizing up.',
-      icon: 'ri-search-line'
-    }
-  ];
-
   return (
     <div className="min-h-screen bg-white">
       {/* Hero */}
@@ -60,86 +16,6 @@ export default function SizeGuidePage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-
-        {/* How to Measure */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-3 text-center">How to Measure Your Feet</h2>
-          <p className="text-gray-600 text-center mb-10 max-w-2xl mx-auto">
-            Follow these simple steps to measure your feet at home. We recommend measuring in the evening when your feet are slightly larger.
-          </p>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {steps.map((step) => (
-              <div key={step.number} className="relative p-6 bg-gray-50 rounded-xl border border-gray-100">
-                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-                  <i className={`${step.icon} text-xl text-emerald-700`}></i>
-                </div>
-                <div className="absolute top-4 right-4 w-8 h-8 bg-emerald-700 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                  {step.number}
-                </div>
-                <h3 className="font-bold text-gray-900 mb-2">{step.title}</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">{step.description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Size Chart */}
-        <section className="mb-16">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">Size Chart</h2>
-            <div className="flex bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setUnit('cm')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all cursor-pointer ${
-                  unit === 'cm' ? 'bg-emerald-700 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Centimeters
-              </button>
-              <button
-                onClick={() => setUnit('inches')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all cursor-pointer ${
-                  unit === 'inches' ? 'bg-emerald-700 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Inches
-              </button>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-emerald-700 text-white">
-                  <th className="py-4 px-6 text-left font-semibold rounded-tl-xl">EU Size</th>
-                  <th className="py-4 px-6 text-left font-semibold">UK Size</th>
-                  <th className="py-4 px-6 text-left font-semibold">US Size</th>
-                  <th className="py-4 px-6 text-left font-semibold rounded-tr-xl">
-                    Foot Length ({unit === 'cm' ? 'cm' : 'in'})
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sizeChart.map((row, idx) => (
-                  <tr
-                    key={row.eu}
-                    className={`border-b border-gray-100 transition-colors hover:bg-emerald-50 ${
-                      idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="py-4 px-6 font-bold text-gray-900 text-lg">{row.eu}</td>
-                    <td className="py-4 px-6 text-gray-700">{row.uk}</td>
-                    <td className="py-4 px-6 text-gray-700">{row.us}</td>
-                    <td className="py-4 px-6 text-gray-700 font-medium">
-                      {unit === 'cm' ? `${row.cm} cm` : `${row.inches}"`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
 
         {/* Fit Guide */}
         <section className="mb-16">

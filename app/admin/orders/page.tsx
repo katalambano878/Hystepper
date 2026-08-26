@@ -980,17 +980,17 @@ export default function AdminOrdersPage() {
           <p>These orders were created but payment was not completed. You can resend payment links to customers.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3">
+        <div className="flex md:grid gap-3 overflow-x-auto overscroll-x-contain snap-x snap-mandatory pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible md:snap-none md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 [-webkit-overflow-scrolling:touch] touch-pan-x touch-pan-y scrollbar-hide">
           {orderStats.map((stat) => (
             <button
               key={stat.status}
               onClick={() => setStatusFilter(stat.status)}
-              className={`p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${statusFilter === stat.status
+              className={`p-4 rounded-xl border-2 transition-all text-left cursor-pointer shrink-0 snap-start min-w-[9.5rem] md:min-w-0 md:snap-align-none ${statusFilter === stat.status
                 ? 'border-emerald-700 bg-emerald-50'
                 : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
             >
-              <p className="text-2xl font-bold text-gray-900">{stat.count}</p>
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">{stat.count}</p>
               <p className="text-sm text-gray-600 mt-1">{stat.label}</p>
             </button>
           ))}
@@ -1121,6 +1121,85 @@ export default function AdminOrdersPage() {
           </div>
         )}
 
+        <div className="md:hidden divide-y divide-gray-100">
+          {loading ? (
+            <div className="py-12 text-center text-gray-500">
+              <i className="ri-loader-4-line animate-spin text-3xl text-emerald-700"></i>
+              <p className="mt-2">Loading orders...</p>
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="py-12 text-center text-gray-500 px-4">
+              <i className="ri-inbox-line text-4xl text-gray-300"></i>
+              <p className="mt-2">No orders found</p>
+              <p className="text-sm">Orders will appear here when customers place them</p>
+            </div>
+          ) : (
+            filteredOrders.map((order) => (
+              <div key={order.id} className="p-4 flex gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedOrders.includes(order.id)}
+                  onChange={() => handleSelectOrder(order.id)}
+                  className="mt-1 w-4 h-4 shrink-0 text-emerald-700 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link href={`/admin/orders/${order.id}`} className="text-emerald-700 font-semibold text-sm break-all">
+                      {order.order_number || order.id.substring(0, 8)}
+                    </Link>
+                    <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusColors[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                      {formatStatus(order.status)}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {isPosOrder(order) ? (
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                          order.metadata?.pos_order_type === 'delivery'
+                            ? 'bg-amber-100 text-amber-800 border-amber-200'
+                            : 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                        }`}
+                      >
+                        {order.metadata?.pos_order_type === 'delivery' ? 'POS · Delivery' : 'POS'}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                        Online
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-500">{formatDate(order.created_at)}</span>
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-gray-900 truncate">{getCustomerName(order)}</p>
+                  <p className="text-xs text-gray-500 truncate">{getCustomerEmail(order)}</p>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-900">
+                      GH₵ {Number(order.total || 0).toFixed(2)}
+                      <span className="ml-2 font-normal text-gray-500">{getItemCount(order)} item{getItemCount(order) === 1 ? '' : 's'}</span>
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/admin/orders/${order.id}`}
+                        className="w-9 h-9 flex items-center justify-center text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
+                        aria-label="View order"
+                      >
+                        <i className="ri-eye-line text-lg"></i>
+                      </Link>
+                      <button
+                        onClick={() => openReceipt(order.id)}
+                        title="View / print receipt"
+                        className="w-9 h-9 flex items-center justify-center text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg cursor-pointer"
+                      >
+                        <i className="ri-printer-line text-lg"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="hidden md:block">
         <AdminTableScroll>
           <table className="w-full min-w-[54rem]">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -1301,6 +1380,7 @@ export default function AdminOrdersPage() {
             </tbody>
           </table>
         </AdminTableScroll>
+        </div>
 
         {filteredOrders.length > 0 && (
           <div className="p-6 border-t border-gray-200 flex items-center justify-between">

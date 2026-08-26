@@ -82,7 +82,7 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -266,19 +266,21 @@ export default function AdminLayout({
     });
   }, []);
 
-  // Screen size check for initial state
+  // Desktop: open the sidebar once. Phone: keep it closed so it cannot sit
+  // off-canvas and steal swipes. Crossing down to mobile always closes it.
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
-    const fn = () => setIsMobile(mq.matches);
-    fn();
-    mq.addEventListener('change', fn);
-    return () => mq.removeEventListener('change', fn);
-  }, []);
-
-  useEffect(() => {
-    if (window.innerWidth < 1024) {
-      setIsSidebarOpen(false);
-    }
+    const apply = (initial: boolean) => {
+      const mobile = mq.matches;
+      setIsMobile(mobile);
+      if (initial || mobile) {
+        setIsSidebarOpen(!mobile);
+      }
+    };
+    apply(true);
+    const onChange = () => apply(false);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   }, []);
 
   useBodyScrollLock(isSidebarOpen && isMobile);
@@ -404,9 +406,9 @@ export default function AdminLayout({
       <aside
         className={`fixed top-0 left-0 z-40 h-screen bg-white border-r border-gray-200 transition-all duration-300
           w-64
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+          ${isSidebarOpen ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none max-lg:invisible'}
           ${isSidebarOpen ? 'lg:w-64' : 'lg:w-0 lg:overflow-hidden'}
-          lg:translate-x-0
+          lg:translate-x-0 lg:pointer-events-auto lg:visible
         `}
       >
         <div className="h-full px-4 py-6 overflow-y-auto">

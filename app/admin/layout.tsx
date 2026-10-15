@@ -12,6 +12,10 @@ import {
   syncAdminPreviewCookie,
 } from '@/lib/admin-session-cookie';
 
+// Special sentinel used by the route + menu logic to indicate the dashboard
+// is super-admin-only.
+const SUPER_ADMIN_ONLY = '__super_admin__';
+
 // Maps each admin URL prefix to the permission key that grants access.
 // Keys are matched longest-prefix-first; a value of null means "no permission
 // required" (e.g. login). The dashboard (/admin) is intentionally NOT in this
@@ -42,13 +46,10 @@ const PATH_PERMISSIONS: Array<[string, string | null]> = [
   ['/admin/test-sms', 'notifications'],
   ['/admin/blog', 'blog'],
   ['/admin/modules', 'modules'],
+  ['/admin/sms-credit', SUPER_ADMIN_ONLY],
   ['/admin/staff', 'staff'],
   ['/admin/settings', 'settings'],
 ];
-
-// Special sentinel used by the route + menu logic to indicate the dashboard
-// is super-admin-only.
-const SUPER_ADMIN_ONLY = '__super_admin__';
 
 function requiredPermissionFor(pathname: string): string | null | undefined {
   // The dashboard root ('/admin' exactly) is always super-admin only.
@@ -363,6 +364,7 @@ export default function AdminLayout({
     { title: 'Notifications',    icon: 'ri-notification-3-line', path: '/admin/notifications',     moduleId: 'notifications', permKey: 'notifications' },
     { title: 'SMS Debugger',     icon: 'ri-message-2-line',      path: '/admin/test-sms' },
     { title: 'Blog',             icon: 'ri-article-line',        path: '/admin/blog',              moduleId: 'blog', permKey: 'blog' },
+    { title: 'Buy SMS',          icon: 'ri-message-2-line',      path: '/admin/sms-credit',                      permKey: SUPER_ADMIN_ONLY },
     { title: 'Modules',          icon: 'ri-puzzle-line',         path: '/admin/modules',                         permKey: 'modules' },
     { title: 'Staff',            icon: 'ri-user-settings-line',  path: '/admin/staff',                           permKey: 'staff' },
     { title: 'Settings',         icon: 'ri-settings-3-line',     path: '/admin/settings',                        permKey: 'settings' },

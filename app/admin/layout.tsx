@@ -348,6 +348,7 @@ export default function AdminLayout({
     { title: 'Dashboard',        icon: 'ri-dashboard-line',      path: '/admin',                  exact: true,  permKey: SUPER_ADMIN_ONLY },
     { title: 'Orders',           icon: 'ri-shopping-bag-line',   path: '/admin/orders',            badge: '',    permKey: 'orders' },
     { title: 'Delivery',         icon: 'ri-truck-line',          path: '/admin/delivery',                        permKey: 'delivery' },
+    { title: 'Buy SMS',          icon: 'ri-message-2-line',      path: '/admin/sms-credit',                      permKey: SUPER_ADMIN_ONLY },
     { title: 'My Deliveries',    icon: 'ri-e-bike-line',         path: '/admin/rider',                           permKey: 'order_status' },
     { title: 'POS System',       icon: 'ri-store-3-line',        path: '/admin/pos',                             permKey: 'pos' },
     { title: 'Products',         icon: 'ri-box-3-line',          path: '/admin/products',                        permKey: 'products' },

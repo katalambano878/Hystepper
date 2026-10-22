@@ -34,8 +34,45 @@ const BRAND = {
     colorDark: '#7c5703',
     colorLight: '#fef6e4',
     url: (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, ''),
-    phone: process.env.STORE_PHONE || '',
 };
+
+/** Replaced in sendEmail() with the public store phone/email — never ADMIN_PHONE. */
+const STORE_CONTACT_TOKEN = '<!--STORE_PUBLIC_CONTACT-->';
+
+function jsonSettingText(raw: unknown): string {
+    if (raw == null) return '';
+    const asString = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    return asString.replace(/^"+|"+$/g, '').trim();
+}
+
+let publicContactCache: { phone: string; email: string; fetchedAt: number } | null = null;
+
+async function resolvePublicStoreContact(): Promise<{ phone: string; email: string }> {
+    const now = Date.now();
+    if (publicContactCache && now - publicContactCache.fetchedAt < 60_000) {
+        return publicContactCache;
+    }
+
+    let settingsPhone = '';
+    let settingsEmail = '';
+    try {
+        const { data } = await supabaseAdmin
+            .from('store_settings')
+            .select('key, value')
+            .in('key', ['contact_phone', 'contact_email']);
+        for (const row of data || []) {
+            if (row.key === 'contact_phone') settingsPhone = jsonSettingText(row.value);
+            if (row.key === 'contact_email') settingsEmail = jsonSettingText(row.value);
+        }
+    } catch (err: any) {
+        console.warn('[Email] store contact lookup failed:', err?.message || err);
+    }
+
+    const phone = settingsPhone || stripQuotes(process.env.STORE_PHONE || '');
+    const email = settingsEmail || 'info@hystepper.com';
+    publicContactCache = { phone, email, fetchedAt: now };
+    return publicContactCache;
+}
 
 // ---------------------------------------------------------------------------
 // Reusable branded email shell
@@ -72,7 +109,7 @@ export function emailLayout(body: string, preheader?: string): string {
             <td style="background-color:#faf8f3;padding:24px 40px;border-top:1px solid #eee;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr><td style="text-align:center;">
-                  ${BRAND.phone ? `<p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Need help? Contact us at <a href="tel:${BRAND.phone}" style="color:${BRAND.color};text-decoration:none;">${BRAND.phone}</a></p>` : ''}
+                  ${STORE_CONTACT_TOKEN}
                   <p style="margin:0 0 12px;color:#6b7280;font-size:13px;">
                     <a href="${BRAND.url}" style="color:${BRAND.color};text-decoration:none;">Visit store</a> &nbsp;·&nbsp;
                     <a href="${BRAND.url}/shop" style="color:${BRAND.color};text-decoration:none;">Shop</a> &nbsp;·&nbsp;
@@ -223,11 +260,24 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
         return null;
     }
     try {
+        const contact = await resolvePublicStoreContact();
+        const contactBits: string[] = [];
+        if (contact.phone) {
+            contactBits.push(`Call <a href="tel:${escapeHtml(contact.phone)}" style="color:${BRAND.color};text-decoration:none;">${escapeHtml(contact.phone)}</a>`);
+        }
+        if (contact.email) {
+            contactBits.push(`Email <a href="mailto:${escapeHtml(contact.email)}" style="color:${BRAND.color};text-decoration:none;">${escapeHtml(contact.email)}</a>`);
+        }
+        const contactLine = contactBits.length
+            ? `<p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Need help? ${contactBits.join(' &nbsp;·&nbsp; ')}</p>`
+            : '';
+        const htmlWithContact = html.replaceAll(STORE_CONTACT_TOKEN, contactLine);
+
         const result = await resend.emails.send({
             from: EMAIL_FROM,
             to,
             subject,
-            html,
+            html: htmlWithContact,
             replyTo: EMAIL_REPLY_TO,
         });
         // The Resend SDK reports failures via `error` instead of throwing —
@@ -255,7 +305,43 @@ function formatPhoneNumber(phone: string): string {
     return '+' + cleaned;
 }
 
-export async function sendSMS({ to, message }: { to: string; message: string }) {
+
+const TAYSEND_SMS_URL = (process.env.TAYSEND_API_URL || "https://api.taysend.com").replace(/\/+$/, "");
+const TAYSEND_FAILED_STATUSES = new Set(["failed", "rejected", "undelivered", "expired"]);
+
+async function sendViaTaysend(to: string, message: string, senderFallback?: string) {
+    const apiKey = process.env.TAYSEND_API_KEY?.trim();
+    const from = (process.env.TAYSEND_SENDER_ID || senderFallback || process.env.MOOLRE_SMS_SENDER_ID || "").trim();
+    if (!apiKey || !from) return null;
+    try {
+        const response = await fetch(`${TAYSEND_SMS_URL}/v1/messages`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": crypto.randomUUID(),
+            },
+            body: JSON.stringify({ to, sender_id: from, message, type: "transactional" }),
+            signal: AbortSignal.timeout(15000),
+        });
+        const result: any = await response.json().catch(() => null);
+        const status = String(result?.status || "").toLowerCase();
+        if (response.ok && result?.id && !TAYSEND_FAILED_STATUSES.has(status)) {
+            return { status: 1, code: "SMS01", provider: "taysend", messageid: result.id, data: [{ messageid: result.id }] };
+        }
+        console.warn("[SMS] Taysend failed, falling back:", result?.error?.message || result?.error || status || response.status);
+        return null;
+    } catch (error: any) {
+        console.warn("[SMS] Taysend failed, falling back:", error?.message || error);
+        return null;
+    }
+}
+
+export async function sendSMS({
+ to, message }: { to: string; message: string }) {
+        const viaTaysend = await sendViaTaysend(formatPhoneNumber(to), message);
+    if (viaTaysend) return viaTaysend;
+
     // Official Moolre SMS auth is X-API-VASKEY only (payment USER/PUBKEY must not
     // be mixed in — that returns AIN01 Authentication Error).
     // Coolify sometimes stores JWT env values wrapped in quotes; strip them.
@@ -426,7 +512,7 @@ ${emailButton('View Order in Admin', `${BRAND.url}/admin/orders/${id}`)}
     if (phone) {
         const shippingNotesSms = shippingNotes.length > 0 ? ` Note: ${shippingNotes.join('; ')}.` : '';
         const amountLine = isPartial
-            ? ` Paid GH₵${Number(payableNow).toFixed(2)} online; GH₵${Number(deliveryDue).toFixed(2)} due on delivery.`
+            ? ` Paid GH₵${Number(payableNow).toFixed(2)} now; GH₵${Number(deliveryDue).toFixed(2)} due on delivery.`
             : '';
         const smsMessage = trackingNumber
             ? `Hi ${name}, your ${BRAND.name} order #${orderRef} is confirmed!${amountLine} Tracking: ${trackingNumber}. Track: ${trackingUrl}${shippingNotesSms}`
@@ -761,6 +847,8 @@ export async function sendPosAdminAlert(alert: {
     orderId: string;
     orderNumber: string;
     total: number;
+    payableNow?: number;
+    deliveryFeeDue?: number;
     orderType: 'walk_in' | 'delivery';
     paymentMethod: string;
     customerName?: string;
@@ -770,18 +858,26 @@ export async function sendPosAdminAlert(alert: {
     const typeLabel = alert.orderType === 'delivery' ? 'Delivery' : 'Walk-in';
     const rawMethod = (alert.paymentMethod || 'cash').toString().toLowerCase();
     const isPayOnDelivery = rawMethod === 'pay_on_delivery';
+    const deliveryDue = Number(alert.deliveryFeeDue) || 0;
+    const payableNow = Number(alert.payableNow);
+    const isItemOnly = !isPayOnDelivery && deliveryDue > 0;
     // Friendlier method label so the admin SMS doesn't read "via PAY_ON_DELIVERY".
     const payLabel = isPayOnDelivery
         ? 'PAY ON DELIVERY (UNPAID)'
-        : rawMethod === 'momo' || rawMethod === 'mobile_money'
-            ? 'MOMO'
-            : rawMethod.toUpperCase();
+        : isItemOnly
+            ? `${rawMethod === 'momo' || rawMethod === 'mobile_money' ? 'MOMO' : rawMethod.toUpperCase()} (ITEMS PAID, DELIVERY DUE)`
+            : rawMethod === 'momo' || rawMethod === 'mobile_money'
+                ? 'MOMO'
+                : rawMethod.toUpperCase();
     const customerLine = alert.customerName && alert.customerName !== 'Walk-in Customer'
         ? ` for ${alert.customerName}`
         : '';
     const phoneLine = alert.customerPhone ? ` (${alert.customerPhone})` : '';
+    const amountLine = isItemOnly
+        ? `GH₵${(Number.isFinite(payableNow) ? payableNow : Number(alert.total) - deliveryDue).toFixed(2)} paid, GH₵${deliveryDue.toFixed(2)} delivery due`
+        : `GH₵${Number(alert.total).toFixed(2)}`;
 
-    const message = `POS ${typeLabel} sale #${alert.orderNumber}: GH₵${Number(alert.total).toFixed(2)} via ${payLabel}${customerLine}${phoneLine}.`;
+    const message = `POS ${typeLabel} sale #${alert.orderNumber}: ${amountLine} via ${payLabel}${customerLine}${phoneLine}.`;
 
     console.log(
         `[POS Admin Alert] Order #${alert.orderNumber} | Admin phone: ${adminPhone ? maskPhone(adminPhone) : 'NONE'} (source: ${source})`
@@ -811,6 +907,8 @@ export async function sendPosAdminAlert(alert: {
   ${emailInfoRow('Order', `#${escapeHtml(alert.orderNumber)}`)}
   ${emailInfoRow('Type', typeLabel)}
   ${emailInfoRow('Total', `<span style="color:${BRAND.color};font-weight:700;">GH₵${Number(alert.total).toFixed(2)}</span>`)}
+  ${isItemOnly ? emailInfoRow('Paid now', `GH₵${(Number.isFinite(payableNow) ? payableNow : Number(alert.total) - deliveryDue).toFixed(2)}`) : ''}
+  ${isItemOnly ? emailInfoRow('Delivery due at door', `GH₵${deliveryDue.toFixed(2)}`) : ''}
   ${emailInfoRow('Payment', escapeHtml(payLabel))}
   ${alert.customerName ? emailInfoRow('Customer', escapeHtml(alert.customerName)) : ''}
   ${alert.customerPhone ? emailInfoRow('Phone', escapeHtml(alert.customerPhone)) : ''}

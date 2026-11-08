@@ -198,16 +198,10 @@ export default function Footer() {
               <i className="ri-visa-line text-xl"></i>
               <i className="ri-mastercard-line text-xl"></i>
             </div>
-            <a
-              href="https://doctorbarns.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-            >
-              Powered by Doctor Barns Tech
-            </a>
+            <p className="text-xs text-gray-500">
+              Powered by{' '}
+              <a href="https://doctorbarns.com" target="_blank" rel="noopener" className="text-gray-500 hover:text-white hover:underline transition-colors">Doctor Barns Tech</a>
+            </p>
           </div>
         </div>
       </div>

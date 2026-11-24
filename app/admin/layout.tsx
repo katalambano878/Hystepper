@@ -7,6 +7,7 @@ import { supabase, signOutFully } from '@/lib/supabase';
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock';
 import NotificationsBell from '@/components/admin/NotificationsBell';
 import {
+import { SmsCreditDashboardCard } from '@/components/admin/SmsCreditDashboardCard';
   clearAdminPreviewCookie,
   setAdminSessionCookie,
   syncAdminPreviewCookie,
@@ -535,6 +536,7 @@ export default function AdminLayout({
           </div>
         </header>
 
+        <SmsCreditDashboardCard />
         <main className="p-4 lg:p-6 min-w-0">
           {children}
         </main>

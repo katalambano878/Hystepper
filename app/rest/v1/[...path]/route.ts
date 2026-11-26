@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardRpc, guardTable } from "@/lib/db/rest-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,27 +68,27 @@ export async function OPTIONS() {
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
-export async function GET(req: NextRequest, ctx: Ctx) {
-  const { path = [] } = await ctx.params;
-  return proxy(req, path);
+/**
+ * Access rules (lib/db/rest-guard.ts) in front of the PostgREST proxy.
+ * /rest/v1/rpc/<fn> is judged as an RPC call, /rest/v1/<table> as a table;
+ * any other path (schema root, nested paths) as table "" = staff only.
+ */
+function guarded(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE") {
+  return async (req: NextRequest, ctx: Ctx) => {
+    const { path = [] } = await ctx.params;
+    const forward = (r: NextRequest) => proxy(r, path);
+    if (path[0] === "rpc" && path.length === 2) {
+      return guardRpc(forward)(req, { params: Promise.resolve({ fn: path[1] }) });
+    }
+    const table = path.length === 1 ? path[0] : "";
+    return guardTable(method, forward)(req, { params: Promise.resolve({ table }) });
+  };
 }
-export async function POST(req: NextRequest, ctx: Ctx) {
-  const { path = [] } = await ctx.params;
-  return proxy(req, path);
-}
-export async function PUT(req: NextRequest, ctx: Ctx) {
-  const { path = [] } = await ctx.params;
-  return proxy(req, path);
-}
-export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const { path = [] } = await ctx.params;
-  return proxy(req, path);
-}
-export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const { path = [] } = await ctx.params;
-  return proxy(req, path);
-}
-export async function HEAD(req: NextRequest, ctx: Ctx) {
-  const { path = [] } = await ctx.params;
-  return proxy(req, path);
-}
+
+export const GET = guarded("GET");
+export const POST = guarded("POST");
+export const PUT = guarded("PUT");
+export const PATCH = guarded("PATCH");
+export const DELETE = guarded("DELETE");
+// HEAD is a read (count with head: true): same rules as GET.
+export const HEAD = guarded("GET");
